@@ -375,6 +375,146 @@ function weekByDay() {
   return days;
 }
 
+const SCHOOL_YEAR_MONTHS = [
+  { y: 2026, m: 8, name: "September" },
+  { y: 2026, m: 9, name: "October" },
+  { y: 2026, m: 10, name: "November" },
+  { y: 2026, m: 11, name: "December" },
+  { y: 2027, m: 0, name: "January" },
+  { y: 2027, m: 1, name: "February" },
+  { y: 2027, m: 2, name: "March" },
+  { y: 2027, m: 3, name: "April" },
+  { y: 2027, m: 4, name: "May" },
+  { y: 2027, m: 5, name: "June" },
+];
+
+const SCHOOL_YEAR_MARKS = {
+  "2026-09-07": "closed",
+  "2026-09-08": "first",
+  "2026-09-25": "students",
+  "2026-09-30": "friday",
+  "2026-10-06": "friday",
+  "2026-10-09": "students",
+  "2026-10-12": "closed",
+  "2026-10-22": "friday",
+  "2026-10-23": "students",
+  "2026-11-11": "closed",
+  "2026-11-17": "friday",
+  "2026-11-20": "students",
+  "2026-12-03": "friday",
+  "2026-12-04": "students",
+  "2026-12-21": "closed",
+  "2026-12-22": "closed",
+  "2026-12-23": "closed",
+  "2026-12-24": "closed",
+  "2026-12-25": "closed",
+  "2026-12-28": "closed",
+  "2026-12-29": "closed",
+  "2026-12-30": "closed",
+  "2026-12-31": "closed",
+  "2027-01-01": "closed",
+  "2027-01-26": "friday",
+  "2027-01-29": "students",
+  "2027-02-01": "secondary",
+  "2027-02-10": "friday",
+  "2027-02-12": "students",
+  "2027-02-15": "closed",
+  "2027-03-01": "closed",
+  "2027-03-02": "closed",
+  "2027-03-03": "closed",
+  "2027-03-04": "closed",
+  "2027-03-05": "closed",
+  "2027-03-19": "students",
+  "2027-03-25": "friday",
+  "2027-03-26": "closed",
+  "2027-03-29": "closed",
+  "2027-04-02": "students",
+  "2027-04-13": "friday",
+  "2027-04-16": "students",
+  "2027-05-05": "friday",
+  "2027-05-07": "students",
+  "2027-05-20": "friday",
+  "2027-05-21": "students",
+  "2027-05-24": "closed",
+  "2027-06-18": "primary",
+  "2027-06-25": "last",
+};
+
+const YEAR_LEGEND = [
+  ["first", "First day of class"],
+  ["last", "Last day of class"],
+  ["closed", "No class for students or staff"],
+  ["students", "Holiday for all students"],
+  ["primary", "Holiday for primary only"],
+  ["secondary", "Holiday for secondary only"],
+  ["friday", "Friday timetable"],
+];
+
+const CAL_TODAY = "2026-10-16";
+
+function isoDay(y, m, d) {
+  return `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+
+function monthWeekdays(y, m) {
+  const firstDow = new Date(y, m, 1).getDay();
+  const lead = firstDow === 0 ? 6 : firstDow - 1;
+  const last = new Date(y, m + 1, 0).getDate();
+  const cells = Array(lead).fill(null);
+  for (let d = 1; d <= last; d += 1) {
+    const dow = new Date(y, m, d).getDay();
+    if (dow === 0 || dow === 6) continue;
+    cells.push(d);
+  }
+  while (cells.length % 5) cells.push(null);
+  return cells;
+}
+
+function yearCalendarHtml() {
+  const kid = state.role === "parent" ? child() : null;
+  return `
+    <section class="year-wrap">
+      <div class="widget-head">
+        <h2>${tx("School year")} 2026–2027</h2>
+        <span class="kicker">${tx("Mon–Fri · Cedar Hill K–8")}</span>
+      </div>
+      <p class="lede year-lede">${
+        kid
+          ? txf("Holidays and Friday timetables for the whole school. Primary days matter for {primary}. Secondary days matter for {secondary}.", {
+              primary: "Maya · Noah",
+              secondary: "Samira",
+            })
+          : tx("Holidays, PD days, and Friday timetables for students and staff.")
+      }</p>
+      <div class="year-cal">
+        ${SCHOOL_YEAR_MONTHS.map((month) => {
+          const cells = monthWeekdays(month.y, month.m);
+          return `
+            <article class="card year-month">
+              <h3>${tx(month.name)} ${month.m === 8 || month.m === 0 ? month.y : ""}</h3>
+              <div class="year-grid" role="grid" aria-label="${tx(month.name)}">
+                ${["Mon", "Tue", "Wed", "Thu", "Fri"].map((d) => `<span class="year-dow">${tx(d)}</span>`).join("")}
+                ${cells
+                  .map((d) => {
+                    if (!d) return `<span class="year-day is-empty"></span>`;
+                    const iso = isoDay(month.y, month.m, d);
+                    const mark = SCHOOL_YEAR_MARKS[iso] || "";
+                    const label = YEAR_LEGEND.find((row) => row[0] === mark);
+                    const today = iso === CAL_TODAY ? " is-today" : "";
+                    const title = label ? tx(label[1]) : "";
+                    return `<span class="year-day ${mark}${today}" title="${title}">${d}</span>`;
+                  })
+                  .join("")}
+              </div>
+            </article>`;
+        }).join("")}
+      </div>
+      <ul class="year-legend">
+        ${YEAR_LEGEND.map(([id, label]) => `<li><span class="year-swatch ${id}"></span>${tx(label)}</li>`).join("")}
+      </ul>
+    </section>`;
+}
+
 function teacherThreadId() {
   return child().threads[0]?.id || "office";
 }
@@ -756,6 +896,7 @@ const navByRole = {
     ["alerts", "Notifications", "#/alerts"],
     ["scan", "Scan flyer", "#/scan"],
     ["attendance", "Attendance", "#/teach/attendance"],
+    ["calendar", "Calendar", "#/calendar"],
     ["class", "Activities", "#/class"],
     ["messages", "Families", "#/messages"],
   ],
@@ -996,6 +1137,28 @@ const BOOK = {
   ["Fundraisers", "Collectes", "募捐", "ਫੰਡਰੇਜ਼ਰ", "Recaudaciones"],
   ["From school", "De l’école", "来自学校", "ਸਕੂਲ ਵੱਲੋਂ", "De la escuela"],
   ["This week", "Cette semaine", "本周", "ਇਸ ਹਫ਼ਤੇ", "Esta semana"],
+  ["School year", "Année scolaire", "学年", "ਸਕੂਲ ਸਾਲ", "Año escolar"],
+  ["Mon–Fri · Cedar Hill K–8", "Lun–ven · Cedar Hill K–8", "周一至周五 · Cedar Hill K–8", "ਸੋਮ–ਸ਼ੁੱਕ · Cedar Hill K–8", "Lun–vie · Cedar Hill K–8"],
+  ["Holidays, PD days, and Friday timetables for students and staff.", "Congés, journées pédagogiques et horaires du vendredi pour les élèves et le personnel.", "学生和教职工的假期、教研日和周五课表。", "ਵਿਦਿਆਰਥੀਆਂ ਅਤੇ ਸਟਾਫ ਲਈ ਛੁੱਟੀਆਂ, ਪੀ.ਡੀ. ਅਤੇ ਸ਼ੁੱਕਰਵਾਰ ਟਾਈਮਟੇਬਲ।", "Vacaciones, días pedagógicos y horario de viernes para estudiantes y personal."],
+  ["Holidays and Friday timetables for the whole school. Primary days matter for {primary}. Secondary days matter for {secondary}.", "Congés et horaires du vendredi pour toute l’école. Les jours du primaire concernent {primary}. Les jours du secondaire concernent {secondary}.", "全校假期和周五课表。小学日适用于{primary}。中学日适用于{secondary}。", "ਸਾਰੇ ਸਕੂਲ ਲਈ ਛੁੱਟੀਆਂ ਅਤੇ ਸ਼ੁੱਕਰਵਾਰ ਟਾਈਮਟੇਬਲ। ਪ੍ਰਾਇਮਰੀ {primary} ਲਈ। ਸੈਕੰਡਰੀ {secondary} ਲਈ।", "Vacaciones y horario de viernes para toda la escuela. Los días de primaria aplican a {primary}. Los de secundaria, a {secondary}."],
+  ["First day of class", "Première journée de classe", "开学第一天", "ਪਹਿਲਾ ਸਕੂਲ ਦਿਨ", "Primer día de clase"],
+  ["Last day of class", "Dernière journée de classe", "学期最后一天", "ਆਖਰੀ ਸਕੂਲ ਦਿਨ", "Último día de clase"],
+  ["No class for students or staff", "Aucune classe pour les élèves et le personnel", "学生和教职工均不上课", "ਵਿਦਿਆਰਥੀ ਅਤੇ ਸਟਾਫ ਲਈ ਕਲਾਸ ਨਹੀਂ", "Sin clase para estudiantes ni personal"],
+  ["Holiday for all students", "Congé pour tous les élèves", "全体学生放假", "ਸਾਰੇ ਵਿਦਿਆਰਥੀਆਂ ਲਈ ਛੁੱਟੀ", "Vacaciones para todos los estudiantes"],
+  ["Holiday for primary only", "Congé pour le primaire seulement", "仅小学放假", "ਸਿਰਫ ਪ੍ਰਾਇਮਰੀ ਲਈ ਛੁੱਟੀ", "Vacaciones solo de primaria"],
+  ["Holiday for secondary only", "Congé pour le secondaire seulement", "仅中学放假", "ਸਿਰਫ ਸੈਕੰਡਰੀ ਲਈ ਛੁੱਟੀ", "Vacaciones solo de secundaria"],
+  ["Friday timetable", "Horaire du vendredi", "周五课表", "ਸ਼ੁੱਕਰਵਾਰ ਟਾਈਮਟੇਬਲ", "Horario de viernes"],
+  ["September", "Septembre", "九月", "ਸਤੰਬਰ", "Septiembre"],
+  ["October", "Octobre", "十月", "ਅਕਤੂਬਰ", "Octubre"],
+  ["November", "Novembre", "十一月", "ਨਵੰਬਰ", "Noviembre"],
+  ["December", "Décembre", "十二月", "ਦਸੰਬਰ", "Diciembre"],
+  ["January", "Janvier", "一月", "ਜਨਵਰੀ", "Enero"],
+  ["February", "Février", "二月", "ਫਰਵਰੀ", "Febrero"],
+  ["March", "Mars", "三月", "ਮਾਰਚ", "Marzo"],
+  ["April", "Avril", "四月", "ਅਪ੍ਰੈਲ", "Abril"],
+  ["May", "Mai", "五月", "ਮਈ", "Mayo"],
+  ["June", "Juin", "六月", "ਜੂਨ", "Junio"],
+  ["Class holds and office events that change pickup this week.", "Retenues de classe et événements du bureau qui changent le ramassage cette semaine.", "本周影响接送的班级安排和办公室活动。", "ਇਸ ਹਫ਼ਤੇ ਕਲਾਸ ਹੋਲਡ ਅਤੇ ਦਫ਼ਤਰ ਈਵੈਂਟ ਜੋ ਲੈਣਾ ਬਦਲਦੇ ਹਨ।", "Retenciones de clase y eventos de oficina que cambian la recogida esta semana."],
   ["Week, absences, and a note to the office", "La semaine, les absences, et un mot au bureau", "本周出勤，以及给办公室的说明", "ਹਫ਼ਤਾ, ਗੈਰਹਾਜ਼ਰੀ, ਅਤੇ ਦਫ਼ਤਰ ਲਈ ਨੋਟ", "La semana, ausencias y una nota a la oficina"],
   ["See the week", "Voir la semaine", "查看本周", "ਹਫ਼ਤਾ ਵੇਖੋ", "Ver la semana"],
   ["To read or sign", "À lire ou signer", "待读或签字", "ਪੜ੍ਹਨ ਜਾਂ ਦਸਤਖ਼ਤ", "Para leer o firmar"],
@@ -2106,14 +2269,19 @@ function bindCalendarExport() {
 function calendar() {
   paintChrome("calendar");
   setCrumbs([
-    { label: "Today", href: "#/" },
-    { label: "Calendar", href: "#/calendar" },
+    boardCrumb(),
+    { label: state.role === "admin" ? "Events" : "Calendar", href: "#/calendar" },
   ]);
+  const who = state.role === "parent" ? child().short : "Cedar Hill";
   view.innerHTML = `
     <div class="hero">
       <div>
         <h1>${tx("Week of Oct 13")}</h1>
-        <p class="lede">${txf("{name}’s week at Cedar Hill K–8. Class holds and office events that change pickup.", { name: child().short })}</p>
+        <p class="lede">${
+          state.role === "parent"
+            ? txf("{name}’s week at Cedar Hill K–8. Class holds and office events that change pickup.", { name: who })
+            : tx("Class holds and office events that change pickup this week.")
+        }</p>
       </div>
     </div>
     ${calendarExportBar()}
@@ -2128,6 +2296,7 @@ function calendar() {
         )
         .join("")}
     </section>
+    ${yearCalendarHtml()}
   `;
   bindCalendarExport();
 }
@@ -3213,6 +3382,7 @@ function mvpSchedule() {
         : ""
     }
     <section class="card panel">${kidSchedule().map(schedRow).join("")}</section>
+    ${yearCalendarHtml()}
   `;
   bindCalendarExport();
   const form = document.getElementById("sched-form");
@@ -3441,6 +3611,7 @@ function render() {
 
   if (state.role === "teacher") {
     if (parts[0] === "teach" && parts[1] === "attendance") return teacherAttendance();
+    if (parts[0] === "calendar") return calendar();
     if (parts[0] === "messages") return messages(parts[1]);
     if (parts[0] === "class") return classroom(parts[1]);
     return teacherHome();
