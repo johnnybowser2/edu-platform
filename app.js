@@ -203,6 +203,67 @@ function rosterStudent(id) {
   return roster.find((s) => s.id === id);
 }
 
+const DISMISS_MODES = [
+  { id: "bus", title: "Bus", lane: "Bus loop" },
+  { id: "carpool", title: "Carpool", lane: "Carpool line" },
+  { id: "walk", title: "Walker", lane: "Walker door" },
+  { id: "care", title: "After-school", lane: "Kids Club" },
+  { id: "early", title: "Early pickup", lane: "Office" },
+];
+
+const USUAL_DISMISS = {
+  maya: { mode: "bus", detail: "Route 7" },
+  noah: { mode: "bus", detail: "Route 7" },
+  samira: { mode: "walk", detail: "Walker door · 3:10" },
+  leo: { mode: "carpool", detail: "Loop A" },
+  amira: { mode: "bus", detail: "Bus 4" },
+  priya: { mode: "care", detail: "Kids Club until 5:15" },
+  jonas: { mode: "bus", detail: "Route 7" },
+  elias: { mode: "bus", detail: "Route 7" },
+  hana: { mode: "carpool", detail: "Loop B" },
+  sofia: { mode: "care", detail: "Kids Club until 4:30" },
+  ben: { mode: "bus", detail: "Bus 4" },
+  omar: { mode: "bus", detail: "Route 12" },
+  rue: { mode: "carpool", detail: "Loop A" },
+  lina: { mode: "walk", detail: "Walker door · 3:10" },
+  kai: { mode: "bus", detail: "Route 12" },
+};
+
+function dismissMode(id) {
+  return DISMISS_MODES.find((m) => m.id === id) || DISMISS_MODES[0];
+}
+
+function usualDismiss(id) {
+  return USUAL_DISMISS[id] || { mode: "bus", detail: "Route 7" };
+}
+
+function dismissNoteFor(id) {
+  return (state.dismissNotes || []).find((note) => note.studentId === id);
+}
+
+function todayDismiss(id) {
+  const usual = usualDismiss(id);
+  const note = dismissNoteFor(id);
+  const status = (state.dismissStatus || {})[id] || note?.status || "waiting";
+  if (!note) {
+    return { ...usual, usual, change: false, note: "", from: "", at: "", status };
+  }
+  return {
+    mode: note.mode,
+    detail: note.detail,
+    usual,
+    change: note.mode !== usual.mode || note.detail !== usual.detail,
+    note: note.note || "",
+    from: note.from || "parent",
+    at: note.at || "",
+    status,
+  };
+}
+
+function dismissChangedCount(room) {
+  return roster.filter((s) => (!room || s.room === room) && todayDismiss(s.id).change && todayDismiss(s.id).status !== "released").length;
+}
+
 function rosterGrades() {
   const order = ["Kindergarten", "Grade 2", "Grade 4", "Grade 6", "Grade 8"];
   return [...new Set(roster.map((s) => s.grade))].sort((a, b) => order.indexOf(a) - order.indexOf(b));
@@ -256,6 +317,36 @@ function kidSchedule() {
 
 function kidDocs() {
   return state.role === "parent" ? kidItems(state.docs) : state.docs;
+}
+
+function kidEvents() {
+  return state.role === "parent" ? kidItems(state.schoolEvents) : state.schoolEvents;
+}
+
+const EVENT_KINDS = [
+  { id: "dance", title: "Dances", singular: "Dance" },
+  { id: "sport", title: "Sports", singular: "Sport" },
+  { id: "fundraiser", title: "Fundraisers", singular: "Fundraiser" },
+];
+
+function eventKindMeta(kind) {
+  return EVENT_KINDS.find((k) => k.id === kind) || EVENT_KINDS[0];
+}
+
+function eventKindTone(kind) {
+  if (kind === "fundraiser") return "risk";
+  if (kind === "sport") return "amber";
+  return "";
+}
+
+function unreadEventsCount() {
+  return kidEvents().filter((item) => item.unread).length;
+}
+
+function filteredEvents() {
+  const kind = state.eventFilter || "all";
+  const items = kidEvents();
+  return kind === "all" ? items : items.filter((item) => item.kind === kind);
 }
 
 const DOC_BUCKETS = [
@@ -324,7 +415,20 @@ function navBadgeCount(id) {
   if (id === "alerts") return unreadAlerts().length;
   if (id === "messages" || id === "inbox") return unreadComms();
   if (id === "docs") return unreadDocsCount();
+  if (id === "events") return unreadEventsCount();
+  if (id === "lunch") {
+    if (state.role === "parent") return cartCount();
+    if (state.role === "teacher") {
+      return roster.filter((s) => s.room === (state.lunchRoom || "Room K2") && lunchLinesForChild(LUNCH_TODAY, s.id).length).length;
+    }
+    return 0;
+  }
   if (id === "calendar" || id === "schedule") return reminders;
+  if (id === "dismiss") {
+    if (state.role === "teacher") return dismissChangedCount(state.dismissRoom || "Room 12");
+    if (state.role === "admin") return dismissChangedCount();
+    return todayDismiss(child().id).change ? 1 : 0;
+  }
   if (id === "bus" || id === "class" || id === "attendance") return reminders;
   return 0;
 }
@@ -342,6 +446,8 @@ function alertHref(alert) {
   if (alert.section === "docs") return "#/";
   if (alert.section === "inbox") return "#/messages";
   if (alert.section === "schedule") return "#/calendar";
+  if (alert.section === "events") return alert.ref ? `#/events/${alert.ref}` : "#/events";
+  if (alert.section === "dismiss") return "#/dismiss";
   return alert.href;
 }
 
@@ -451,6 +557,57 @@ const YEAR_LEGEND = [
 ];
 
 const CAL_TODAY = "2026-10-16";
+const LUNCH_TODAY = "2026-10-22";
+const LUNCH_LAST = "2026-11-06";
+const LUNCH_CATS = [
+  { id: "main", title: "Main" },
+  { id: "sandwich", title: "Sandwich" },
+  { id: "salad", title: "Salad" },
+  { id: "drink", title: "Drink" },
+  { id: "dessert", title: "Dessert" },
+];
+const LUNCH_SIDES = [
+  { id: "grilled-cheese", cat: "sandwich", name: "Grilled cheese", price: 4.5 },
+  { id: "ham", cat: "sandwich", name: "Ham sandwich", price: 4.5 },
+  { id: "ham-cheese-hot", cat: "sandwich", name: "Ham & cheese, grilled", price: 4.5 },
+  { id: "ham-cheese", cat: "sandwich", name: "Ham & cheese", price: 4.5 },
+  { id: "caesar", cat: "salad", name: "Caesar salad", price: 6 },
+  { id: "protein", cat: "salad", name: "Extra protein", price: 3.25 },
+  { id: "milk", cat: "drink", name: "White milk", price: 0.8 },
+  { id: "water", cat: "drink", name: "Water 500 ml", price: 2 },
+  { id: "dessert-day", cat: "dessert", name: "Dessert of the day", price: 2 },
+  { id: "cookie", cat: "dessert", name: "Cookie", price: 1.5 },
+  { id: "muffin", cat: "dessert", name: "Muffin", price: 2 },
+];
+const LUNCH_MAINS = {
+  1: [
+    { id: "chicken-burger", name: "Chicken burger with potatoes & vegetables (with milk)", price: 4 },
+    { id: "veggie-burger", name: "Veggie burger with potatoes & vegetables (with milk)", price: 4 },
+  ],
+  2: [
+    { id: "spaghetti-meat", name: "Spaghetti with meat sauce and bun (with milk)", price: 4 },
+    { id: "spaghetti-tomato", name: "Spaghetti with tomato sauce and bun (with milk)", price: 4 },
+  ],
+  3: [
+    { id: "harvest", name: "Harvest pasta", price: 4.5 },
+    { id: "soup", name: "Tomato soup & bun", price: 4 },
+  ],
+  4: [
+    { id: "bowl", name: "Rice bowl", price: 5 },
+    { id: "taco", name: "Bean taco", price: 4.5 },
+  ],
+  5: [
+    { id: "pizza", name: "Cheese pizza", price: 4.5 },
+    { id: "chicken-burger", name: "Chicken burger with potatoes & vegetables (with milk)", price: 4 },
+  ],
+};
+const WEEK_ISO = {
+  "2026-10-13": "Mon",
+  "2026-10-14": "Tue",
+  "2026-10-15": "Wed",
+  "2026-10-16": "Thu",
+  "2026-10-17": "Fri",
+};
 
 function isoDay(y, m, d) {
   return `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
@@ -515,6 +672,161 @@ function yearCalendarHtml() {
     </section>`;
 }
 
+function parseIso(iso) {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function lunchDateMeta(iso) {
+  const dt = parseIso(iso);
+  const dows = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  const dow = dows[dt.getDay()];
+  return {
+    iso,
+    dt,
+    dow,
+    month: months[dt.getMonth()],
+    day: dt.getDate(),
+    year: dt.getFullYear(),
+    label: `${dow} ${months[dt.getMonth()].slice(0, 3)} ${dt.getDate()}`,
+    long: `${months[dt.getMonth()]} ${dt.getDate()}, ${dt.getFullYear()}`,
+    today: iso === LUNCH_TODAY,
+  };
+}
+
+function mondayIso(iso) {
+  const dt = parseIso(iso);
+  const offset = dt.getDay() === 0 ? -6 : 1 - dt.getDay();
+  dt.setDate(dt.getDate() + offset);
+  return isoDay(dt.getFullYear(), dt.getMonth(), dt.getDate());
+}
+
+function lunchDays() {
+  const days = [];
+  const start = parseIso(LUNCH_TODAY);
+  const end = parseIso(LUNCH_LAST);
+  for (let dt = new Date(start); dt <= end; dt.setDate(dt.getDate() + 1)) {
+    const dow = dt.getDay();
+    if (dow === 0 || dow === 6) continue;
+    const iso = isoDay(dt.getFullYear(), dt.getMonth(), dt.getDate());
+    const mark = SCHOOL_YEAR_MARKS[iso];
+    if (mark === "closed" || mark === "students") continue;
+    days.push(lunchDateMeta(iso));
+  }
+  return days;
+}
+
+function defaultLunchMenu(iso) {
+  const dt = parseIso(iso);
+  const mains = (LUNCH_MAINS[dt.getDay()] || []).map((item) => ({ ...item, cat: "main" }));
+  return [...mains, ...LUNCH_SIDES.map((item) => ({ ...item }))];
+}
+
+function lunchMenu(iso) {
+  if (Object.prototype.hasOwnProperty.call(state.lunchMenuByIso, iso)) {
+    return state.lunchMenuByIso[iso];
+  }
+  return defaultLunchMenu(iso);
+}
+
+function lunchDaysInWeek(week) {
+  return lunchDays().filter((day) => mondayIso(day.iso) === week);
+}
+
+function lunchOrdersForDay(iso) {
+  return state.lunchOrders.filter((order) => order.lines.some((line) => line.iso === iso));
+}
+
+function lunchLinesForChild(iso, childId) {
+  return lunchOrdersForDay(iso)
+    .filter((order) => order.childId === childId)
+    .flatMap((order) => order.lines.filter((line) => line.iso === iso));
+}
+
+const LUNCH_ROOMS = [
+  { id: "Room K2", title: "Kindergarten · Room K2", teacher: "Mr. Patel" },
+  { id: "Room 8", title: "Grade 2 · Room 8", teacher: "Ms. Grant" },
+  { id: "Room 12", title: "My class · Room 12", teacher: "Ms. Ellison" },
+];
+
+function lunchItem(iso, itemId) {
+  return lunchMenu(iso).find((item) => item.id === itemId);
+}
+
+function money(n) {
+  return `$${Number(n).toFixed(2)}`;
+}
+
+function cartBag() {
+  const id = child().id;
+  if (!state.lunchCart[id]) state.lunchCart[id] = [];
+  return state.lunchCart[id];
+}
+
+function cartLines() {
+  return cartBag().filter((line) => line.qty > 0);
+}
+
+function cartQty(iso, itemId) {
+  return cartBag().find((line) => line.iso === iso && line.itemId === itemId)?.qty || 0;
+}
+
+function cartCount() {
+  return cartLines().reduce((sum, line) => sum + line.qty, 0);
+}
+
+function cartTotal() {
+  return cartLines().reduce((sum, line) => {
+    const item = lunchItem(line.iso, line.itemId);
+    return sum + (item ? item.price * line.qty : 0);
+  }, 0);
+}
+
+function dayCartTotal(iso) {
+  return cartLines()
+    .filter((line) => line.iso === iso)
+    .reduce((sum, line) => {
+      const item = lunchItem(line.iso, line.itemId);
+      return sum + (item ? item.price * line.qty : 0);
+    }, 0);
+}
+
+function setLunchQty(iso, itemId, qty) {
+  const bag = cartBag();
+  qty = Math.max(0, Math.min(9, Number(qty) || 0));
+  const line = bag.find((row) => row.iso === iso && row.itemId === itemId);
+  if (line) {
+    line.qty = qty;
+    if (!qty) state.lunchCart[child().id] = bag.filter((row) => row !== line);
+  } else if (qty) {
+    bag.push({ iso, itemId, qty });
+  }
+}
+
+function lunchWeeks() {
+  const groups = [];
+  lunchDays().forEach((day) => {
+    const week = mondayIso(day.iso);
+    let group = groups.find((g) => g.week === week);
+    if (!group) {
+      const meta = lunchDateMeta(week);
+      group = {
+        week,
+        title: week === mondayIso(LUNCH_TODAY) ? tx("This week") : txf("Week of {date}", { date: `${tx(meta.dow)} ${meta.day}` }),
+        days: [],
+      };
+      groups.push(group);
+    }
+    group.days.push(day);
+  });
+  return groups;
+}
+
+function lastLunchOrder() {
+  return state.lunchOrders.find((order) => order.childId === child().id) || state.lunchOrders[0];
+}
+
 function teacherThreadId() {
   return child().threads[0]?.id || "office";
 }
@@ -530,13 +842,206 @@ function unsignedForms() {
 const state = {
   role: "parent",
   childId: localStorage.getItem("harborChild") || "maya",
-  events: {
-    Mon: ["Assembly 8:40", "Library"],
-    Tue: ["Math clinic", "Choir 3:15"],
-    Wed: ["Science walk"],
-    Thu: ["Curriculum night 6:00"],
-    Fri: ["Spirit day · green", "Picture day 9:00"],
+  dismissLane: "all",
+  dismissRoom: "Room 12",
+  dismissFind: "",
+  dismissStatus: {
+    sofia: "called",
+    leo: "sent",
   },
+  dismissNotes: [
+    {
+      id: "dn1",
+      studentId: "maya",
+      mode: "carpool",
+      detail: "Loop A · Jordan in the grey CR-V",
+      note: "Maya taking carpool today instead of Route 7.",
+      from: "parent",
+      at: "1:12 PM",
+    },
+    {
+      id: "dn2",
+      studentId: "noah",
+      mode: "care",
+      detail: "Kids Club until 5:00",
+      note: "Grandma is running late. After-school instead of the bus.",
+      from: "parent",
+      at: "12:40 PM",
+    },
+    {
+      id: "dn3",
+      studentId: "hana",
+      mode: "bus",
+      detail: "Bus 4",
+      note: "Hana taking Bus 4 today instead of carpool.",
+      from: "parent",
+      at: "2:02 PM",
+    },
+    {
+      id: "dn4",
+      studentId: "sofia",
+      mode: "early",
+      detail: "Office · 2:30 · Uncle Rafael",
+      note: "Early pickup for a dentist appointment.",
+      from: "parent",
+      at: "11:18 AM",
+    },
+  ],
+  lunchDay: LUNCH_TODAY,
+  lunchPay: "card",
+  lunchCart: {},
+  lunchMenuByIso: {},
+  lunchRoom: "Room K2",
+  lunchOrders: [
+    {
+      id: "o-k1",
+      childId: "noah",
+      method: "account",
+      last4: "",
+      total: 5,
+      paidAt: "This morning",
+      lines: [{ iso: LUNCH_TODAY, itemId: "bowl", name: "Rice bowl", qty: 1, price: 5 }],
+    },
+    {
+      id: "o-k2",
+      childId: "hana",
+      method: "card",
+      last4: "1881",
+      total: 4.8,
+      paidAt: "This morning",
+      lines: [
+        { iso: LUNCH_TODAY, itemId: "taco", name: "Bean taco", qty: 1, price: 4.5 },
+        { iso: LUNCH_TODAY, itemId: "milk", name: "White milk", qty: 1, price: 0.8 },
+      ],
+    },
+    {
+      id: "o-g2",
+      childId: "sofia",
+      method: "apple",
+      last4: "",
+      total: 6,
+      paidAt: "Yesterday",
+      lines: [{ iso: LUNCH_TODAY, itemId: "caesar", name: "Caesar salad", qty: 1, price: 6 }],
+    },
+  ],
+  eventFilter: "all",
+  schoolEvents: [
+    {
+      id: "e1",
+      kind: "dance",
+      source: "admin",
+      for: "samira",
+      title: "Grade 8 fall dance",
+      when: "Fri Oct 24 · 6:30–8:30 PM",
+      where: "Gym",
+      who: "Grade 8",
+      unread: true,
+      going: false,
+      lang: "en",
+      body: "Doors at 6:30. No re-entry after 7:15. Pick up at the gym lobby by 8:45. Phones stay in pockets on the floor.",
+    },
+    {
+      id: "e2",
+      kind: "dance",
+      source: "admin",
+      for: "all",
+      title: "Halloween dance",
+      when: "Fri Oct 31 · 6:00–8:00 PM",
+      where: "Gym",
+      who: "K–8 families",
+      unread: true,
+      going: false,
+      lang: "en",
+      body: "Costume-friendly, no masks that cover the face. Concession in the cafeteria. Younger siblings stay with a parent.",
+    },
+    {
+      id: "e3",
+      kind: "sport",
+      source: "teacher",
+      for: "samira",
+      title: "Volleyball away game",
+      when: "Wed Oct 15 · 1:30 PM",
+      where: "Bus loop",
+      who: "Grade 8 volleyball",
+      unread: false,
+      going: true,
+      lang: "en",
+      docId: "d5",
+      body: "Early dismissal 1:30. Team bus back by 6:15. Pack a snack and the athletic travel consent.",
+    },
+    {
+      id: "e4",
+      kind: "sport",
+      source: "teacher",
+      for: "maya",
+      title: "Grade 4 soccer clinic",
+      when: "Thu Oct 16 · 3:20 PM",
+      where: "Field",
+      who: "Room 12",
+      unread: true,
+      going: false,
+      lang: "en",
+      body: "Optional clinic after school. Cleats or running shoes. Pickup at the field gate at 4:20 — not the bus loop.",
+    },
+    {
+      id: "e5",
+      kind: "sport",
+      source: "teacher",
+      for: "noah",
+      title: "Kindergarten fun run",
+      when: "Fri Oct 17 · 10:15 AM",
+      where: "Playground",
+      who: "Room K2",
+      unread: false,
+      going: false,
+      lang: "en",
+      body: "Three loops of the playground path. Wear runners. Families can watch from the fence — no need to sign.",
+    },
+    {
+      id: "e6",
+      kind: "sport",
+      source: "admin",
+      for: ["maya", "samira"],
+      title: "Cedar Hill vs. Oakridge",
+      when: "Tue Oct 21 · 4:00 PM",
+      where: "Gym",
+      who: "Grade 4–8",
+      unread: false,
+      going: false,
+      lang: "en",
+      body: "Home basketball opener. Student section in the east bleachers. Doors at 3:40. Walkers stay until a parent arrives.",
+    },
+    {
+      id: "e7",
+      kind: "fundraiser",
+      source: "admin",
+      for: "all",
+      title: "PTO pizza kits",
+      when: "Order due Fri · pickup 3:30",
+      where: "Cafeteria",
+      who: "K–8",
+      unread: true,
+      going: false,
+      lang: "en",
+      docId: "d6",
+      body: "Optional pizza kits, $12 each. Sign the form in Documents to order. Pickup Friday 3:30 in the cafeteria.",
+    },
+    {
+      id: "e8",
+      kind: "fundraiser",
+      source: "admin",
+      for: "all",
+      title: "Fall walkathon",
+      when: "Fri Oct 24 · after pictures",
+      where: "Track",
+      who: "K–8",
+      unread: false,
+      going: false,
+      lang: "en",
+      docId: "d7",
+      body: "K–8 walkathon after picture day. Pledge sheets go to the office. Families can skip if they already gave.",
+    },
+  ],
   busChange: "Route 7 running 12 minutes late this morning. Pickup still Oak & 3rd.",
   draft: "",
   notice: "",
@@ -545,7 +1050,7 @@ const state = {
     ? localStorage.getItem("harborLang")
     : "fr",
   showOriginal: {},
-  widgets: { comms: true, schedule: true, docs: true, attendance: true },
+  widgets: { comms: true, schedule: true, docs: true, attendance: true, events: true },
   officeFind: { q: "", grade: "all", room: "all", pick: "" },
   officeAttendance: [
     {
@@ -850,6 +1355,78 @@ const state = {
       href: "#/docs/d6",
       unread: true,
     },
+    {
+      id: "a15",
+      audience: "parent",
+      kind: "notice",
+      for: "all",
+      section: "events",
+      ref: "e2",
+      title: "Halloween dance",
+      body: "Friday Oct 31, 6:00 in the gym. Costumes without face masks. Younger siblings stay with a parent.",
+      when: "Today 7:40",
+      href: "#/events/e2",
+      unread: true,
+    },
+    {
+      id: "a16",
+      audience: "parent",
+      kind: "reminder",
+      for: "maya",
+      section: "events",
+      ref: "e4",
+      title: "Soccer clinic after school",
+      body: "Room 12 clinic Thursday 3:20 on the field. Pickup at the field gate at 4:20, not the bus loop.",
+      when: "Thu 7:00 AM",
+      href: "#/events/e4",
+      unread: true,
+    },
+    {
+      id: "a17",
+      audience: "admin",
+      kind: "notice",
+      section: "events",
+      ref: "e2",
+      title: "Halloween dance is live",
+      body: "Families can RSVP from Events. Concession staff still needs two volunteers.",
+      when: "This morning",
+      href: "#/events/e2",
+      unread: true,
+    },
+    {
+      id: "a18",
+      audience: "teacher",
+      kind: "notice",
+      section: "dismiss",
+      title: "Maya is carpool, not Route 7",
+      body: "Jordan changed dismissal. Loop A, grey CR-V. Don’t walk her to the bus loop.",
+      when: "1:12 PM",
+      href: "#/dismiss",
+      unread: true,
+    },
+    {
+      id: "a19",
+      audience: "admin",
+      kind: "reminder",
+      section: "dismiss",
+      title: "Four live pickup changes",
+      body: "Carpool, Kids Club, Bus 4, and an early dentist pickup. Duty board is the source of truth.",
+      when: "2:02 PM",
+      href: "#/dismiss",
+      unread: true,
+    },
+    {
+      id: "a20",
+      audience: "parent",
+      kind: "notice",
+      for: "maya",
+      section: "dismiss",
+      title: "Carpool today is on the board",
+      body: "Room 12 and the carpool line can see Maya is Loop A, not Route 7.",
+      when: "1:12 PM",
+      href: "#/dismiss",
+      unread: false,
+    },
   ],
   officeThread: {
     id: "office",
@@ -886,7 +1463,9 @@ const navByRole = {
     ["attendance", "Attendance", "#/attendance"],
     ["reports", "Report cards", "#/reports"],
     ["calendar", "Calendar", "#/calendar"],
+    ["events", "Events", "#/events"],
     ["lunch", "Cafeteria", "#/lunch"],
+    ["dismiss", "Dismissal", "#/dismiss"],
     ["bus", "Bus", "#/bus"],
     ["class", "Classroom", "#/class"],
     ["messages", "Messages", "#/messages"],
@@ -897,6 +1476,9 @@ const navByRole = {
     ["scan", "Scan flyer", "#/scan"],
     ["attendance", "Attendance", "#/teach/attendance"],
     ["calendar", "Calendar", "#/calendar"],
+    ["events", "Events", "#/events"],
+    ["lunch", "Lunch list", "#/lunch"],
+    ["dismiss", "Dismissal", "#/dismiss"],
     ["class", "Activities", "#/class"],
     ["messages", "Families", "#/messages"],
   ],
@@ -906,8 +1488,10 @@ const navByRole = {
     ["scan", "Scan flyer", "#/scan"],
     ["attendance", "Attendance", "#/admin/attendance"],
     ["bus", "Buses", "#/bus"],
-    ["lunch", "Cafeteria", "#/lunch"],
-    ["calendar", "Events", "#/calendar"],
+    ["dismiss", "Dismissal", "#/dismiss"],
+    ["lunch", "Hot lunch menu", "#/lunch"],
+    ["calendar", "Calendar", "#/calendar"],
+    ["events", "Events", "#/events"],
   ],
 };
 
@@ -918,6 +1502,7 @@ const mvpNavByRole = {
     ["attendance", "Attendance", "#/attendance"],
     ["messages", "Inbox", "#/inbox"],
     ["calendar", "Schedule", "#/schedule"],
+    ["events", "Events", "#/events"],
     ["docs", "Documents", "#/docs"],
     ["config", "Configure", "#/configure"],
   ],
@@ -928,6 +1513,7 @@ const mvpNavByRole = {
     ["attendance", "Attendance", "#/teach/attendance"],
     ["messages", "Updates", "#/inbox"],
     ["calendar", "Schedule", "#/schedule"],
+    ["events", "Events", "#/events"],
     ["docs", "Documents", "#/docs"],
   ],
   admin: [
@@ -937,6 +1523,7 @@ const mvpNavByRole = {
     ["attendance", "Attendance", "#/admin/attendance"],
     ["messages", "Office inbox", "#/inbox"],
     ["calendar", "Schedule", "#/schedule"],
+    ["events", "Events", "#/events"],
     ["docs", "Documents", "#/docs"],
     ["config", "Family board", "#/configure"],
   ],
@@ -1321,6 +1908,235 @@ const BOOK = {
   ["Google Calendar", "Calendrier Google", "谷歌日历", "ਗੂਗਲ ਕੈਲੰਡਰ", "Calendario de Google"],
   ["Download .ics", "Télécharger .ics", "下载 .ics", ".ics ਡਾਊਨਲੋਡ", "Descargar .ics"],
   ["Print", "Imprimer", "打印", "ਛਾਪੋ", "Imprimir"],
+  ["Events", "Événements", "活动", "ਈਵੈਂਟ", "Eventos"],
+  ["Dances", "Danses", "舞会", "ਡਾਂਸ", "Bailes"],
+  ["Dance", "Danse", "舞会", "ਡਾਂਸ", "Baile"],
+  ["Sports", "Sports", "体育", "ਖੇਡਾਂ", "Deportes"],
+  ["Sport", "Sport", "体育", "ਖੇਡ", "Deporte"],
+  ["Fundraisers", "Collectes", "募捐", "ਫੰਡਰੇਜ਼ਰ", "Recaudaciones"],
+  ["Fundraiser", "Collecte", "募捐", "ਫੰਡਰੇਜ਼ਰ", "Recaudación"],
+  ["All events", "Tous les événements", "全部活动", "ਸਾਰੇ ਈਵੈਂਟ", "Todos los eventos"],
+  ["Coming up", "À venir", "即将到来", "ਆਉਣ ਵਾਲਾ", "Próximos"],
+  ["Going", "J’y vais", "参加", "ਜਾ ਰਹੇ ਹਾਂ", "Asistimos"],
+  ["Can’t go", "Je ne peux pas", "不去", "ਨਹੀਂ ਜਾ ਸਕਦੇ", "No podemos"],
+  ["You’re going", "Vous y allez", "你们会去", "ਤੁਸੀਂ ਜਾ ਰਹੇ ਹੋ", "Van a ir"],
+  ["Marked as can’t go", "Marqué comme impossible", "已标为不去", "ਨਹੀਂ ਜਾ ਸਕਦੇ ਲਿਖਿਆ", "Marcado como no van"],
+  ["Open the form", "Ouvrir le formulaire", "打开表格", "ਫਾਰਮ ਖੋਲ੍ਹੋ", "Abrir el formulario"],
+  ["Add an event", "Ajouter un événement", "添加活动", "ਈਵੈਂਟ ਜੋੜੋ", "Agregar un evento"],
+  ["Put on the board", "Mettre au tableau", "放到看板上", "ਬੋਰਡ 'ਤੇ ਪਾਓ", "Poner en el tablero"],
+  ["Dances, sports, and fundraisers — one list instead of three flyers.", "Danses, sports et collectes — une liste au lieu de trois affiches.", "舞会、体育和募捐 — 一张清单，不用三张传单。", "ਡਾਂਸ, ਖੇਡਾਂ ਅਤੇ ਫੰਡਰੇਜ਼ਰ — ਤਿੰਨ ਪਰਚਿਆਂ ਦੀ ਥਾਂ ਇੱਕ ਸੂਚੀ।", "Bailes, deportes y recaudaciones — una lista en vez de tres volantes."],
+  ["What Cedar Hill is hosting next. RSVP dances and games; fundraisers still live in Documents.", "Ce que Cedar Hill organise ensuite. Confirmez danses et matchs; les collectes restent dans Documents.", "Cedar Hill接下来举办的活动。舞会和比赛可回复；募捐仍在文件里。", "Cedar Hill ਅਗਲੀ ਵਾਰ ਕੀ ਕਰਦਾ ਹੈ। ਡਾਂਸ ਤੇ ਖੇਡਾਂ RSVP; ਫੰਡਰੇਜ਼ਰ ਹਾਲੇ ਦਸਤਾਵੇਜ਼ ਵਿਚ।", "Lo que Cedar Hill organiza después. Confirme bailes y partidos; las recaudaciones siguen en Documentos."],
+  ["Nothing in this pile for {name}.", "Rien dans cette pile pour {name}.", "{name}这一叠是空的。", "{name} ਲਈ ਇਸ ਢੇਰ ਵਿਚ ਕੁਝ ਨਹੀਂ।", "Nada en este montón para {name}."],
+  ["No events in this pile.", "Aucun événement dans cette pile.", "这一叠没有活动。", "ਇਸ ਢੇਰ ਵਿਚ ਕੋਈ ਈਵੈਂਟ ਨਹੀਂ।", "No hay eventos en este montón."],
+  ["Grade 8 fall dance", "Danse d’automne de 8e", "八年级秋季舞会", "ਗ੍ਰੇਡ 8 ਪਤਝੜ ਡਾਂਸ", "Baile de otoño de 8.º"],
+  ["Doors at 6:30. No re-entry after 7:15. Pick up at the gym lobby by 8:45. Phones stay in pockets on the floor.", "Ouverture à 18 h 30. Pas de réentrée après 19 h 15. Ramassage au hall du gymnase avant 20 h 45. Les téléphones restent en poche.", "6:30开门。7:15后不得再入。8:45前到体育馆大厅接人。手机放在口袋里。", "6:30 ਦਰਵਾਜ਼ੇ। 7:15 ਤੋਂ ਬਾਅਦ ਵਾਪਸੀ ਨਹੀਂ। 8:45 ਤੱਕ ਜਿਮ ਲਾਬੀ। ਫੋਨ ਜੇਬ ਵਿਚ।", "Puertas a las 6:30. Sin reingreso después de las 7:15. Recogida en el vestíbulo del gimnasio a las 8:45. Los teléfonos se quedan en el bolsillo."],
+  ["Halloween dance", "Danse d’Halloween", "万圣节舞会", "ਹੈਲੋਵੀਨ ਡਾਂਸ", "Baile de Halloween"],
+  ["Costume-friendly, no masks that cover the face. Concession in the cafeteria. Younger siblings stay with a parent.", "Costumes bienvenus, pas de masques qui couvrent le visage. Cantine à la cafétéria. Les plus jeunes restent avec un parent.", "欢迎服装，勿戴遮脸面具。食堂有小卖部。年幼弟妹须由家长陪同。", "ਪੋਸ਼ਾਕ ਠੀਕ, ਚਿਹਰਾ ਢੱਕਣ ਵਾਲੇ ਮਾਸਕ ਨਹੀਂ। ਕੈਫੇਟੇਰੀਆ ਵਿਚ ਕੈਂਟੀਨ। ਛੋਟੇ ਭੈਣ-ਭਰਾ ਮਾਪਿਆਂ ਨਾਲ।", "Disfraces sí, sin máscaras que cubran la cara. Cantina en la cafetería. Los hermanos menores se quedan con un padre."],
+  ["Grade 4 soccer clinic", "Clinique de soccer de 4e", "四年级足球训练", "ਗ੍ਰੇਡ 4 ਸਾਕਰ ਕਲਿਨਿਕ", "Clínica de fútbol de 4.º"],
+  ["Optional clinic after school. Cleats or running shoes. Pickup at the field gate at 4:20 — not the bus loop.", "Clinique facultative après l’école. Crampons ou souliers de course. Ramassage à la grille du terrain à 16 h 20 — pas la boucle d’autobus.", "课后可选训练。钉鞋或跑鞋。4:20在球场门口接，不是校车环。", "ਸਕੂਲ ਤੋਂ ਬਾਅਦ ਵਿਕਲਪਿਕ। ਕਲੀਟ ਜਾਂ ਦੌੜ ਜੁੱਤੀ। 4:20 ਮੈਦਾਨ ਗੇਟ — ਬੱਸ ਲੂਪ ਨਹੀਂ।", "Clínica opcional después de clases. Tacos o tenis. Recogida en la portería a las 4:20 — no el circuito de buses."],
+  ["Kindergarten fun run", "Course amusante de maternelle", "幼儿园趣味跑", "ਕਿੰਡਰਗਾਰਟਨ ਫਨ ਰਨ", "Carrera divertida de kínder"],
+  ["Three loops of the playground path. Wear runners. Families can watch from the fence — no need to sign.", "Trois tours du sentier de la cour. Souliers de course. Les familles peuvent regarder de la clôture — pas besoin de signer.", "绕操场小路三圈。穿跑鞋。家长可在围栏外观看，无需签字。", "ਖੇਡ ਮੈਦਾਨ ਦੇ ਰਾਹ ਦੇ ਤਿੰਨ ਚੱਕਰ। ਦੌੜ ਜੁੱਤੀ। ਪਰਿਵਾਰ ਵਾੜ ਤੋਂ ਵੇਖ ਸਕਦੇ ਹਨ — ਦਸਤਖ਼ਤ ਨਹੀਂ।", "Tres vueltas del sendero del patio. Tenis. Las familias pueden ver desde la reja — no hay que firmar."],
+  ["Cedar Hill vs. Oakridge", "Cedar Hill contre Oakridge", "Cedar Hill对Oakridge", "Cedar Hill ਬਨਾਮ Oakridge", "Cedar Hill vs. Oakridge"],
+  ["Home basketball opener. Student section in the east bleachers. Doors at 3:40. Walkers stay until a parent arrives.", "Premier match de basketball à domicile. Section élèves dans les gradins est. Ouverture à 15 h 40. Les marcheurs restent jusqu’à l’arrivée d’un parent.", "主场篮球揭幕战。学生坐东看台。3:40开门。步行学生须等家长来接。", "ਘਰੇਲੂ ਬਾਸਕਟਬਾਲ ਪਹਿਲਾ ਮੈਚ। ਵਿਦਿਆਰਥੀ ਪੂਰਬੀ ਬਲੀਚਰ। 3:40 ਦਰਵਾਜ਼ੇ। ਤੁਰਨ ਵਾਲੇ ਮਾਪੇ ਆਉਣ ਤੱਕ ਰਹਿਣ।", "Apertura de básquetbol en casa. Sección estudiantil en las gradas este. Puertas a las 3:40. Quienes caminan esperan a un padre."],
+  ["Fri Oct 24 · 6:30–8:30 PM", "Ven 24 oct. · 18 h 30–20 h 30", "10月24日周五 · 下午6:30–8:30", "ਸ਼ੁੱਕ 24 ਅਕਤੂਬਰ · 6:30–8:30 ਵਾਜੇ", "Vie 24 oct · 6:30–8:30 p. m."],
+  ["Fri Oct 31 · 6:00–8:00 PM", "Ven 31 oct. · 18 h–20 h", "10月31日周五 · 下午6:00–8:00", "ਸ਼ੁੱਕ 31 ਅਕਤੂਬਰ · 6:00–8:00 ਵਾਜੇ", "Vie 31 oct · 6:00–8:00 p. m."],
+  ["Wed Oct 15 · 1:30 PM", "Mer 15 oct. · 13 h 30", "10月15日周三 · 下午1:30", "ਬੁੱਧ 15 ਅਕਤੂਬਰ · 1:30 ਵਾਜੇ", "Mié 15 oct · 1:30 p. m."],
+  ["Thu Oct 16 · 3:20 PM", "Jeu 16 oct. · 15 h 20", "10月16日周四 · 下午3:20", "ਵੀਰ 16 ਅਕਤੂਬਰ · 3:20 ਵਾਜੇ", "Jue 16 oct · 3:20 p. m."],
+  ["Fri Oct 17 · 10:15 AM", "Ven 17 oct. · 10 h 15", "10月17日周五 · 上午10:15", "ਸ਼ੁੱਕ 17 ਅਕਤੂਬਰ · 10:15 ਵਾਜੇ", "Vie 17 oct · 10:15 a. m."],
+  ["Tue Oct 21 · 4:00 PM", "Mar 21 oct. · 16 h", "10月21日周二 · 下午4:00", "ਮੰਗ 21 ਅਕਤੂਬਰ · 4:00 ਵਾਜੇ", "Mar 21 oct · 4:00 p. m."],
+  ["Order due Fri · pickup 3:30", "Commande ven. · ramassage 15 h 30", "周五截止 · 3:30领取", "ਸ਼ੁੱਕਰਵਾਰ ਆਰਡਰ · 3:30 ਲੈਣਾ", "Pedido vie · recogida 3:30"],
+  ["Fri Oct 24 · after pictures", "Ven 24 oct. · après les photos", "10月24日周五 · 拍照之后", "ਸ਼ੁੱਕ 24 ਅਕਤੂਬਰ · ਫੋਟੋਆਂ ਤੋਂ ਬਾਅਦ", "Vie 24 oct · después de las fotos"],
+  ["Field", "Terrain", "球场", "ਮੈਦਾਨ", "Cancha"],
+  ["Playground", "Cour", "操场", "ਖੇਡ ਮੈਦਾਨ", "Patio"],
+  ["Track", "Piste", "跑道", "ਟਰੈਕ", "Pista"],
+  ["Grade 8", "8e année", "八年级", "ਗ੍ਰੇਡ 8", "8.º grado"],
+  ["K–8 families", "Familles K–8", "K–8家庭", "K–8 ਪਰਿਵਾਰ", "Familias K–8"],
+  ["Grade 8 volleyball", "Volleyball de 8e", "八年级排球", "ਗ੍ਰੇਡ 8 ਵਾਲੀਬਾਲ", "Vóleibol de 8.º"],
+  ["Room 12", "Salle 12", "12班", "ਕਮਰਾ 12", "Salón 12"],
+  ["Room K2", "Salle K2", "K2班", "ਕਮਰਾ K2", "Salón K2"],
+  ["Grade 4–8", "4e à 8e", "四至八年级", "ਗ੍ਰੇਡ 4–8", "4.º a 8.º"],
+  ["K–8", "K–8", "K–8", "K–8", "K–8"],
+  ["Friday Oct 31, 6:00 in the gym. Costumes without face masks. Younger siblings stay with a parent.", "Vendredi 31 oct. à 18 h au gymnase. Costumes sans masque intégral. Les plus jeunes restent avec un parent.", "10月31日周五晚上6点体育馆。服装勿戴遮脸面具。年幼弟妹须由家长陪同。", "ਸ਼ੁੱਕਰਵਾਰ 31 ਅਕਤੂਬਰ 6:00 ਜਿਮ। ਚਿਹਰਾ ਢੱਕਣ ਵਾਲੇ ਮਾਸਕ ਨਹੀਂ। ਛੋਟੇ ਭੈਣ-ਭਰਾ ਮਾਪਿਆਂ ਨਾਲ।", "Viernes 31 oct, 6:00 en el gimnasio. Disfraces sin máscara que cubra la cara. Los menores se quedan con un padre."],
+  ["Room 12 clinic Thursday 3:20 on the field. Pickup at the field gate at 4:20, not the bus loop.", "Clinique de la salle 12 jeudi 15 h 20 sur le terrain. Ramassage à la grille à 16 h 20, pas la boucle d’autobus.", "12班周四3:20球场训练。4:20在球场门口接，不是校车环。", "ਕਮਰਾ 12 ਕਲਿਨਿਕ ਵੀਰਵਾਰ 3:20 ਮੈਦਾਨ। 4:20 ਗੇਟ, ਬੱਸ ਲੂਪ ਨਹੀਂ।", "Clínica del salón 12 el jueves a las 3:20 en la cancha. Recogida en la portería a las 4:20, no el circuito."],
+  ["Soccer clinic after school", "Clinique de soccer après l’école", "课后足球训练", "ਸਕੂਲ ਤੋਂ ਬਾਅਦ ਸਾਕਰ ਕਲਿਨਿਕ", "Clínica de fútbol después de clases"],
+  ["Halloween dance is live", "La danse d’Halloween est en ligne", "万圣节舞会已发布", "ਹੈਲੋਵੀਨ ਡਾਂਸ ਲਾਈਵ ਹੈ", "El baile de Halloween ya está publicado"],
+  ["Families can RSVP from Events. Concession staff still needs two volunteers.", "Les familles confirment dans Événements. Il manque encore deux bénévoles à la cantine.", "家庭可在活动里回复。小卖部还缺两名志愿者。", "ਪਰਿਵਾਰ ਈਵੈਂਟ ਤੋਂ RSVP ਕਰ ਸਕਦੇ ਹਨ। ਕੈਂਟੀਨ ਨੂੰ ਹਾਲੇ ਦੋ ਸੇਵਾਦਾਰ ਚਾਹੀਦੇ ਹਨ।", "Las familias confirman en Eventos. La cantina todavía necesita dos voluntarios."],
+  ["Dances, games, and fundraisers in one place", "Danses, matchs et collectes au même endroit", "舞会、比赛和募捐集中一处", "ਡਾਂਸ, ਖੇਡਾਂ ਅਤੇ ਫੰਡਰੇਜ਼ਰ ਇੱਕ ਥਾਂ", "Bailes, partidos y recaudaciones en un solo lugar"],
+  ["None upcoming", "Rien à venir", "暂无即将举行", "ਕੋਈ ਆਉਣ ਵਾਲਾ ਨਹੀਂ", "Nada próximo"],
+  ["New event", "Nouvel événement", "新活动", "ਨਵਾਂ ਈਵੈਂਟ", "Evento nuevo"],
+  ["Category", "Catégorie", "类别", "ਸ਼੍ਰੇਣੀ", "Categoría"],
+  ["Title", "Titre", "标题", "ਸਿਰਲੇਖ", "Título"],
+  ["When", "Quand", "时间", "ਕਦੋਂ", "Cuándo"],
+  ["Where", "Où", "地点", "ਕਿੱਥੇ", "Dónde"],
+  ["What families need to know", "Ce que les familles doivent savoir", "家长需要知道的", "ਪਰਿਵਾਰਾਂ ਨੂੰ ਕੀ ਜਾਣਨਾ ਚਾਹੀਦਾ ਹੈ", "Lo que las familias necesitan saber"],
+  ["Volleyball away game", "Match de volleyball à l’extérieur", "排球客场", "ਵਾਲੀਬਾਲ ਦੂਰ ਗੇਮ", "Partido de vóleibol de visita"],
+  ["Early dismissal 1:30. Team bus back by 6:15. Pack a snack and the athletic travel consent.", "Sortie 13 h 30. Retour de l’autobus à 18 h 15. Préparez une collation et le consentement sportif.", "1:30提前放学。校队车6:15返回。带上零食和出行同意书。", "1:30 ਛੁੱਟੀ। ਟੀਮ ਬੱਸ 6:15 ਵਾਪਸ। ਸਨੈਕ ਅਤੇ ਯਾਤਰਾ ਸਹਿਮਤੀ ਪਾਓ।", "Salida 1:30. El bus del equipo vuelve a las 6:15. Empaca un refrigerio y el consentimiento."],
+  ["Optional pizza kits, $12 each. Sign the form in Documents to order. Pickup Friday 3:30 in the cafeteria.", "Trousses pizza facultatives, 12 $ chacune. Signez le formulaire dans Documents. Ramassage vendredi 15 h 30 à la cafétéria.", "可选披萨套装，每个12美元。在文件里签字订购。周五3:30食堂领取。", "ਵਿਕਲਪਿਕ ਪੀਜ਼ਾ ਕਿੱਟ, $12। ਦਸਤਾਵੇਜ਼ ਵਿਚ ਦਸਤਖ਼ਤ ਕਰੋ। ਸ਼ੁੱਕਰਵਾਰ 3:30 ਕੈਫੇਟੇਰੀਆ।", "Kits de pizza opcionales, $12. Firme el formulario en Documentos. Recogida viernes 3:30 en la cafetería."],
+  ["Calendar", "Calendrier", "日历", "ਕੈਲੰਡਰ", "Calendario"],
+  ["{name}’s hot lunch", "Dîner chaud de {name}", "{name}的热午餐", "{name} ਦਾ ਗਰਮ ਲੰਚ", "Almuerzo caliente de {name}"],
+  ["Today is at the top. Order ahead any school day through Friday, Nov 6 — packed lunch stays the default until you check out.", "Aujourd’hui est en haut. Commandez à l’avance jusqu’au vendredi 6 nov. — le lunch maison reste par défaut tant que vous ne payez pas.", "今天排在最前。可预订到11月6日周五的上课日 — 结账前默认带饭。", "ਅੱਜ ਸਿਖਰ 'ਤੇ ਹੈ। 6 ਨਵੰਬਰ ਸ਼ੁੱਕਰਵਾਰ ਤੱਕ ਪਹਿਲਾਂ ਆਰਡਰ — ਭੁਗਤਾਨ ਤੱਕ ਘਰ ਦਾ ਲੰਚ ਡਿਫਾਲਟ।", "Hoy va primero. Pida con anticipación hasta el viernes 6 nov. — el lunch de casa sigue hasta que pague."],
+  ["Hot lunch", "Dîner chaud", "热午餐", "ਗਰਮ ਲੰਚ", "Almuerzo caliente"],
+  ["Order ahead", "Commander à l’avance", "提前点餐", "ਪਹਿਲਾਂ ਆਰਡਰ", "Pedir con anticipación"],
+  ["Main", "Plat principal", "主餐", "ਮੁੱਖ", "Plato principal"],
+  ["Sandwich", "Sandwich", "三明治", "ਸੈਂਡਵਿਚ", "Sándwich"],
+  ["Salad", "Salade", "沙拉", "ਸਲਾਦ", "Ensalada"],
+  ["Drink", "Boisson", "饮料", "ਪੀਣ ਵਾਲਾ", "Bebida"],
+  ["Dessert", "Dessert", "甜点", "ਮਿਠਾਈ", "Postre"],
+  ["View cart", "Voir le panier", "查看购物车", "ਕਾਰਟ ਵੇਖੋ", "Ver carrito"],
+  ["Cart", "Panier", "购物车", "ਕਾਰਟ", "Carrito"],
+  ["Cart is empty", "Le panier est vide", "购物车是空的", "ਕਾਰਟ ਖਾਲੀ ਹੈ", "El carrito está vacío"],
+  ["Add mains, sandwiches, drinks, or dessert for today or any day still open.", "Ajoutez plats, sandwichs, boissons ou dessert pour aujourd’hui ou un jour encore ouvert.", "为今天或仍开放的日期添加主餐、三明治、饮料或甜点。", "ਅੱਜ ਜਾਂ ਖੁੱਲ੍ਹੇ ਦਿਨ ਲਈ ਮੁੱਖ, ਸੈਂਡਵਿਚ, ਪੀਣ ਵਾਲਾ ਜਾਂ ਮਿਠਾਈ ਜੋੜੋ।", "Agregue platos, sándwiches, bebidas o postre para hoy o un día aún abierto."],
+  ["Back to menu", "Retour au menu", "返回菜单", "ਮੀਨੂ 'ਤੇ ਵਾਪਸ", "Volver al menú"],
+  ["Hot lunch for {name}. Packed days stay packed until you pay.", "Dîner chaud pour {name}. Les jours en lunch maison le restent tant que vous ne payez pas.", "{name}的热午餐。付款前带饭日仍带饭。", "{name} ਲਈ ਗਰਮ ਲੰਚ। ਭੁਗਤਾਨ ਤੱਕ ਘਰ ਦਾ ਲੰਚ ਰਹਿੰਦਾ ਹੈ।", "Almuerzo caliente para {name}. Los días de lunch de casa siguen hasta que pague."],
+  ["Due today", "À payer", "应付", "ਅੱਜ ਬਕਾਇਆ", "A pagar"],
+  ["each", "l’unité", "每份", "ਹਰੇਕ", "c/u"],
+  ["Keep shopping", "Continuer", "继续选购", "ਖਰੀਦਦਾਰੀ ਜਾਰੀ", "Seguir comprando"],
+  ["Check out", "Payer", "结账", "ਚੈਕ ਆਊਟ", "Pagar"],
+  ["Pay", "Payer", "支付", "ਭੁਗਤਾਨ", "Pagar"],
+  ["Demo checkout — Harbor does not charge a real card. Apple Pay and Google Pay succeed in this prototype.", "Paiement démo — Harbor ne débite pas une vraie carte. Apple Pay et Google Pay réussissent dans ce prototype.", "演示结账 — Harbor不会从真实卡扣款。此原型中Apple Pay和Google Pay会成功。", "ਡੈਮੋ ਚੈਕਆਊਟ — Harbor ਅਸਲ ਕਾਰਡ ਨਹੀਂ ਕੱਟਦਾ। ਇਸ ਪ੍ਰੋਟੋਟਾਈਪ ਵਿਚ Apple Pay ਅਤੇ Google Pay ਠੀਕ ਹਨ।", "Pago de prueba — Harbor no cobra una tarjeta real. Apple Pay y Google Pay se confirman en este prototipo."],
+  ["Payment method", "Mode de paiement", "支付方式", "ਭੁਗਤਾਨ ਢੰਗ", "Método de pago"],
+  ["Apple Pay", "Apple Pay", "Apple Pay", "Apple Pay", "Apple Pay"],
+  ["Google Pay", "Google Pay", "Google Pay", "Google Pay", "Google Pay"],
+  ["Credit card", "Carte de crédit", "信用卡", "ਕ੍ਰੈਡਿਟ ਕਾਰਡ", "Tarjeta de crédito"],
+  ["Family account", "Compte famille", "家庭账户", "ਪਰਿਵਾਰ ਖਾਤਾ", "Cuenta familiar"],
+  ["Name on card", "Nom sur la carte", "持卡人姓名", "ਕਾਰਡ 'ਤੇ ਨਾਮ", "Nombre en la tarjeta"],
+  ["Card number", "Numéro de carte", "卡号", "ਕਾਰਡ ਨੰਬਰ", "Número de tarjeta"],
+  ["Expiry", "Expiration", "有效期", "ਮਿਆਦ", "Vencimiento"],
+  ["CVC", "CVC", "CVC", "CVC", "CVC"],
+  ["Charge {amount} to the family meal account. Balance after this order: {balance}.", "Facturer {amount} au compte repas. Solde après : {balance}.", "从家庭餐费账户扣除{amount}。此单后余额：{balance}。", "ਪਰਿਵਾਰ ਭੋਜਨ ਖਾਤੇ ਤੋਂ {amount}। ਆਰਡਰ ਬਾਅਦ ਬਕਾਇਆ: {balance}.", "Cargar {amount} a la cuenta de comidas. Saldo después: {balance}."],
+  ["Charge account", "Facturer le compte", "从账户扣款", "ਖਾਤੇ ਤੋਂ ਕੱਟੋ", "Cargar a la cuenta"],
+  ["Opens the wallet on a phone. In this demo it confirms without leaving Harbor.", "Ouvre le portefeuille sur le téléphone. Ici, ça confirme sans quitter Harbor.", "在手机上打开钱包。此演示中无需离开Harbor即可确认。", "ਫੋਨ 'ਤੇ ਵਾਲਿਟ ਖੋਲ੍ਹਦਾ ਹੈ। ਇਸ ਡੈਮੋ ਵਿਚ Harbor ਛੱਡੇ ਬਿਨਾਂ ਪੁਸ਼ਟੀ।", "Abre la billetera en el teléfono. En esta demo confirma sin salir de Harbor."],
+  ["Pay with Apple Pay", "Payer avec Apple Pay", "用 Apple Pay 支付", "Apple Pay ਨਾਲ ਭੁਗਤਾਨ", "Pagar con Apple Pay"],
+  ["Pay with Google Pay", "Payer avec Google Pay", "用 Google Pay 支付", "Google Pay ਨਾਲ ਭੁਗਤਾਨ", "Pagar con Google Pay"],
+  ["Check the card number, expiry, and CVC. Demo cards like 4242 4242 4242 4242 work.", "Vérifiez le numéro, l’expiration et le CVC. Les cartes démo comme 4242 4242 4242 4242 fonctionnent.", "请核对卡号、有效期和CVC。演示卡4242 4242 4242 4242可用。", "ਕਾਰਡ ਨੰਬਰ, ਮਿਆਦ ਅਤੇ CVC ਵੇਖੋ। ਡੈਮੋ 4242 4242 4242 4242 ਚੱਲਦਾ ਹੈ।", "Revise el número, el vencimiento y el CVC. Tarjetas de prueba como 4242 4242 4242 4242 sirven."],
+  ["Not enough on the family account. Use a card or Apple Pay.", "Solde insuffisant. Utilisez une carte ou Apple Pay.", "家庭账户余额不足。请用卡或Apple Pay。", "ਪਰਿਵਾਰ ਖਾਤੇ ਘੱਟ ਰਕਮ। ਕਾਰਡ ਜਾਂ Apple Pay ਵਰਤੋ।", "No alcanza en la cuenta familiar. Use tarjeta o Apple Pay."],
+  ["Paid.", "Payé.", "已支付。", "ਭੁਗਤਾਨ ਹੋ ਗਿਆ।", "Pagado."],
+  ["{name} is on the cafeteria list. Packed lunch is skipped on those days.", "{name} est sur la liste de la cafétéria. Pas de lunch maison ces jours-là.", "{name}已在食堂名单上。那些天不用带饭。", "{name} ਕੈਫੇਟੇਰੀਆ ਸੂਚੀ 'ਤੇ ਹੈ। ਉਨ੍ਹਾਂ ਦਿਨਾਂ ਘਰ ਦਾ ਲੰਚ ਨਹੀਂ।", "{name} está en la lista de cafetería. Esos días no lleva lunch de casa."],
+  ["Card · {last4}", "Carte · {last4}", "卡 · {last4}", "ਕਾਰਡ · {last4}", "Tarjeta · {last4}"],
+  ["Order more", "Commander encore", "再点一份", "ਹੋਰ ਆਰਡਰ", "Pedir más"],
+  ["Receipt", "Reçu", "收据", "ਰਸੀਦ", "Recibo"],
+  ["item", "article", "件", "ਆਈਟਮ", "artículo"],
+  ["items", "articles", "件", "ਆਈਟਮਾਂ", "artículos"],
+  ["Add", "Ajouter", "添加", "ਜੋੜੋ", "Agregar"],
+  ["Remove", "Retirer", "减少", "ਘਟਾਓ", "Quitar"],
+  ["Week of {date}", "Semaine du {date}", "{date}那一周", "{date} ਵਾਲਾ ਹਫ਼ਤਾ", "Semana del {date}"],
+  ["Grilled cheese", "Grillé au fromage", "烤奶酪三明治", "ਗਰਿੱਲਡ ਚੀਜ਼", "Queso a la plancha"],
+  ["Ham sandwich", "Sandwich au jambon", "火腿三明治", "ਹੈਮ ਸੈਂਡਵਿਚ", "Sándwich de jamón"],
+  ["Ham & cheese, grilled", "Jambon-fromage grillé", "火腿奶酪烤三明治", "ਹੈਮ ਤੇ ਚੀਜ਼ ਗਰਿੱਲ", "Jamón y queso a la plancha"],
+  ["Ham & cheese", "Jambon-fromage", "火腿奶酪三明治", "ਹੈਮ ਤੇ ਚੀਜ਼", "Jamón y queso"],
+  ["Caesar salad", "Salade César", "凯撒沙拉", "ਸੀਜ਼ਰ ਸਲਾਦ", "Ensalada César"],
+  ["Extra protein", "Surplus de protéines", "加份蛋白", "ਵਾਧੂ ਪ੍ਰੋਟੀਨ", "Proteína extra"],
+  ["White milk", "Lait blanc", "白牛奶", "ਚਿੱਟਾ ਦੁੱਧ", "Leche blanca"],
+  ["Water 500 ml", "Eau 500 ml", "水 500 毫升", "ਪਾਣੀ 500 ਮਿਲੀ", "Agua 500 ml"],
+  ["Dessert of the day", "Dessert du jour", "当日甜点", "ਦਿਨ ਦੀ ਮਿਠਾਈ", "Postre del día"],
+  ["Cookie", "Biscuit", "饼干", "ਕੁਕੀ", "Galleta"],
+  ["Muffin", "Muffin", "马芬", "ਮਫਿਨ", "Muffin"],
+  ["Chicken burger with potatoes & vegetables (with milk)", "Burger au poulet avec patates, légumes (avec lait)", "鸡肉汉堡配土豆和蔬菜（含奶）", "ਚਿਕਨ ਬਰਗਰ ਆਲੂ ਤੇ ਸਬਜ਼ੀ (ਦੁੱਧ ਨਾਲ)", "Hamburguesa de pollo con papas y verduras (con leche)"],
+  ["Veggie burger with potatoes & vegetables (with milk)", "Burger aux légumes, patates, légumes (avec lait)", "蔬菜汉堡配土豆和蔬菜（含奶）", "ਵੈਜੀ ਬਰਗਰ ਆਲੂ ਤੇ ਸਬਜ਼ੀ (ਦੁੱਧ ਨਾਲ)", "Hamburguesa de verduras con papas (con leche)"],
+  ["Spaghetti with meat sauce and bun (with milk)", "Spaghetti avec sauce viande et petit pain (avec lait)", "肉酱意面配小面包（含奶）", "ਸਪੈਗੇਟੀ ਮੀਟ ਸਾਸ ਤੇ ਬਨ (ਦੁੱਧ ਨਾਲ)", "Espagueti con salsa de carne y pan (con leche)"],
+  ["Spaghetti with tomato sauce and bun (with milk)", "Spaghetti avec sauce tomate et petit pain (avec lait)", "番茄意面配小面包（含奶）", "ਸਪੈਗੇਟੀ ਟਮਾਟਰ ਸਾਸ ਤੇ ਬਨ (ਦੁੱਧ ਨਾਲ)", "Espagueti con salsa de tomate y pan (con leche)"],
+  ["Bean taco", "Taco aux haricots", "豆肉卷", "ਬੀਨ ਟਾਕੋ", "Taco de frijol"],
+  ["Lunch list", "Liste du dîner", "午餐名单", "ਲੰਚ ਸੂਚੀ", "Lista del almuerzo"],
+  ["Hot lunch menu", "Menu du dîner chaud", "热午餐菜单", "ਗਰਮ ਲੰਚ ਮੀਨੂ", "Menú de almuerzo caliente"],
+  ["Post the week’s hot lunch", "Publier le dîner chaud de la semaine", "发布本周热午餐", "ਇਸ ਹਫ਼ਤੇ ਦਾ ਗਰਮ ਲੰਚ ਪੋਸਟ ਕਰੋ", "Publicar el almuerzo caliente de la semana"],
+  ["Upload the cafeteria sheet the vendor sends — PDF, spreadsheet, or a photo. Harbor puts it on the family Cafeteria. You can still edit a day by hand.", "Téléversez la feuille du traiteur — PDF, tableur ou photo. Harbor la met dans la cafétéria des familles. Vous pouvez encore corriger un jour à la main.", "上传供应商的食堂周表 — PDF、表格或照片。Harbor会放到家长食堂。仍可手工改某一天。", "ਵਿਕਰੇਤਾ ਦੀ ਕੈਫੇਟੇਰੀਆ ਸ਼ੀਟ ਅੱਪਲੋਡ ਕਰੋ — PDF, ਸਪ੍ਰੈਡਸ਼ੀਟ ਜਾਂ ਫੋਟੋ। Harbor ਪਰਿਵਾਰ ਕੈਫੇਟੇਰੀਆ 'ਤੇ ਪਾਉਂਦਾ ਹੈ। ਇੱਕ ਦਿਨ ਹੱਥੀਂ ਸੋਧ ਸਕਦੇ ਹੋ।", "Suba la hoja del proveedor — PDF, hoja de cálculo o foto. Harbor la pone en Cafetería. Aún puede editar un día a mano."],
+  ["Weekly menu file", "Fichier du menu de la semaine", "周菜单文件", "ਹਫ਼ਤਾਵਾਰੀ ਮੀਨੂ ਫਾਈਲ", "Archivo del menú semanal"],
+  ["This is the office side. Parents order from Cafeteria. Nothing here charges a card.", "C’est le côté bureau. Les parents commandent dans Cafétéria. Rien ici ne débite une carte.", "这是办公室端。家长在食堂点餐。这里不会扣卡。", "ਇਹ ਦਫ਼ਤਰ ਵਾਲਾ ਪਾਸਾ ਹੈ। ਮਾਪੇ ਕੈਫੇਟੇਰੀਆ ਤੋਂ ਆਰਡਰ ਕਰਦੇ ਹਨ। ਇੱਥੇ ਕਾਰਡ ਨਹੀਂ ਕੱਟਦਾ।", "Esto es el lado de la oficina. Los padres piden en Cafetería. Aquí no se cobra una tarjeta."],
+  ["Upload weekly menu", "Téléverser le menu", "上传周菜单", "ਹਫ਼ਤਾਵਾਰੀ ਮੀਨੂ ਅੱਪਲੋਡ", "Subir menú semanal"],
+  ["Post typical week", "Publier une semaine type", "发布典型周", "ਆਮ ਹਫ਼ਤਾ ਪੋਸਟ", "Publicar semana típica"],
+  ["Posted for families", "Publié pour les familles", "已向家庭发布", "ਪਰਿਵਾਰਾਂ ਲਈ ਪੋਸਟ", "Publicado para las familias"],
+  ["Typical menu until you post", "Menu type tant que vous ne publiez pas", "发布前为典型菜单", "ਪੋਸਟ ਤੱਕ ਆਮ ਮੀਨੂ", "Menú típico hasta que publique"],
+  ["No hot lunch this day. Families will pack.", "Pas de dîner chaud ce jour. Les familles préparent un lunch.", "当天无热午餐。家庭会带饭。", "ਇਸ ਦਿਨ ਗਰਮ ਲੰਚ ਨਹੀਂ। ਪਰਿਵਾਰ ਪੈਕ ਕਰਨਗੇ।", "No hay almuerzo caliente este día. Las familias llevan lunch."],
+  ["Item", "Article", "菜品", "ਆਈਟਮ", "Artículo"],
+  ["Who has hot lunch", "Qui a le dîner chaud", "谁点了热午餐", "ਕਿਸੇ ਗਰਮ ਲੰਚ ਹੈ", "Quién tiene almuerzo caliente"],
+  ["Younger rooms — Kindergarten especially — often walk students to the cafeteria. Harbor lists who already bought a meal. Packed lunches stay off the list. Cedar Hill’s paper process isn’t modeled yet.", "Les classes plus jeunes — surtout la maternelle — accompagnent souvent les élèves à la cafétéria. Harbor liste qui a déjà acheté un repas. Les lunchs maison n’y sont pas. Le processus papier de Cedar Hill n’est pas encore modélisé.", "低年级尤其是幼儿园常由老师带到食堂。Harbor列出已买餐的学生。带饭的不在名单上。Cedar Hill的纸质流程尚未写入。", "ਛੋਟੀਆਂ ਕਲਾਸਾਂ — ਖ਼ਾਸ ਕਰ ਕਿੰਡਰਗਾਰਟਨ — ਅਕਸਰ ਵਿਦਿਆਰਥੀਆਂ ਨੂੰ ਕੈਫੇਟੇਰੀਆ ਲੈ ਜਾਂਦੀਆਂ ਹਨ। Harbor ਦੱਸਦਾ ਹੈ ਕਿਸੇ ਖਰੀਦਿਆ। ਘਰ ਦਾ ਲੰਚ ਸੂਚੀ ਤੋਂ ਬਾਹਰ। Cedar Hill ਦਾ ਕਾਗਜ਼ੀ ਤਰੀਕਾ ਹਾਲੇ ਮਾਡਲ ਨਹੀਂ।", "Las aulas más chicas — sobre todo kínder — suelen llevar a los alumnos a la cafetería. Harbor lista quién ya compró. El lunch de casa no aparece. El proceso en papel de Cedar Hill aún no está modelado."],
+  ["Cafeteria today", "Cafétéria aujourd’hui", "今日食堂", "ਅੱਜ ਕੈਫੇਟੇਰੀਆ", "Cafetería hoy"],
+  ["Kindergarten · Room K2", "Maternelle · Salle K2", "幼儿园 · K2班", "ਕਿੰਡਰਗਾਰਟਨ · ਕਮਰਾ K2", "Kínder · Salón K2"],
+  ["Grade 2 · Room 8", "2e année · Salle 8", "二年级 · 8班", "ਗ੍ਰੇਡ 2 · ਕਮਰਾ 8", "2.º · Salón 8"],
+  ["My class · Room 12", "Ma classe · Salle 12", "我的班 · 12班", "ਮੇਰੀ ਕਲਾਸ · ਕਮਰਾ 12", "Mi clase · Salón 12"],
+  ["hot lunch", "dîner chaud", "热午餐", "ਗਰਮ ਲੰਚ", "almuerzo caliente"],
+  ["Packed lunch", "Lunch maison", "带饭", "ਘਰ ਦਾ ਲੰਚ", "Lunch de casa"],
+  ["Packed", "Maison", "带饭", "ਪੈਕ", "De casa"],
+  ["Hot lunch", "Dîner chaud", "热午餐", "ਗਰਮ ਲੰਚ", "Almuerzo caliente"],
+  ["Kindergarten cafeteria today", "Cafétéria maternelle aujourd’hui", "今日幼儿园食堂", "ਅੱਜ ਕਿੰਡਰਗਾਰਟਨ ਕੈਫੇਟੇਰੀਆ", "Cafetería de kínder hoy"],
+  ["Family orders today · post this week", "Commandes familles aujourd’hui · publier la semaine", "今日家庭订单 · 发布本周", "ਅੱਜ ਪਰਿਵਾਰ ਆਰਡਰ · ਇਸ ਹਫ਼ਤੇ ਪੋਸਟ", "Pedidos de familias hoy · publicar la semana"],
+  ["Dismissal", "Sortie", "放学", "ਛੁੱਟੀ", "Salida"],
+  ["{name}’s dismissal today", "Sortie de {name} aujourd’hui", "{name}今天放学", "{name} ਦੀ ਅੱਜ ਛੁੱਟੀ", "Salida de {name} hoy"],
+  ["Usual plan stays unless you change it. Room and duty staff see the same board — bus loop, carpool, Kids Club, or the office.", "Le plan habituel reste tant que vous ne le changez pas. La classe et le personnel dehors voient le même tableau — autobus, covoiturage, Kids Club ou le bureau.", "不改则维持常规。教室和外面值班看同一块板 — 校车环、拼车、托管或办公室。", "ਆਮ ਯੋਜਨਾ ਰਹਿੰਦੀ ਹੈ ਜਦ ਤੱਕ ਨਾ ਬਦਲੋ। ਕਲਾਸ ਅਤੇ ਡਿਊਟੀ ਇੱਕ ਬੋਰਡ ਵੇਖਦੇ ਹਨ — ਬੱਸ, ਕਾਰਪੂਲ, Kids Club ਜਾਂ ਦਫ਼ਤਰ।", "El plan habitual sigue hasta que lo cambie. El salón y el personal afuera ven el mismo tablero — buses, carpool, Kids Club o la oficina."],
+  ["Change for today", "Changement pour aujourd’hui", "今日变更", "ਅੱਜ ਲਈ ਤਬਦੀਲੀ", "Cambio para hoy"],
+  ["Example: taking Bus 4 today instead of carpool. The classroom and the staff outside update live.", "Exemple : Bus 4 aujourd’hui au lieu du covoiturage. La classe et le personnel dehors voient ça en direct.", "例如：今天改坐4路而不是拼车。教室和外面值班实时更新。", "ਉਦਾਹਰਨ: ਅੱਜ ਬੱਸ 4, ਕਾਰਪੂਲ ਨਹੀਂ। ਕਲਾਸ ਅਤੇ ਬਾਹਰਲਾ ਸਟਾਫ ਲਾਈਵ ਵੇਖਦਾ ਹੈ।", "Ejemplo: Bus 4 hoy en vez de carpool. El salón y el personal afuera se actualizan en vivo."],
+  ["How they leave", "Comment ils partent", "怎么离校", "ਕਿਵੇਂ ਜਾਂਦੇ ਹਨ", "Cómo salen"],
+  ["Note for school", "Note pour l’école", "给学校的说明", "ਸਕੂਲ ਲਈ ਨੋਟ", "Nota para la escuela"],
+  ["Taking Bus 4 today instead of carpool.", "Bus 4 aujourd’hui au lieu du covoiturage.", "今天改坐4路，不拼车。", "ਅੱਜ ਬੱਸ 4, ਕਾਰਪੂਲ ਨਹੀਂ।", "Hoy Bus 4 en vez de carpool."],
+  ["Put on the live board", "Mettre au tableau en direct", "放到实时板上", "ਲਾਈਵ ਬੋਰਡ 'ਤੇ ਪਾਓ", "Poner en el tablero en vivo"],
+  ["Back to usual", "Revenir à l’habituel", "恢复常规", "ਆਮ 'ਤੇ ਵਾਪਸ", "Volver a lo habitual"],
+  ["Classroom and duty staff can see it.", "La classe et le personnel de service le voient.", "教室和值班都能看到。", "ਕਲਾਸ ਅਤੇ ਡਿਊਟੀ ਸਟਾਫ ਵੇਖ ਸਕਦੇ ਹਨ।", "El salón y el personal de turno lo ven."],
+  ["{name} is back on the usual plan.", "{name} est de retour au plan habituel.", "{name}已恢复常规。", "{name} ਆਮ ਯੋਜਨਾ 'ਤੇ ਵਾਪਸ ਹੈ।", "{name} volvió al plan habitual."],
+  ["Usual is {mode} · {detail}.", "L’habituel est {mode} · {detail}.", "常规是{mode} · {detail}。", "ਆਮ {mode} · {detail} ਹੈ।", "Lo habitual es {mode} · {detail}."],
+  ["Morning route", "Itinéraire du matin", "早班路线", "ਸਵੇਰ ਦਾ ਰੂਟ", "Ruta de la mañana"],
+  ["Classroom dismissal", "Sortie de classe", "教室放学", "ਕਲਾਸ ਛੁੱਟੀ", "Salida del salón"],
+  ["Parent notes land here before the bell. Send them to the right door so duty staff aren’t guessing in the carpool line.", "Les notes des parents arrivent ici avant la cloche. Envoyez-les à la bonne porte pour que le personnel ne devine pas dans la file.", "铃响前家长说明会出现在这里。送到正确门口，外面值班不用在拼车队里猜。", "ਘੰਟੀ ਤੋਂ ਪਹਿਲਾਂ ਮਾਪਿਆਂ ਦੀਆਂ ਨੋਟਾਂ ਇੱਥੇ ਆਉਂਦੀਆਂ ਹਨ। ਸਹੀ ਦਰਵਾਜ਼ੇ ਭੇਜੋ ਤਾਂ ਡਿਊਟੀ ਅੰਦਾਜ਼ਾ ਨਾ ਲਾਵੇ।", "Las notas de padres llegan aquí antes del timbre. Envíenlos a la puerta correcta para que el personal no adivine en la fila."],
+  ["Changes today", "Changements aujourd’hui", "今日变更", "ਅੱਜ ਤਬਦੀਲੀਆਂ", "Cambios hoy"],
+  ["Duty board", "Tableau de service", "值班板", "ਡਿਊਟੀ ਬੋਰਡ", "Tablero de turno"],
+  ["Live with parent notes. Bus loop, carpool line, walkers, Kids Club, and the office share one list so a child doesn’t get put on the wrong ride.", "En direct avec les notes des parents. Boucle d’autobus, covoiturage, marcheurs, Kids Club et le bureau partagent une liste pour qu’un enfant ne prenne pas le mauvais départ.", "与家长说明同步。校车环、拼车队、步行、托管和办公室共用一份名单，避免上错车。", "ਮਾਪਿਆਂ ਦੀਆਂ ਨੋਟਾਂ ਨਾਲ ਲਾਈਵ। ਬੱਸ, ਕਾਰਪੂਲ, ਤੁਰਨ ਵਾਲੇ, Kids Club ਅਤੇ ਦਫ਼ਤਰ ਇੱਕ ਸੂਚੀ ਸਾਂਝੀ ਕਰਦੇ ਹਨ।", "En vivo con notas de padres. Circuito de buses, carpool, peatones, Kids Club y la oficina comparten una lista para que nadie tome el viaje equivocado."],
+  ["Still on campus", "Encore sur le campus", "仍在校园", "ਹਾਲੇ ਕੈਂਪਸ 'ਤੇ", "Aún en el campus"],
+  ["Changes", "Changements", "变更", "ਤਬਦੀਲੀਆਂ", "Cambios"],
+  ["All lanes", "Toutes les files", "全部通道", "ਸਾਰੀਆਂ ਲਾਈਨਾਂ", "Todos los carriles"],
+  ["Find a student", "Trouver un élève", "查找学生", "ਵਿਦਿਆਰਥੀ ਲੱਭੋ", "Buscar un estudiante"],
+  ["Name, room, bus, or note", "Nom, salle, autobus ou note", "姓名、教室、校车或说明", "ਨਾਮ, ਕਮਰਾ, ਬੱਸ ਜਾਂ ਨੋਟ", "Nombre, salón, bus o nota"],
+  ["No one in this lane.", "Personne dans cette file.", "这条通道没人。", "ਇਸ ਲਾਈਨ ਵਿਚ ਕੋਈ ਨਹੀਂ।", "Nadie en este carril."],
+  ["Bus", "Autobus", "校车", "ਬੱਸ", "Autobús"],
+  ["Carpool", "Covoiturage", "拼车", "ਕਾਰਪੂਲ", "Carpool"],
+  ["Walker", "Marcheur", "步行", "ਤੁਰਨ ਵਾਲਾ", "Peatón"],
+  ["After-school", "Après l’école", "课后托管", "ਸਕੂਲ ਤੋਂ ਬਾਅਦ", "Después de clases"],
+  ["Early pickup", "Ramassage anticipé", "提前接走", "ਛੇਤੀ ਲੈਣਾ", "Recogida temprana"],
+  ["Bus loop", "Boucle d’autobus", "校车环", "ਬੱਸ ਲੂਪ", "Circuito de buses"],
+  ["Carpool line", "File de covoiturage", "拼车队", "ਕਾਰਪੂਲ ਲਾਈਨ", "Fila de carpool"],
+  ["Walker door", "Porte des marcheurs", "步行门", "ਤੁਰਨ ਵਾਲਿਆਂ ਦਾ ਦਰਵਾਜ਼ਾ", "Puerta de peatones"],
+  ["Kids Club", "Kids Club", "课后俱乐部", "Kids Club", "Kids Club"],
+  ["Office", "Bureau", "办公室", "ਦਫ਼ਤਰ", "Oficina"],
+  ["Changed", "Changé", "已改", "ਬਦਲਿਆ", "Cambiado"],
+  ["Waiting", "En attente", "等待", "ਉਡੀਕ", "Esperando"],
+  ["At the door", "À la porte", "在门口", "ਦਰਵਾਜ਼ੇ 'ਤੇ", "En la puerta"],
+  ["Sent from class", "Envoyé de la classe", "已从教室送出", "ਕਲਾਸ ਤੋਂ ਭੇਜਿਆ", "Enviado del salón"],
+  ["Released", "Libéré", "已放行", "ਛੱਡਿਆ", "Entregado"],
+  ["Send", "Envoyer", "送出", "ਭੇਜੋ", "Enviar"],
+  ["was", "était", "原为", "ਪਹਿਲਾਂ", "era"],
+  ["Usual", "Habituel", "常规", "ਆਮ", "Habitual"],
+  ["Live", "En direct", "实时", "ਲਾਈਵ", "En vivo"],
+  ["Live board", "Tableau en direct", "实时板", "ਲਾਈਵ ਬੋਰਡ", "Tablero en vivo"],
+  ["Dismissal today", "Sortie aujourd’hui", "今日放学", "ਅੱਜ ਛੁੱਟੀ", "Salida de hoy"],
+  ["Dismissal change", "Changement de sortie", "放学变更", "ਛੁੱਟੀ ਤਬਦੀਲੀ", "Cambio de salida"],
+  ["Pickup changes in class", "Changements de ramassage en classe", "本班接送变更", "ਕਲਾਸ ਵਿਚ ਲੈਣ ਦੀਆਂ ਤਬਦੀਲੀਆਂ", "Cambios de recogida en clase"],
+  ["Live pickup changes", "Changements de ramassage en direct", "实时接送变更", "ਲਾਈਵ ਲੈਣ ਤਬਦੀਲੀਆਂ", "Cambios de recogida en vivo"],
+  ["Route 7", "Ligne 7", "7路", "ਰੂਟ 7", "Ruta 7"],
+  ["Bus 4", "Bus 4", "4路", "ਬੱਸ 4", "Bus 4"],
+  ["Route 12", "Ligne 12", "12路", "ਰੂਟ 12", "Ruta 12"],
+  ["Loop A", "Boucle A", "A环", "ਲੂਪ A", "Loop A"],
+  ["Loop B", "Boucle B", "B环", "ਲੂਪ B", "Loop B"],
+  ["Loop A · Jordan in the grey CR-V", "Boucle A · Jordan dans le CR-V gris", "A环 · Jordan开灰色CR-V", "ਲੂਪ A · ਜੌਰਡਨ ਸਲੇਟੀ CR-V", "Loop A · Jordan en el CR-V gris"],
+  ["Kids Club until 5:00", "Kids Club jusqu’à 17 h", "托管至5:00", "Kids Club 5:00 ਤੱਕ", "Kids Club hasta las 5:00"],
+  ["Kids Club until 5:15", "Kids Club jusqu’à 17 h 15", "托管至5:15", "Kids Club 5:15 ਤੱਕ", "Kids Club hasta las 5:15"],
+  ["Kids Club until 4:30", "Kids Club jusqu’à 16 h 30", "托管至4:30", "Kids Club 4:30 ਤੱਕ", "Kids Club hasta las 4:30"],
+  ["Walker door · 3:10", "Porte des marcheurs · 15 h 10", "步行门 · 3:10", "ਤੁਰਨ ਵਾਲਾ ਦਰਵਾਜ਼ਾ · 3:10", "Puerta de peatones · 3:10"],
+  ["Office · 2:30 · Uncle Rafael", "Bureau · 14 h 30 · Oncle Rafael", "办公室 · 2:30 · Rafael叔叔", "ਦਫ਼ਤਰ · 2:30 · ਅੰਕਲ ਰਾਫਾਏਲ", "Oficina · 2:30 · Tío Rafael"],
+  ["Maya taking carpool today instead of Route 7.", "Maya est en covoiturage aujourd’hui, pas la ligne 7.", "Maya今天拼车，不上7路。", "ਮਾਇਆ ਅੱਜ ਕਾਰਪੂਲ, ਰੂਟ 7 ਨਹੀਂ।", "Maya va en carpool hoy, no la ruta 7."],
+  ["Grandma is running late. After-school instead of the bus.", "Mamie est en retard. Après l’école au lieu de l’autobus.", "奶奶会晚到。改课后托管，不坐校车。", "ਦਾਦੀ ਦੇਰ ਹੈ। ਸਕੂਲ ਤੋਂ ਬਾਅਦ, ਬੱਸ ਨਹੀਂ।", "La abuela llega tarde. After-school en vez del bus."],
+  ["Hana taking Bus 4 today instead of carpool.", "Hana prend le Bus 4 aujourd’hui au lieu du covoiturage.", "Hana今天坐4路，不拼车。", "ਹਾਨਾ ਅੱਜ ਬੱਸ 4, ਕਾਰਪੂਲ ਨਹੀਂ।", "Hana toma el Bus 4 hoy en vez de carpool."],
+  ["Early pickup for a dentist appointment.", "Ramassage anticipé pour le dentiste.", "看牙医提前接走。", "ਦੰਦਾਂ ਲਈ ਛੇਤੀ ਲੈਣਾ।", "Recogida temprana por el dentista."],
+  ["Maya is carpool, not Route 7", "Maya est en covoiturage, pas la ligne 7", "Maya拼车，不是7路", "ਮਾਇਆ ਕਾਰਪੂਲ, ਰੂਟ 7 ਨਹੀਂ", "Maya es carpool, no la ruta 7"],
+  ["Jordan changed dismissal. Loop A, grey CR-V. Don’t walk her to the bus loop.", "Jordan a changé la sortie. Boucle A, CR-V gris. Ne l’amenez pas à la boucle d’autobus.", "Jordan改了放学。A环，灰色CR-V。不要送到校车环。", "ਜੌਰਡਨ ਨੇ ਛੁੱਟੀ ਬਦਲੀ। ਲੂਪ A, ਸਲੇਟੀ CR-V। ਬੱਸ ਲੂਪ ਨਾ ਲੈ ਜਾਓ।", "Jordan cambió la salida. Loop A, CR-V gris. No la lleven al circuito de buses."],
+  ["Four live pickup changes", "Quatre changements de ramassage en direct", "四项实时接送变更", "ਚਾਰ ਲਾਈਵ ਲੈਣ ਤਬਦੀਲੀਆਂ", "Cuatro cambios de recogida en vivo"],
+  ["Carpool, Kids Club, Bus 4, and an early dentist pickup. Duty board is the source of truth.", "Covoiturage, Kids Club, Bus 4, et un ramassage dentiste. Le tableau de service fait foi.", "拼车、托管、4路，以及牙医提前接。值班板为准。", "ਕਾਰਪੂਲ, Kids Club, ਬੱਸ 4, ਅਤੇ ਦੰਦਾਂ ਦੀ ਛੇਤੀ ਲੈਣ। ਡਿਊਟੀ ਬੋਰਡ ਸਹੀ ਹੈ।", "Carpool, Kids Club, Bus 4 y una recogida del dentista. El tablero de turno es la fuente."],
+  ["Carpool today is on the board", "Le covoiturage d’aujourd’hui est au tableau", "今天的拼车已上板", "ਅੱਜ ਦਾ ਕਾਰਪੂਲ ਬੋਰਡ 'ਤੇ ਹੈ", "El carpool de hoy está en el tablero"],
+  ["Room 12 and the carpool line can see Maya is Loop A, not Route 7.", "La salle 12 et la file de covoiturage voient que Maya est boucle A, pas la ligne 7.", "12班和拼车队能看到Maya是A环，不是7路。", "ਕਮਰਾ 12 ਅਤੇ ਕਾਰਪੂਲ ਲਾਈਨ ਵੇਖਦੀ ਹੈ ਮਾਇਆ ਲੂਪ A ਹੈ, ਰੂਟ 7 ਨਹੀਂ।", "El salón 12 y la fila de carpool ven que Maya es Loop A, no la ruta 7."],
+  ["Grade 6 · Room 21", "6e année · Salle 21", "六年级 · 21班", "ਗ੍ਰੇਡ 6 · ਕਮਰਾ 21", "6.º · Salón 21"],
+  ["Grade 8 · Room 28", "8e année · Salle 28", "八年级 · 28班", "ਗ੍ਰੇਡ 8 · ਕਮਰਾ 28", "8.º · Salón 28"],
+  ["taking", "prend", "改乘", "ਲੈ ਰਿਹਾ", "toma"],
+  ["today", "aujourd’hui", "今天", "ਅੱਜ", "hoy"],
+  ["Maya taking carpool today instead of Route 7.", "Maya est en covoiturage aujourd’hui, pas la ligne 7.", "Maya今天拼车，不上7路。", "ਮਾਇਆ ਅੱਜ ਕਾਰਪੂਲ, ਰੂਟ 7 ਨਹੀਂ।", "Maya va en carpool hoy, no la ruta 7."],
+  ["October", "Octobre", "十月", "ਅਕਤੂਬਰ", "Octubre"],
+  ["November", "Novembre", "十一月", "ਨਵੰਬਰ", "Noviembre"],
 ].forEach(([en, fr, zh, pa, es]) => {
   if (!BOOK[en]) BOOK[en] = { fr, zh, pa, es };
 });
@@ -1478,7 +2294,7 @@ function askIndex() {
   const kid = child();
   const paid = kid.meals.filter((m) => m.bought);
   const nextMeal = kid.meals.find((m) => !m.bought) || kid.meals[0];
-  const items = [
+  let items = [
     {
       id: "picture",
       keys: ["picture", "photo", "photos", "fotos", "foto", "portrait", "journee", "拍照", "照相", "照片", "ਫੋਟੋ"],
@@ -1506,11 +2322,11 @@ function askIndex() {
       keys: ["menu", "lunch", "dejeuner", "almuerzo", "taco", "tuesday", "mardi", "martes", "pasta", "pizza", "soup", "soupe", "午餐", "ਲੰਚ"],
       href: "#/lunch",
       source: "Cafeteria week",
-      fr: `Prochain repas ouvert : ${nextMeal.day}, ${nextMeal.name} à $${nextMeal.price.toFixed(2)}. Le lunch de la maison reste par défaut.`,
-      en: `Next open meal is ${nextMeal.day}: ${nextMeal.name} for $${nextMeal.price.toFixed(2)}. Packed lunch stays the default until you purchase.`,
-      zh: `下一顿可选餐是${nextMeal.day}：${nextMeal.name}，$${nextMeal.price.toFixed(2)}。不购买则默认带饭。`,
-      pa: `ਅਗਲਾ ਖੁੱਲ੍ਹਾ ਭੋਜਨ ${nextMeal.day}: ${nextMeal.name} $${nextMeal.price.toFixed(2)}। ਘਰ ਦਾ ਲੰਚ ਡਿਫਾਲਟ ਰਹਿੰਦਾ ਹੈ।`,
-      es: `El próximo almuerzo abierto es ${nextMeal.day}: ${nextMeal.name} por $${nextMeal.price.toFixed(2)}. El lunch de casa queda si no compran.`,
+      fr: `Le dîner chaud d’aujourd’hui est ${tx(lunchMenu(LUNCH_TODAY).find((item) => item.cat === "main")?.name || nextMeal.name, "fr")}. Commandez le jour même ou à l’avance jusqu’au vendredi 6 nov. dans Cafétéria.`,
+      en: `Today’s hot lunch is ${lunchMenu(LUNCH_TODAY).find((item) => item.cat === "main")?.name || nextMeal.name}. Order that day or ahead through Friday, Nov 6 from Cafeteria.`,
+      zh: `今天的热午餐是${tx(lunchMenu(LUNCH_TODAY).find((item) => item.cat === "main")?.name || nextMeal.name, "zh")}。可当天或提前点到11月6日周五，入口在食堂。`,
+      pa: `ਅੱਜ ਦਾ ਗਰਮ ਲੰਚ ${tx(lunchMenu(LUNCH_TODAY).find((item) => item.cat === "main")?.name || nextMeal.name, "pa")} ਹੈ। ਉਸ ਦਿਨ ਜਾਂ 6 ਨਵੰਬਰ ਸ਼ੁੱਕਰਵਾਰ ਤੱਕ ਕੈਫੇਟੇਰੀਆ ਤੋਂ ਆਰਡਰ।`,
+      es: `El almuerzo caliente de hoy es ${tx(lunchMenu(LUNCH_TODAY).find((item) => item.cat === "main")?.name || nextMeal.name, "es")}. Pida ese día o con anticipación hasta el viernes 6 nov. en Cafetería.`,
     },
     {
       id: "bus",
@@ -1522,6 +2338,17 @@ function askIndex() {
       zh: "第7路校车今早晚点12分钟。站点仍是Oak与3rd。下午3:38下车。",
       pa: "ਰੂਟ 7 ਅੱਜ ਸਵੇਰੇ 12 ਮਿੰਟ ਲੇਟ ਹੈ। ਸਟਾਪ ਹਾਲੇ Oak & 3rd। ਦੁਪਹਿਰ 3:38 ਉਤਰਨਾ।",
       es: "La ruta 7 circula 12 minutos tarde esta mañana. La parada sigue en Oak y 3rd. La bajada de la tarde es a las 3:38.",
+    },
+    {
+      id: "dismiss",
+      keys: ["dismiss", "pickup", "carpool", "bus 4", "after school", "kids club", "early", "sortie", "ramassage", "放学", "ਛੁੱਟੀ"],
+      href: "#/dismiss",
+      source: "Dismissal · live board",
+      fr: "Aujourd’hui Maya est en file de covoiturage, boucle A, pas la ligne 7. Noah va au Kids Club. Hana prend le Bus 4 au lieu du covoiturage.",
+      en: "Today Maya is carpool Loop A, not Route 7. Noah is Kids Club instead of the bus. Hana is taking Bus 4 instead of carpool.",
+      zh: "今天Maya走拼车A环，不上7路。Noah去课后托管。Hana改坐4路而不是拼车。",
+      pa: "ਅੱਜ ਮਾਇਆ ਕਾਰਪੂਲ ਲੂਪ A, ਰੂਟ 7 ਨਹੀਂ। ਨੋਆ Kids Club। ਹਾਨਾ ਬੱਸ 4, ਕਾਰਪੂਲ ਨਹੀਂ।",
+      es: "Hoy Maya va en carpool Loop A, no la ruta 7. Noah va a Kids Club. Hana toma el Bus 4 en vez de carpool.",
     },
     {
       id: "choir",
@@ -1556,7 +2383,32 @@ function askIndex() {
       pa: "ਵਿਗਿਆਨ ਯਾਤਰਾ ਬੁੱਧਵਾਰ 10:30–11:30 ਨਾਲੇ ਵਿਚ। ਇਜਾਜ਼ਤ ਪੱਤਰ ਹਾਲੇ ਅਣ-ਦਸਤਖ਼ਤ ਹੈ।",
       es: "La caminata de ciencias es el miércoles de 10:30 a 11:30 en el arroyo. Falta firmar el permiso.",
     },
+    {
+      id: "dance",
+      keys: ["dance", "danse", "baile", "halloween", "costume", "舞会", "ਡਾਂਸ"],
+      href: "#/events/e2",
+      source: "Events · Front office",
+      fr: "La danse d’Halloween est le vendredi 31 octobre de 18 h à 20 h au gymnase. Costumes sans masque intégral. Confirmez dans Événements.",
+      en: "Halloween dance is Friday Oct 31, 6:00–8:00 in the gym. Costumes without face masks. RSVP from Events.",
+      zh: "万圣节舞会是10月31日周五晚上6:00–8:00，在体育馆。服装勿戴遮脸面具。请在活动里回复。",
+      pa: "ਹੈਲੋਵੀਨ ਡਾਂਸ ਸ਼ੁੱਕਰਵਾਰ 31 ਅਕਤੂਬਰ 6:00–8:00 ਜਿਮ ਵਿਚ। ਚਿਹਰਾ ਢੱਕਣ ਵਾਲੇ ਮਾਸਕ ਨਹੀਂ। ਈਵੈਂਟ ਤੋਂ RSVP।",
+      es: "El baile de Halloween es el viernes 31 de octubre de 6:00 a 8:00 en el gimnasio. Disfraces sin máscara. Confirme en Eventos.",
+    },
+    {
+      id: "pizza",
+      keys: ["pizza", "kit", "fundraiser", "collecte", "pto", "walkathon", "募捐", "ਫੰਡਰੇਜ਼ਰ"],
+      href: "#/events/e7",
+      source: "Events · PTO",
+      fr: "Les trousses pizza du CPE sont 12 $ chacune. Commande dans Documents, ramassage vendredi 15 h 30 à la cafétéria. Aussi au tableau Événements.",
+      en: "PTO pizza kits are $12. Order from Documents, pickup Friday 3:30 in the cafeteria. Also listed under Events.",
+      zh: "家委会披萨套装12美元。在文件里订购，周五3:30食堂领取。活动列表里也有。",
+      pa: "PTO ਪੀਜ਼ਾ ਕਿੱਟਾਂ $12। ਦਸਤਾਵੇਜ਼ ਤੋਂ ਆਰਡਰ, ਸ਼ੁੱਕਰਵਾਰ 3:30 ਕੈਫੇਟੇਰੀਆ। ਈਵੈਂਟ ਵਿਚ ਵੀ।",
+      es: "Los kits de pizza del PTO cuestan $12. Pídalos en Documentos, recogida viernes 3:30 en la cafetería. También están en Eventos.",
+    },
   ];
+  if (state.edition === "mvp") {
+    items = items.filter((item) => item.id !== "balance" && item.id !== "lunch-menu" && item.id !== "dismiss");
+  }
   if (kid.id !== "maya") {
     const hide = new Set(["choir", "walk"]);
     return items.filter((item) => !hide.has(item.id)).concat(
@@ -1906,21 +2758,16 @@ function parentHome() {
     ${notice()}
     ${reminderBanner()}
     ${
-      ridesBus()
-        ? `<div class="banner">
+      (() => {
+        const plan = todayDismiss(kid.id);
+        return `<div class="banner ${plan.change ? "risk" : ""}">
       <div>
-        <strong>${tx("Bus update")}</strong>
-        ${tx(state.busChange)}
+        <strong>${plan.change ? tx("Dismissal change") : tx("Dismissal today")}</strong>
+        ${tx(dismissMode(plan.mode).title)} · ${tx(plan.detail)}${plan.note ? ` · ${tx(plan.note)}` : ""}
       </div>
-      <a class="btn ghost" href="#/bus">${tx("See route")}</a>
-    </div>`
-        : `<div class="banner">
-      <div>
-        <strong>${tx("Walks home")}</strong>
-        ${txf("{name} is Grade 8 and dismisses at 3:10. No Route 7 seat — Maya and Noah still ride.", { name: kid.short })}
-      </div>
-      <a class="btn ghost" href="#/bus">${tx("Dismissal")}</a>
-    </div>`
+      <a class="btn ghost" href="#/dismiss">${tx("Live board")}</a>
+    </div>`;
+      })()
     }
     <div class="hero">
       <div>
@@ -1942,8 +2789,8 @@ function parentHome() {
       </a>
       <a class="card metric" href="#/lunch">
         <div class="metric-label">${tx("Lunch")}</div>
-        <div class="metric-value">${tx(nextMeal.day)}</div>
-        <div class="metric-hint">${tx(nextMeal.name)} ${tx("still open")}</div>
+        <div class="metric-value">${tx("Today")}</div>
+        <div class="metric-hint">${tx(lunchMenu(LUNCH_TODAY).find((item) => item.cat === "main")?.name || nextMeal.name)}</div>
       </a>
       <a class="card metric" href="#/alerts">
         <div class="metric-label">${tx("Notifications")}</div>
@@ -1979,6 +2826,13 @@ function parentHome() {
             </a>`
             )
             .join("")}
+        </section>
+        <section class="card panel" style="margin-top:16px">
+          <div class="widget-head">
+            <h2>${tx("Events")}</h2>
+            <a href="#/events">${tx("See all")} ${badgeMarkup(unreadEventsCount())}</a>
+          </div>
+          ${kidEvents().slice(0, 3).map(eventRow).join("")}
         </section>
         <div class="actions">
           <a class="btn" href="#/attendance/report">${tx("Report absence")}</a>
@@ -2270,7 +3124,7 @@ function calendar() {
   paintChrome("calendar");
   setCrumbs([
     boardCrumb(),
-    { label: state.role === "admin" ? "Events" : "Calendar", href: "#/calendar" },
+    { label: "Calendar", href: "#/calendar" },
   ]);
   const who = state.role === "parent" ? child().short : "Cedar Hill";
   view.innerHTML = `
@@ -2301,53 +3155,900 @@ function calendar() {
   bindCalendarExport();
 }
 
-function lunch() {
-  paintChrome("lunch");
-  setCrumbs([
-    { label: "Today", href: "#/" },
-    { label: "Cafeteria", href: "#/lunch" },
-  ]);
-  const due = child().meals.filter((m) => m.bought).reduce((sum, m) => sum + m.price, 0);
-  view.innerHTML = `
-    <div class="hero">
-      <div>
-        <h1>${txf("{name}’s cafeteria week", { name: child().short })}</h1>
-        <p class="lede">${tx("Tap a meal to order. Packed lunch stays the default until you buy.")}</p>
-      </div>
-      <div class="stat-row">
-        <div><div class="num">$${due.toFixed(2)}</div><div class="kicker">${tx("On the account")}</div></div>
-      </div>
-    </div>
-    <section class="grid-3">
-      ${child().meals
-        .map(
-          (m) => `
-        <article class="card menu-card">
-          <div class="kicker">${tx(m.day)}</div>
-          <strong>${tx(m.name)}</strong>
-          <div class="price">$${m.price.toFixed(2)}</div>
-          <button class="btn ${m.bought ? "ghost" : ""}" data-meal="${m.id}">
-            ${m.bought ? tx("Purchased · undo") : tx("Purchase")}
-          </button>
-        </article>`
-        )
-        .join("")}
-    </section>
-  `;
-  view.querySelectorAll("[data-meal]").forEach((btn) => {
+function lunchCrumbs(extra) {
+  return [boardCrumb(), { label: "Cafeteria", href: "#/lunch" }, ...(extra || [])];
+}
+
+function qtyControl(iso, item) {
+  const qty = cartQty(iso, item.id);
+  return `
+    <div class="qty" role="group" aria-label="${tx(item.name)}">
+      <button type="button" class="qty-btn" data-lunch-iso="${iso}" data-lunch-item="${item.id}" data-lunch-delta="-1" ${qty ? "" : "disabled"} aria-label="${tx("Remove")}">−</button>
+      <span class="qty-n">${qty || ""}</span>
+      <button type="button" class="qty-btn add" data-lunch-iso="${iso}" data-lunch-item="${item.id}" data-lunch-delta="1" ${qty >= 9 ? "disabled" : ""} aria-label="${tx("Add")}">+</button>
+    </div>`;
+}
+
+function bindLunchQty(step) {
+  view.querySelectorAll("[data-lunch-delta]").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const meal = child().meals.find((m) => m.id === btn.dataset.meal);
-      meal.bought = !meal.bought;
-      child().mealBalance += meal.bought ? -meal.price : meal.price;
-      state.notice = meal.bought
-        ? `${meal.name} added for ${meal.day}. Charged to the family account.`
-        : `${meal.name} removed. ${child().short} will pack that day.`;
-      lunch();
+      const iso = btn.dataset.lunchIso;
+      const itemId = btn.dataset.lunchItem;
+      setLunchQty(iso, itemId, cartQty(iso, itemId) + Number(btn.dataset.lunchDelta));
+      lunch(step);
     });
   });
 }
 
+function lunchDock() {
+  const count = cartCount();
+  if (!count) return "";
+  return `
+    <div class="lunch-dock no-print">
+      <div>
+        <strong>${count} ${tx(count === 1 ? "item" : "items")}</strong>
+        <span class="kicker">${money(cartTotal())} · ${child().short}</span>
+      </div>
+      <a class="btn" href="#/lunch/cart">${tx("View cart")}</a>
+    </div>`;
+}
+
+function lunchMenuView() {
+  const days = lunchDays();
+  if (!days.some((d) => d.iso === state.lunchDay)) state.lunchDay = LUNCH_TODAY;
+  const selected = days.find((d) => d.iso === state.lunchDay) || days[0];
+  const menu = lunchMenu(selected.iso);
+  const dayTotal = dayCartTotal(selected.iso);
+  paintChrome("lunch");
+  setCrumbs(lunchCrumbs());
+  view.innerHTML = `
+    ${notice()}
+    <div class="hero">
+      <div>
+        <h1>${txf("{name}’s hot lunch", { name: child().short })}</h1>
+        <p class="lede">${tx("Today is at the top. Order ahead any school day through Friday, Nov 6 — packed lunch stays the default until you check out.")}</p>
+      </div>
+      <div class="stat-row">
+        <div><div class="num">${money(child().mealBalance)}</div><div class="kicker">${tx("On the account")}</div></div>
+      </div>
+    </div>
+    ${lunchWeeks()
+      .map(
+        (group) => `
+      <section class="lunch-week">
+        <div class="widget-head">
+          <h2>${group.title}</h2>
+        </div>
+        <div class="lunch-days">
+          ${group.days
+            .map(
+              (day) => `
+            <button type="button" class="day-chip ${day.iso === selected.iso ? "is-on" : ""} ${day.today ? "is-today" : ""}" data-lunch-day="${day.iso}">
+              <span class="kicker">${day.today ? tx("Today") : tx(day.dow)}</span>
+              <strong>${day.day}</strong>
+            </button>`
+            )
+            .join("")}
+        </div>
+      </section>`
+      )
+      .join("")}
+    <article class="card lunch-sheet">
+      <header class="lunch-sheet-head">
+        <div>
+          <div class="kicker">${selected.today ? tx("Today") : tx("Order ahead")}</div>
+          <h2>${tx("Hot lunch")} · ${tx(selected.dow)} ${selected.day} ${tx(selected.month)}</h2>
+        </div>
+        <div class="lunch-day-total">${money(dayTotal)}</div>
+      </header>
+      ${LUNCH_CATS.map((cat) => {
+        const rows = menu.filter((item) => item.cat === cat.id);
+        if (!rows.length) return "";
+        return `
+          <h3 class="lunch-cat">${tx(cat.title)}</h3>
+          ${rows
+            .map(
+              (item) => `
+            <div class="lunch-row">
+              <div class="title-block">
+                <strong>${tx(item.name)}</strong>
+              </div>
+              ${qtyControl(selected.iso, item)}
+              <span class="lunch-price">${money(item.price)}</span>
+            </div>`
+            )
+            .join("")}`;
+      }).join("")}
+    </article>
+    ${lunchDock()}
+  `;
+  view.querySelectorAll("[data-lunch-day]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.lunchDay = btn.dataset.lunchDay;
+      lunch();
+    });
+  });
+  bindLunchQty();
+}
+
+function lunchCartView() {
+  const lines = cartLines();
+  paintChrome("lunch");
+  setCrumbs(lunchCrumbs([{ label: "Cart", href: "#/lunch/cart" }]));
+  if (!lines.length) {
+    view.innerHTML = `
+      ${notice()}
+      <div class="hero">
+        <div>
+          <h1>${tx("Cart is empty")}</h1>
+          <p class="lede">${tx("Add mains, sandwiches, drinks, or dessert for today or any day still open.")}</p>
+        </div>
+        <a class="btn" href="#/lunch">${tx("Back to menu")}</a>
+      </div>`;
+    return;
+  }
+  const groups = [];
+  lines.forEach((line) => {
+    let group = groups.find((g) => g.iso === line.iso);
+    if (!group) {
+      group = { iso: line.iso, meta: lunchDateMeta(line.iso), lines: [] };
+      groups.push(group);
+    }
+    group.lines.push(line);
+  });
+  view.innerHTML = `
+    ${notice()}
+    <div class="hero">
+      <div>
+        <h1>${tx("Cart")}</h1>
+        <p class="lede">${txf("Hot lunch for {name}. Packed days stay packed until you pay.", { name: child().short })}</p>
+      </div>
+      <div class="stat-row">
+        <div><div class="num">${money(cartTotal())}</div><div class="kicker">${tx("Due today")}</div></div>
+      </div>
+    </div>
+    ${groups
+      .map((group) => {
+        const meta = group.meta;
+        return `
+        <section class="card panel">
+          <div class="widget-head">
+            <h2>${meta.today ? tx("Today") : tx(meta.dow)} · ${tx(meta.month)} ${meta.day}</h2>
+            <span class="kicker">${money(dayCartTotal(group.iso))}</span>
+          </div>
+          ${group.lines
+            .map((line) => {
+              const item = lunchItem(line.iso, line.itemId);
+              if (!item) return "";
+              return `
+                <div class="lunch-row">
+                  <div class="title-block">
+                    <strong>${tx(item.name)}</strong>
+                    <span class="kicker">${money(item.price)} ${tx("each")}</span>
+                  </div>
+                  ${qtyControl(line.iso, item)}
+                  <span class="lunch-price">${money(item.price * line.qty)}</span>
+                </div>`;
+            })
+            .join("")}
+        </section>`;
+      })
+      .join("")}
+    <div class="actions">
+      <a class="btn ghost" href="#/lunch">${tx("Keep shopping")}</a>
+      <a class="btn" href="#/lunch/pay">${tx("Check out")} · ${money(cartTotal())}</a>
+    </div>
+  `;
+  bindLunchQty("cart");
+}
+
+function lunchPayView() {
+  if (!cartCount()) {
+    location.hash = "#/lunch/cart";
+    return;
+  }
+  paintChrome("lunch");
+  setCrumbs(
+    lunchCrumbs([
+      { label: "Cart", href: "#/lunch/cart" },
+      { label: "Pay", href: "#/lunch/pay" },
+    ])
+  );
+  const method = state.lunchPay || "card";
+  view.innerHTML = `
+    ${notice()}
+    <div class="hero">
+      <div>
+        <h1>${tx("Pay")}</h1>
+        <p class="lede">${tx("Demo checkout — Harbor does not charge a real card. Apple Pay and Google Pay succeed in this prototype.")}</p>
+      </div>
+      <div class="stat-row">
+        <div><div class="num">${money(cartTotal())}</div><div class="kicker">${child().short}</div></div>
+      </div>
+    </div>
+    <section class="card panel" style="padding-bottom:18px">
+      <h2>${tx("Payment method")}</h2>
+      <div class="pay-methods">
+        <button type="button" class="pay-choice ${method === "apple" ? "is-on" : ""}" data-pay="apple">${tx("Apple Pay")}</button>
+        <button type="button" class="pay-choice ${method === "google" ? "is-on" : ""}" data-pay="google">${tx("Google Pay")}</button>
+        <button type="button" class="pay-choice ${method === "card" ? "is-on" : ""}" data-pay="card">${tx("Credit card")}</button>
+        <button type="button" class="pay-choice ${method === "account" ? "is-on" : ""}" data-pay="account">${tx("Family account")}</button>
+      </div>
+      ${
+        method === "card"
+          ? `<form id="card-form" class="card-form">
+              <div class="field"><label for="card-name">${tx("Name on card")}</label><input id="card-name" autocomplete="cc-name" value="Jordan Bowser" required /></div>
+              <div class="field"><label for="card-number">${tx("Card number")}</label><input id="card-number" inputmode="numeric" autocomplete="cc-number" placeholder="4242 4242 4242 4242" required /></div>
+              <div class="card-grid">
+                <div class="field"><label for="card-exp">${tx("Expiry")}</label><input id="card-exp" placeholder="MM/YY" autocomplete="cc-exp" required /></div>
+                <div class="field"><label for="card-cvc">${tx("CVC")}</label><input id="card-cvc" inputmode="numeric" autocomplete="cc-csc" placeholder="123" required /></div>
+              </div>
+              <button class="btn" type="submit">${tx("Pay")} ${money(cartTotal())}</button>
+            </form>`
+          : method === "account"
+            ? `<p class="lede" style="margin:12px 0">${txf("Charge {amount} to the family meal account. Balance after this order: {balance}.", { amount: money(cartTotal()), balance: money(child().mealBalance - cartTotal()) })}</p>
+               <button class="btn" type="button" id="pay-now">${tx("Charge account")}</button>`
+            : `<p class="lede" style="margin:12px 0">${tx("Opens the wallet on a phone. In this demo it confirms without leaving Harbor.")}</p>
+               <button class="btn pay-wallet ${method === "apple" ? "apple" : "google"}" type="button" id="pay-now">${method === "apple" ? tx("Pay with Apple Pay") : tx("Pay with Google Pay")}</button>`
+      }
+    </section>
+  `;
+  view.querySelectorAll("[data-pay]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.lunchPay = btn.dataset.pay;
+      lunchPayView();
+    });
+  });
+  document.getElementById("card-form")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const number = (document.getElementById("card-number").value || "").replace(/\D/g, "");
+    const exp = (document.getElementById("card-exp").value || "").trim();
+    const cvc = (document.getElementById("card-cvc").value || "").replace(/\D/g, "");
+    if (number.length < 13 || number.length > 19 || !/^\d{2}\/\d{2}$/.test(exp) || cvc.length < 3) {
+      state.notice = tx("Check the card number, expiry, and CVC. Demo cards like 4242 4242 4242 4242 work.");
+      lunchPayView();
+      return;
+    }
+    completeLunchPay("card", number.slice(-4));
+  });
+  document.getElementById("pay-now")?.addEventListener("click", () => {
+    if (method === "account" && child().mealBalance < cartTotal()) {
+      state.notice = tx("Not enough on the family account. Use a card or Apple Pay.");
+      lunchPayView();
+      return;
+    }
+    completeLunchPay(method);
+  });
+}
+
+function completeLunchPay(method, last4) {
+  const lines = cartLines().map((line) => {
+    const item = lunchItem(line.iso, line.itemId);
+    return {
+      iso: line.iso,
+      itemId: line.itemId,
+      name: item?.name || line.itemId,
+      qty: line.qty,
+      price: item?.price || 0,
+    };
+  });
+  const total = cartTotal();
+  const order = {
+    id: "o" + Date.now(),
+    childId: child().id,
+    method,
+    last4: last4 || "",
+    total,
+    paidAt: "Just now",
+    lines,
+  };
+  state.lunchOrders.unshift(order);
+  if (method === "account") child().mealBalance = Math.round((child().mealBalance - total) * 100) / 100;
+  lines.forEach((line) => {
+    const weekday = WEEK_ISO[line.iso];
+    if (!weekday) return;
+    const meal = child().meals.find((m) => m.day === weekday && m.id === line.itemId);
+    if (meal) meal.bought = true;
+  });
+  state.lunchCart[child().id] = [];
+  state.notice = "";
+  location.hash = "#/lunch/receipt";
+  render();
+}
+
+function lunchReceiptView() {
+  const order = lastLunchOrder();
+  paintChrome("lunch");
+  setCrumbs(lunchCrumbs([{ label: "Receipt", href: "#/lunch/receipt" }]));
+  if (!order) {
+    location.hash = "#/lunch";
+    return;
+  }
+  const methodLabel =
+    order.method === "apple"
+      ? tx("Apple Pay")
+      : order.method === "google"
+        ? tx("Google Pay")
+        : order.method === "account"
+          ? tx("Family account")
+          : order.last4
+            ? txf("Card · {last4}", { last4: order.last4 })
+            : tx("Credit card");
+  view.innerHTML = `
+    ${notice()}
+    <div class="hero">
+      <div>
+        <h1>${tx("Paid.")}</h1>
+        <p class="lede">${txf("{name} is on the cafeteria list. Packed lunch is skipped on those days.", { name: child().short })}</p>
+      </div>
+      <div class="stat-row">
+        <div><div class="num">${money(order.total)}</div><div class="kicker">${methodLabel}</div></div>
+      </div>
+    </div>
+    <section class="card panel">
+      ${order.lines
+        .map((line) => {
+          const meta = lunchDateMeta(line.iso);
+          return `
+            <div class="list-row">
+              <div class="title-block">
+                <span class="kicker">${tx(meta.dow)} ${meta.day} · ×${line.qty}</span>
+                <strong>${tx(line.name)}</strong>
+              </div>
+              <span class="lunch-price">${money(line.price * line.qty)}</span>
+            </div>`;
+        })
+        .join("")}
+    </section>
+    <div class="actions">
+      <a class="btn" href="#/lunch">${tx("Order more")}</a>
+    </div>
+  `;
+}
+
+function lunch(step) {
+  if (state.role === "admin") return adminLunch();
+  if (state.role === "teacher") return teacherLunchList();
+  if (step === "cart") return lunchCartView();
+  if (step === "pay") return lunchPayView();
+  if (step === "receipt") return lunchReceiptView();
+  return lunchMenuView();
+}
+
+function postLunchWeek(week, filename) {
+  lunchDaysInWeek(week).forEach((day) => {
+    state.lunchMenuByIso[day.iso] = defaultLunchMenu(day.iso);
+  });
+  const meta = lunchDateMeta(week);
+  state.notice = filename
+    ? `${filename} is posted for the week of ${tx(meta.dow)} ${meta.day}. Families see it in Cafeteria.`
+    : `Typical hot lunch is posted for the week of ${tx(meta.dow)} ${meta.day}. Families see it in Cafeteria.`;
+}
+
+function adminLunch() {
+  const weeks = lunchWeeks();
+  const week = weeks.some((g) => g.week === mondayIso(state.lunchDay))
+    ? mondayIso(state.lunchDay)
+    : weeks[0]?.week || mondayIso(LUNCH_TODAY);
+  if (mondayIso(state.lunchDay) !== week) state.lunchDay = lunchDaysInWeek(week)[0]?.iso || LUNCH_TODAY;
+  const days = lunchDaysInWeek(week);
+  const selected = days.find((d) => d.iso === state.lunchDay) || days[0];
+  const menu = selected ? lunchMenu(selected.iso) : [];
+  const posted = selected && Object.prototype.hasOwnProperty.call(state.lunchMenuByIso, selected.iso);
+  paintChrome("lunch");
+  setCrumbs([boardCrumb(), { label: "Hot lunch menu", href: "#/lunch" }]);
+  view.innerHTML = `
+    ${notice()}
+    <div class="hero">
+      <div>
+        <h1>${tx("Post the week’s hot lunch")}</h1>
+        <p class="lede">${tx("Upload the cafeteria sheet the vendor sends — PDF, spreadsheet, or a photo. Harbor puts it on the family Cafeteria. You can still edit a day by hand.")}</p>
+      </div>
+    </div>
+    <section class="card panel lunch-upload" style="padding-bottom:18px;margin-bottom:16px">
+      <h2>${tx("Weekly menu file")}</h2>
+      <p class="lede" style="margin-bottom:12px">${tx("This is the office side. Parents order from Cafeteria. Nothing here charges a card.")}</p>
+      <div class="actions">
+        <label class="btn">
+          ${tx("Upload weekly menu")}
+          <input id="menu-file" type="file" accept=".pdf,.csv,.xlsx,.xls,.png,.jpg,.jpeg" hidden />
+        </label>
+        <button type="button" class="btn ghost" id="menu-typical">${tx("Post typical week")}</button>
+      </div>
+    </section>
+    ${weeks
+      .map(
+        (group) => `
+      <section class="lunch-week">
+        <div class="widget-head"><h2>${group.title}</h2></div>
+        <div class="lunch-days">
+          ${group.days
+            .map(
+              (day) => `
+            <button type="button" class="day-chip ${day.iso === selected?.iso ? "is-on" : ""} ${day.today ? "is-today" : ""}" data-lunch-day="${day.iso}">
+              <span class="kicker">${day.today ? tx("Today") : tx(day.dow)}</span>
+              <strong>${day.day}</strong>
+            </button>`
+            )
+            .join("")}
+        </div>
+      </section>`
+      )
+      .join("")}
+    ${
+      selected
+        ? `<article class="card lunch-sheet">
+      <header class="lunch-sheet-head">
+        <div>
+          <div class="kicker">${posted ? tx("Posted for families") : tx("Typical menu until you post")}</div>
+          <h2>${tx("Hot lunch")} · ${tx(selected.dow)} ${selected.day} ${tx(selected.month)}</h2>
+        </div>
+      </header>
+      ${
+        menu.length
+          ? menu
+              .map(
+                (item) => `
+        <div class="lunch-row">
+          <div class="title-block">
+            <span class="kicker">${tx(LUNCH_CATS.find((c) => c.id === item.cat)?.title || item.cat)}</span>
+            <strong>${tx(item.name)}</strong>
+          </div>
+          <span class="lunch-price">${money(item.price)}</span>
+          <button type="button" class="btn ghost" data-remove-item="${item.id}">${tx("Remove")}</button>
+        </div>`
+              )
+              .join("")
+          : `<p class="doc-empty">${tx("No hot lunch this day. Families will pack.")}</p>`
+      }
+      <form id="menu-item-form" class="compose" style="grid-template-columns: 120px 1fr 90px auto;padding-top:12px">
+        <select id="menu-cat">${LUNCH_CATS.map((c) => `<option value="${c.id}">${tx(c.singular || c.title)}</option>`).join("")}</select>
+        <input id="menu-name" placeholder="${tx("Item")}" required />
+        <input id="menu-price" inputmode="decimal" placeholder="4.50" required />
+        <button class="btn" type="submit">${tx("Add")}</button>
+      </form>
+    </article>`
+        : ""
+    }
+  `;
+  view.querySelectorAll("[data-lunch-day]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.lunchDay = btn.dataset.lunchDay;
+      adminLunch();
+    });
+  });
+  document.getElementById("menu-typical")?.addEventListener("click", () => {
+    postLunchWeek(week);
+    adminLunch();
+  });
+  document.getElementById("menu-file")?.addEventListener("change", (e) => {
+    const file = e.target.files?.[0];
+    postLunchWeek(week, file?.name || "Weekly menu");
+    adminLunch();
+  });
+  view.querySelectorAll("[data-remove-item]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (!selected) return;
+      const next = lunchMenu(selected.iso).filter((item) => item.id !== btn.dataset.removeItem);
+      state.lunchMenuByIso[selected.iso] = next;
+      adminLunch();
+    });
+  });
+  document.getElementById("menu-item-form")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (!selected) return;
+    const price = Number(document.getElementById("menu-price").value);
+    const name = document.getElementById("menu-name").value.trim();
+    if (!name || !(price >= 0)) return;
+    const current = lunchMenu(selected.iso).slice();
+    current.push({
+      id: "u" + Date.now(),
+      cat: document.getElementById("menu-cat").value,
+      name,
+      price,
+    });
+    state.lunchMenuByIso[selected.iso] = current;
+    adminLunch();
+  });
+}
+
+function teacherLunchList() {
+  const until = parseIso(LUNCH_TODAY);
+  until.setDate(until.getDate() + 14);
+  const cap = isoDay(until.getFullYear(), until.getMonth(), until.getDate());
+  const days = lunchDays().filter((day) => day.iso <= cap);
+  if (!days.some((d) => d.iso === state.lunchDay)) state.lunchDay = LUNCH_TODAY;
+  const selected = days.find((d) => d.iso === state.lunchDay) || days[0];
+  const room = LUNCH_ROOMS.find((r) => r.id === state.lunchRoom) || LUNCH_ROOMS[0];
+  const kids = roster.filter((s) => s.room === room.id);
+  const buying = kids.filter((s) => lunchLinesForChild(selected.iso, s.id).length);
+  paintChrome("lunch");
+  setCrumbs([boardCrumb(), { label: "Lunch list", href: "#/lunch" }]);
+  view.innerHTML = `
+    ${notice()}
+    <div class="hero">
+      <div>
+        <h1>${tx("Who has hot lunch")}</h1>
+        <p class="lede">${tx("Younger rooms — Kindergarten especially — often walk students to the cafeteria. Harbor lists who already bought a meal. Packed lunches stay off the list. Cedar Hill’s paper process isn’t modeled yet.")}</p>
+      </div>
+      <div class="stat-row">
+        <div><div class="num">${buying.length}/${kids.length}</div><div class="kicker">${tx("Cafeteria today")}</div></div>
+      </div>
+    </div>
+    <div class="event-filters" role="tablist">
+      ${LUNCH_ROOMS.map(
+        (r) => `
+        <button type="button" data-lunch-room="${r.id}" class="${r.id === room.id ? "is-on" : ""}">${tx(r.title)}</button>`
+      ).join("")}
+    </div>
+    <div class="lunch-days" style="margin-bottom:16px">
+      ${days
+        .slice(0, 6)
+        .map(
+          (day) => `
+        <button type="button" class="day-chip ${day.iso === selected.iso ? "is-on" : ""} ${day.today ? "is-today" : ""}" data-lunch-day="${day.iso}">
+          <span class="kicker">${day.today ? tx("Today") : tx(day.dow)}</span>
+          <strong>${day.day}</strong>
+        </button>`
+        )
+        .join("")}
+    </div>
+    <section class="card panel">
+      <div class="widget-head">
+        <h2>${room.teacher} · ${tx(selected.today ? "Today" : selected.dow)} ${selected.day}</h2>
+        <span class="kicker">${buying.length} ${tx("hot lunch")}</span>
+      </div>
+      ${kids
+        .map((s) => {
+          const lines = lunchLinesForChild(selected.iso, s.id);
+          return `
+            <div class="list-row">
+              <div class="title-block">
+                <strong>${s.name}</strong>
+                <span class="kicker">${
+                  lines.length
+                    ? lines.map((line) => `${line.qty}× ${tx(line.name)}`).join(" · ")
+                    : tx("Packed lunch")
+                }</span>
+              </div>
+              ${lines.length ? pill("Hot lunch") : pill("Packed", "amber")}
+            </div>`;
+        })
+        .join("")}
+    </section>
+  `;
+  view.querySelectorAll("[data-lunch-room]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.lunchRoom = btn.dataset.lunchRoom;
+      teacherLunchList();
+    });
+  });
+  view.querySelectorAll("[data-lunch-day]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.lunchDay = btn.dataset.lunchDay;
+      teacherLunchList();
+    });
+  });
+}
+
+function dismissStatusLabel(status) {
+  if (status === "released") return "Released";
+  if (status === "called") return "At the door";
+  if (status === "sent") return "Sent from class";
+  return "Waiting";
+}
+
+function dismissStatusTone(status) {
+  if (status === "released") return "";
+  if (status === "called" || status === "sent") return "amber";
+  return "risk";
+}
+
+function setDismissStatus(id, status) {
+  state.dismissStatus[id] = status;
+}
+
+function dismissRow(student, opts = {}) {
+  const plan = todayDismiss(student.id);
+  const mode = dismissMode(plan.mode);
+  const usual = plan.usual;
+  const staff = state.role !== "parent";
+  return `
+    <div class="list-row dismiss-row ${plan.change ? "is-change" : ""}">
+      <div class="title-block">
+        <span class="kicker">${tx(student.grade)} · ${student.room}${plan.at ? ` · ${plan.at}` : ""}</span>
+        <strong>${student.name}</strong>
+        <span class="kicker">${tx(mode.title)} · ${tx(plan.detail)}${
+          plan.change ? ` · ${tx("was")} ${tx(dismissMode(usual.mode).title)} · ${tx(usual.detail)}` : ""
+        }</span>
+        ${plan.note ? `<span class="kicker">${tx(plan.note)}</span>` : ""}
+      </div>
+      <div class="dismiss-side">
+        ${plan.change ? pill("Changed", "risk") : ""}
+        ${pill(dismissStatusLabel(plan.status), dismissStatusTone(plan.status))}
+        ${
+          staff
+            ? `<div class="dismiss-acts">
+                ${
+                  opts.classroom && plan.status === "waiting"
+                    ? `<button type="button" class="btn ghost" data-dismiss-id="${student.id}" data-dismiss-status="sent">${tx("Send")}</button>`
+                    : ""
+                }
+                ${
+                  !opts.classroom && plan.status !== "released"
+                    ? `<button type="button" class="btn ghost" data-dismiss-id="${student.id}" data-dismiss-status="called">${tx("At the door")}</button>
+                       <button type="button" class="btn" data-dismiss-id="${student.id}" data-dismiss-status="released">${tx("Released")}</button>`
+                    : ""
+                }
+              </div>`
+            : ""
+        }
+      </div>
+    </div>`;
+}
+
+function bindDismissActions(rerender) {
+  view.querySelectorAll("[data-dismiss-status]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      setDismissStatus(btn.dataset.dismissId, btn.dataset.dismissStatus);
+      markAlertsFor("dismiss");
+      rerender();
+    });
+  });
+}
+
+function parentDismiss() {
+  const kid = child();
+  const plan = todayDismiss(kid.id);
+  const usual = usualDismiss(kid.id);
+  paintChrome("dismiss");
+  setCrumbs([boardCrumb(), { label: "Dismissal", href: "#/dismiss" }]);
+  view.innerHTML = `
+    ${notice()}
+    ${
+      ridesBus()
+        ? `<div class="banner">
+            <div>
+              <strong>${tx("Live change")}</strong>
+              ${tx(state.busChange)}
+            </div>
+          </div>`
+        : ""
+    }
+    <div class="hero">
+      <div>
+        <h1>${txf("{name}’s dismissal today", { name: kid.short })}</h1>
+        <p class="lede">${tx("Usual plan stays unless you change it. Room and duty staff see the same board — bus loop, carpool, Kids Club, or the office.")}</p>
+      </div>
+      <div class="stat-row">
+        <div>
+          <div class="num">${tx(dismissMode(plan.mode).title)}</div>
+          <div class="kicker">${tx(plan.detail)}</div>
+        </div>
+      </div>
+    </div>
+    <section class="card panel" style="padding-bottom:18px;margin-bottom:16px">
+      <div class="widget-head">
+        <h2>${tx("Today")}</h2>
+        ${plan.change ? pill("Changed", "risk") : pill("Usual")}
+      </div>
+      <div class="list-row">
+        <div class="title-block">
+          <span class="kicker">${tx(dismissMode(plan.mode).lane)}</span>
+          <strong>${tx(plan.detail)}</strong>
+          <span class="kicker">${plan.note ? tx(plan.note) : txf("Usual is {mode} · {detail}.", { mode: tx(dismissMode(usual.mode).title), detail: tx(usual.detail) })}</span>
+        </div>
+        ${pill(dismissStatusLabel(plan.status), dismissStatusTone(plan.status))}
+      </div>
+      ${
+        plan.change
+          ? `<div class="actions"><button type="button" class="btn ghost" id="dismiss-revert">${tx("Back to usual")}</button></div>`
+          : ""
+      }
+    </section>
+    <section class="card panel" style="padding-bottom:18px">
+      <h2>${tx("Change for today")}</h2>
+      <p class="lede" style="margin-bottom:12px">${tx("Example: taking Bus 4 today instead of carpool. The classroom and the staff outside update live.")}</p>
+      <form id="dismiss-form">
+        <div class="field">
+          <label for="dismiss-mode">${tx("How they leave")}</label>
+          <select id="dismiss-mode">${DISMISS_MODES.map((m) => `<option value="${m.id}" ${m.id === plan.mode ? "selected" : ""}>${tx(m.title)}</option>`).join("")}</select>
+        </div>
+        <div class="field">
+          <label for="dismiss-detail">${tx("Where")}</label>
+          <input id="dismiss-detail" value="${(plan.detail || "").replace(/"/g, "&quot;")}" placeholder="Bus 4 · Loop A · Kids Club" required />
+        </div>
+        <div class="field">
+          <label for="dismiss-note">${tx("Note for school")}</label>
+          <textarea id="dismiss-note" rows="2" placeholder="${tx("Taking Bus 4 today instead of carpool.")}">${plan.note || ""}</textarea>
+        </div>
+        <button class="btn" type="submit">${tx("Put on the live board")}</button>
+      </form>
+    </section>
+    ${
+      ridesBus()
+        ? `<section class="card panel" style="margin-top:16px">
+            <h2>${tx("Morning route")}</h2>
+            <div class="list-row"><div class="title-block"><strong>Oak & 3rd</strong><span class="kicker">${kid.short}’s stop</span></div>${pill("7:42 AM")}</div>
+            <div class="list-row"><div class="title-block"><strong>Cedar Hill loop</strong><span class="kicker">School</span></div>${pill("7:58 AM")}</div>
+          </section>`
+        : ""
+    }
+  `;
+  document.getElementById("dismiss-revert")?.addEventListener("click", () => {
+    state.dismissNotes = state.dismissNotes.filter((n) => n.studentId !== kid.id);
+    delete state.dismissStatus[kid.id];
+    state.notice = txf("{name} is back on the usual plan.", { name: kid.short });
+    parentDismiss();
+  });
+  document.getElementById("dismiss-form")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const mode = document.getElementById("dismiss-mode").value;
+    const detail = document.getElementById("dismiss-detail").value.trim();
+    const note = document.getElementById("dismiss-note").value.trim();
+    state.dismissNotes = state.dismissNotes.filter((n) => n.studentId !== kid.id);
+    state.dismissNotes.unshift({
+      id: "dn" + Date.now(),
+      studentId: kid.id,
+      mode,
+      detail,
+      note: note || `${kid.short} ${tx("taking")} ${tx(dismissMode(mode).title)} ${tx("today")}.`,
+      from: "parent",
+      at: "Just now",
+    });
+    state.dismissStatus[kid.id] = "waiting";
+    pushAlert({
+      audience: "teacher",
+      section: "dismiss",
+      title: `${kid.short}: ${dismissMode(mode).title}`,
+      body: note || detail,
+      href: "#/dismiss",
+    });
+    pushAlert({
+      audience: "admin",
+      section: "dismiss",
+      title: `${kid.short}: ${dismissMode(mode).title}`,
+      body: `${kid.room} · ${detail}`,
+      href: "#/dismiss",
+    });
+    state.notice = tx("Classroom and duty staff can see it.");
+    parentDismiss();
+  });
+}
+
+function teacherDismiss() {
+  const rooms = [
+    { id: "Room 12", title: "My class · Room 12" },
+    { id: "Room K2", title: "Kindergarten · Room K2" },
+    { id: "Room 8", title: "Grade 2 · Room 8" },
+    { id: "Room 21", title: "Grade 6 · Room 21" },
+    { id: "Room 28", title: "Grade 8 · Room 28" },
+  ];
+  if (!rooms.some((r) => r.id === state.dismissRoom)) state.dismissRoom = "Room 12";
+  const room = rooms.find((r) => r.id === state.dismissRoom);
+  const kids = roster.filter((s) => s.room === room.id);
+  const changed = kids.filter((s) => todayDismiss(s.id).change);
+  paintChrome("dismiss");
+  setCrumbs([boardCrumb(), { label: "Dismissal", href: "#/dismiss" }]);
+  view.innerHTML = `
+    ${notice()}
+    <div class="hero">
+      <div>
+        <h1>${tx("Classroom dismissal")}</h1>
+        <p class="lede">${tx("Parent notes land here before the bell. Send them to the right door so duty staff aren’t guessing in the carpool line.")}</p>
+      </div>
+      <div class="stat-row">
+        <div><div class="num">${changed.length}</div><div class="kicker">${tx("Changes today")}</div></div>
+      </div>
+    </div>
+    <div class="event-filters" role="tablist">
+      ${rooms.map((r) => `<button type="button" data-dismiss-room="${r.id}" class="${r.id === room.id ? "is-on" : ""}">${tx(r.title)}</button>`).join("")}
+    </div>
+    <section class="card panel">
+      <div class="widget-head">
+        <h2>${room.id}</h2>
+        <span class="kicker">${kids.length} · ${tx("Live")}</span>
+      </div>
+      ${kids.map((s) => dismissRow(s, { classroom: true })).join("")}
+    </section>
+  `;
+  view.querySelectorAll("[data-dismiss-room]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.dismissRoom = btn.dataset.dismissRoom;
+      teacherDismiss();
+    });
+  });
+  bindDismissActions(teacherDismiss);
+}
+
+function dutyDismiss() {
+  const q = (state.dismissFind || "").trim().toLowerCase();
+  const lane = state.dismissLane || "all";
+  const kids = roster
+    .filter((s) => {
+      const plan = todayDismiss(s.id);
+      if (lane !== "all" && plan.mode !== lane) return false;
+      if (!q) return true;
+      return [s.name, s.room, s.grade, plan.detail, plan.note].join(" ").toLowerCase().includes(q);
+    })
+    .sort((a, b) => {
+      const ac = todayDismiss(a.id).change === todayDismiss(b.id).change ? 0 : todayDismiss(a.id).change ? -1 : 1;
+      return ac || a.name.localeCompare(b.name);
+    });
+  const waiting = kids.filter((s) => todayDismiss(s.id).status !== "released").length;
+  paintChrome("dismiss");
+  setCrumbs([boardCrumb(), { label: "Dismissal", href: "#/dismiss" }]);
+  const groups = (lane === "all" ? DISMISS_MODES : DISMISS_MODES.filter((m) => m.id === lane)).map((mode) => ({
+    ...mode,
+    students: kids.filter((s) => todayDismiss(s.id).mode === mode.id),
+  }));
+  view.innerHTML = `
+    ${notice()}
+    <div class="hero">
+      <div>
+        <h1>${tx("Duty board")}</h1>
+        <p class="lede">${tx("Live with parent notes. Bus loop, carpool line, walkers, Kids Club, and the office share one list so a child doesn’t get put on the wrong ride.")}</p>
+      </div>
+      <div class="stat-row">
+        <div><div class="num">${waiting}</div><div class="kicker">${tx("Still on campus")}</div></div>
+        <div><div class="num">${dismissChangedCount()}</div><div class="kicker">${tx("Changes")}</div></div>
+      </div>
+    </div>
+    <div class="event-filters" role="tablist">
+      <button type="button" data-dismiss-lane="all" class="${lane === "all" ? "is-on" : ""}">${tx("All lanes")}</button>
+      ${DISMISS_MODES.map((m) => `<button type="button" data-dismiss-lane="${m.id}" class="${lane === m.id ? "is-on" : ""}">${tx(m.title)}</button>`).join("")}
+    </div>
+    <div class="field" style="margin-bottom:16px">
+      <label for="dismiss-q">${tx("Find a student")}</label>
+      <input id="dismiss-q" type="search" value="${q.replace(/"/g, "&quot;")}" placeholder="${tx("Name, room, bus, or note")}" />
+    </div>
+    <div class="dismiss-lanes">
+      ${groups
+        .map(
+          (group) => `
+        <section class="card panel">
+          <div class="widget-head">
+            <h2>${tx(group.lane)}</h2>
+            <span class="kicker">${group.students.length}</span>
+          </div>
+          ${
+            group.students.length
+              ? group.students.map((s) => dismissRow(s)).join("")
+              : `<p class="doc-empty">${tx("No one in this lane.")}</p>`
+          }
+        </section>`
+        )
+        .join("")}
+    </div>
+  `;
+  view.querySelectorAll("[data-dismiss-lane]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.dismissLane = btn.dataset.dismissLane;
+      dutyDismiss();
+    });
+  });
+  const find = document.getElementById("dismiss-q");
+  find?.addEventListener("input", () => {
+    state.dismissFind = find.value;
+  });
+  find?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      dutyDismiss();
+    }
+  });
+  find?.addEventListener("blur", () => dutyDismiss());
+  bindDismissActions(dutyDismiss);
+}
+
+function dismissView() {
+  if (state.role === "parent") return parentDismiss();
+  if (state.role === "teacher") return teacherDismiss();
+  return dutyDismiss();
+}
+
 function bus() {
+  if (state.edition === "dream" && state.role === "parent") return parentDismiss();
   paintChrome("bus");
   setCrumbs([
     { label: "Today", href: "#/" },
@@ -2531,9 +4232,9 @@ function teacherHome() {
     </div>
     <section class="metrics">
       <article class="card metric"><div class="metric-label">Present</div><div class="metric-value">24</div><div class="metric-hint">2 late · 1 absent</div></article>
-      <article class="card metric"><div class="metric-label">Family notes</div><div class="metric-value">3</div><div class="metric-hint">Waiting on you</div></article>
-      <article class="card metric"><div class="metric-label">Posted</div><div class="metric-value">2</div><div class="metric-hint">Activities this week</div></article>
-      <article class="card metric"><div class="metric-label">Lunch</div><div class="metric-value">18</div><div class="metric-hint">Bought today</div></article>
+      <a class="card metric" href="#/dismiss"><div class="metric-label">${tx("Dismissal")}</div><div class="metric-value">${dismissChangedCount("Room 12")}</div><div class="metric-hint">${tx("Pickup changes in class")}</div></a>
+      <a class="card metric" href="#/events"><div class="metric-label">${tx("Events")}</div><div class="metric-value">${kidEvents().length}</div><div class="metric-hint">${tx("Dances, games, and fundraisers in one place")}</div></a>
+      <a class="card metric" href="#/lunch"><div class="metric-label">${tx("Lunch list")}</div><div class="metric-value">${roster.filter((s) => s.room === "Room K2" && lunchLinesForChild(LUNCH_TODAY, s.id).length).length}</div><div class="metric-hint">${tx("Kindergarten cafeteria today")}</div></a>
     </section>
     <div class="actions">
       <a class="btn ghost" href="#/messages">Open family inbox</a>
@@ -2597,9 +4298,9 @@ function adminHome() {
     </div>
     <section class="metrics">
       <a class="card metric" href="#/admin/attendance"><div class="metric-label">Attendance</div><div class="metric-value">96%</div><div class="metric-hint">12 absences schoolwide</div></a>
-      <a class="card metric" href="#/bus"><div class="metric-label">Buses</div><div class="metric-value">1</div><div class="metric-hint warn">Live delay</div></a>
-      <a class="card metric" href="#/lunch"><div class="metric-label">Cafeteria</div><div class="metric-value">211</div><div class="metric-hint">Meals purchased today</div></a>
-      <a class="card metric" href="#/calendar"><div class="metric-label">Tonight</div><div class="metric-value">6pm</div><div class="metric-hint">Curriculum night</div></a>
+      <a class="card metric" href="#/dismiss"><div class="metric-label">${tx("Dismissal")}</div><div class="metric-value">${dismissChangedCount()}</div><div class="metric-hint">${tx("Live pickup changes")}</div></a>
+      <a class="card metric" href="#/lunch"><div class="metric-label">${tx("Hot lunch menu")}</div><div class="metric-value">${lunchOrdersForDay(LUNCH_TODAY).length}</div><div class="metric-hint">${tx("Family orders today · post this week")}</div></a>
+      <a class="card metric" href="#/events"><div class="metric-label">${tx("Events")}</div><div class="metric-value">${kidEvents().length}</div><div class="metric-hint">${kidEvents()[0] ? tx(kidEvents()[0].title) : tx("None upcoming")}</div></a>
     </section>
   `;
 }
@@ -3059,6 +4760,18 @@ function docRow(item) {
     </a>`;
 }
 
+function eventRow(item) {
+  return `
+    <a class="list-row ${item.unread ? "is-new" : ""}" href="#/events/${item.id}">
+      <div class="title-block">
+        <span class="kicker">${tx(eventKindMeta(item.kind).title)} · ${tx(item.when)} · ${tx(item.where)}</span>
+        <strong>${tx(item.title)}</strong>
+      </div>
+      ${pill(eventKindMeta(item.kind).singular, eventKindTone(item.kind))}
+      ${item.going ? pill("Going") : item.unread ? pill("New", "risk") : ""}
+    </a>`;
+}
+
 function widgetComms() {
   return `
     <section class="card panel">
@@ -3130,6 +4843,18 @@ function widgetAttendance() {
     </section>`;
 }
 
+function widgetEvents() {
+  const upcoming = kidEvents().slice(0, 4);
+  return `
+    <section class="card panel">
+      <div class="widget-head">
+        <h2>${tx("Coming up")}</h2>
+        <a href="#/events">${tx("Events")} ${badgeMarkup(unreadEventsCount())}</a>
+      </div>
+      ${upcoming.length ? upcoming.map(eventRow).join("") : `<p class="doc-empty">${tx("No events in this pile.")}</p>`}
+    </section>`;
+}
+
 function widgetDocs() {
   return `
     <section class="card panel">
@@ -3175,6 +4900,7 @@ function mvpParentHome() {
       <div class="mvp-stack">
         ${state.widgets.attendance ? widgetAttendance() : ""}
         ${state.widgets.schedule ? widgetSchedule() : ""}
+        ${state.widgets.events ? widgetEvents() : ""}
         ${state.widgets.docs ? widgetDocs() : ""}
       </div>
     </div>
@@ -3203,7 +4929,7 @@ function mvpStaffHome() {
     <section class="metrics">
       <a class="card metric" href="${isTeacher ? "#/teach/attendance" : "#/admin/attendance"}"><div class="metric-label">Attendance</div><div class="metric-value">${isTeacher ? "24" : "96%"}</div><div class="metric-hint">${isTeacher ? "Room 12 today" : "Add an office entry"}</div></a>
       <a class="card metric" href="#/inbox"><div class="metric-label">Posted</div><div class="metric-value">${state.comms.filter((c) => (isTeacher ? c.source === "teacher" : c.source === "admin")).length}</div><div class="metric-hint">${isTeacher ? "From Room 12" : "From the office"}</div></a>
-      <a class="card metric" href="#/schedule"><div class="metric-label">This week</div><div class="metric-value">${state.scheduleItems.length}</div><div class="metric-hint">Teacher + office</div></a>
+      <a class="card metric" href="#/events"><div class="metric-label">${tx("Events")}</div><div class="metric-value">${kidEvents().length}</div><div class="metric-hint">${tx("Dances, games, and fundraisers in one place")}</div></a>
       <a class="card metric" href="#/docs"><div class="metric-label">Documents</div><div class="metric-value">${state.docs.length}</div><div class="metric-hint">School · class · fundraisers</div></a>
     </section>
     <div class="grid-2">
@@ -3511,6 +5237,153 @@ function mvpDocs(id) {
   }
 }
 
+function eventsView(id) {
+  const item = kidEvents().find((event) => event.id === id);
+  if (item) {
+    item.unread = false;
+    markAlertsFor(item.id);
+  }
+  paintChrome("events");
+  if (!item) {
+    setCrumbs([boardCrumb(), { label: "Events", href: "#/events" }]);
+    const canPost = state.role !== "parent";
+    const shown = filteredEvents();
+    view.innerHTML = `
+      ${notice()}
+      <div class="hero">
+        <div>
+          <h1>${tx("Events")}</h1>
+          <p class="lede">${
+            state.role === "parent"
+              ? tx("Dances, sports, and fundraisers — one list instead of three flyers.")
+              : tx("What Cedar Hill is hosting next. RSVP dances and games; fundraisers still live in Documents.")
+          }</p>
+        </div>
+      </div>
+      <div class="event-filters" role="tablist" aria-label="${tx("Events")}">
+        <button type="button" data-event-kind="all" class="${state.eventFilter === "all" ? "is-on" : ""}">${tx("All events")}</button>
+        ${EVENT_KINDS.map(
+          (kind) => `
+          <button type="button" data-event-kind="${kind.id}" class="${state.eventFilter === kind.id ? "is-on" : ""}">${tx(kind.title)}</button>`
+        ).join("")}
+      </div>
+      ${
+        canPost
+          ? `<section class="card panel" style="padding-bottom:18px;margin-bottom:16px">
+          <h2>${tx("Add an event")}</h2>
+          <form id="event-form">
+            <div class="field"><label for="event-kind">${tx("Category")}</label>
+              <select id="event-kind">${EVENT_KINDS.map((k) => `<option value="${k.id}">${tx(k.singular)}</option>`).join("")}</select>
+            </div>
+            <div class="field"><label for="event-title">${tx("Title")}</label><input id="event-title" required /></div>
+            <div class="field"><label for="event-when">${tx("When")}</label><input id="event-when" placeholder="Fri Oct 31 · 6:00 PM" required /></div>
+            <div class="field"><label for="event-where">${tx("Where")}</label><input id="event-where" placeholder="${tx("Gym")}" required /></div>
+            <div class="field"><label for="event-body">${tx("What families need to know")}</label><textarea id="event-body" rows="3" required></textarea></div>
+            <button class="btn" type="submit">${tx("Put on the board")}</button>
+          </form>
+        </section>`
+          : ""
+      }
+      <section class="card panel">
+        ${
+          shown.length
+            ? shown.map(eventRow).join("")
+            : `<p class="doc-empty">${
+                state.role === "parent"
+                  ? txf("Nothing in this pile for {name}.", { name: child().short })
+                  : tx("No events in this pile.")
+              }</p>`
+        }
+      </section>
+    `;
+    view.querySelectorAll("[data-event-kind]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.eventFilter = btn.dataset.eventKind;
+        eventsView();
+      });
+    });
+    const form = document.getElementById("event-form");
+    if (form) {
+      form.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const eventId = "e" + Date.now();
+        const kind = document.getElementById("event-kind").value;
+        const title = document.getElementById("event-title").value;
+        const audience = state.role === "teacher" ? "maya" : "all";
+        state.schoolEvents.unshift({
+          id: eventId,
+          kind,
+          source: state.role === "teacher" ? "teacher" : "admin",
+          for: audience,
+          title,
+          when: document.getElementById("event-when").value,
+          where: document.getElementById("event-where").value,
+          who: state.role === "teacher" ? child().room : "K–8",
+          unread: true,
+          going: false,
+          lang: "en",
+          body: document.getElementById("event-body").value,
+        });
+        pushAlert({
+          for: audience,
+          section: "events",
+          ref: eventId,
+          title: "New event",
+          body: title,
+          href: `#/events/${eventId}`,
+        });
+        state.notice = `${title} is on Events.`;
+        location.hash = "#/events";
+        render();
+      });
+    }
+    return;
+  }
+  setCrumbs([
+    boardCrumb(),
+    { label: "Events", href: "#/events" },
+    { label: item.title, href: `#/events/${item.id}` },
+  ]);
+  const titleShown = state.showOriginal[item.id] ? item.title : tx(item.title);
+  const bodyShown = state.showOriginal[item.id] ? item.body : tx(item.body);
+  const formDoc = item.docId ? kidDocs().find((d) => d.id === item.docId) : null;
+  view.innerHTML = `
+    ${notice()}
+    <article class="card doc-view">
+      <div class="kicker">${tx(eventKindMeta(item.kind).title)} · ${tx(item.when)}</div>
+      <h1>${titleShown}</h1>
+      ${sourcePill(item.source)}
+      ${aiBar(item.id, item.lang || "en", item.body)}
+      <p class="event-meta">${tx(item.where)} · ${tx(item.who)}</p>
+      <div class="doc-sheet">${bodyShown}</div>
+      ${
+        state.role === "parent" && item.kind !== "fundraiser"
+          ? `<div class="actions" style="padding-top:8px">
+              <button class="btn ${item.going ? "" : "ghost"}" type="button" id="event-going">${tx(item.going ? "You’re going" : "Going")}</button>
+              <button class="btn ghost" type="button" id="event-skip">${tx("Can’t go")}</button>
+            </div>`
+          : ""
+      }
+      ${
+        formDoc
+          ? `<div class="actions" style="padding-top:8px"><a class="btn" href="#/docs/${formDoc.id}">${tx("Open the form")}</a></div>`
+          : ""
+      }
+    </article>
+  `;
+  bindOriginalToggles();
+  document.getElementById("event-going")?.addEventListener("click", () => {
+    item.going = true;
+    state.notice = tx("You’re going");
+    eventsView(id);
+  });
+  document.getElementById("event-skip")?.addEventListener("click", () => {
+    item.going = false;
+    state.notice = tx("Marked as can’t go");
+    eventsView(id);
+  });
+}
+
 function mvpConfigure() {
   paintChrome("config");
   setCrumbs([
@@ -3521,6 +5394,7 @@ function mvpConfigure() {
     ["comms", "From school", "Unified inbox from teachers and the office"],
     ["attendance", "Attendance", "Week, absences, and a note to the office"],
     ["schedule", "This week", "Class holds next to school events"],
+    ["events", "Events", "Dances, games, and fundraisers in one place"],
     ["docs", "Documents", "School documents, classroom, and fundraisers"],
   ];
   view.innerHTML = `
@@ -3597,13 +5471,13 @@ function render() {
   if (state.edition === "mvp") {
     if (parts[0] === "inbox") return mvpInbox(parts[1]);
     if (parts[0] === "schedule") return mvpSchedule();
+    if (parts[0] === "events") return eventsView(parts[1]);
     if (parts[0] === "docs") return mvpDocs(parts[1]);
     if (parts[0] === "attendance" && parts[1] === "report") return attendanceReport();
     if (parts[0] === "attendance") return attendance();
     if (parts[0] === "teach" && parts[1] === "attendance") return teacherAttendance();
     if (parts[0] === "admin" && parts[1] === "attendance") return adminAttendance();
     if (parts[0] === "configure") return mvpConfigure();
-    if (parts[0] === "lunch") return lunch();
     if (parts[0] === "bus") return bus();
     if (state.role === "parent") return mvpParentHome();
     return mvpStaffHome();
@@ -3612,6 +5486,9 @@ function render() {
   if (state.role === "teacher") {
     if (parts[0] === "teach" && parts[1] === "attendance") return teacherAttendance();
     if (parts[0] === "calendar") return calendar();
+    if (parts[0] === "events") return eventsView(parts[1]);
+    if (parts[0] === "lunch") return lunch(parts[1]);
+    if (parts[0] === "dismiss") return dismissView();
     if (parts[0] === "messages") return messages(parts[1]);
     if (parts[0] === "class") return classroom(parts[1]);
     return teacherHome();
@@ -3619,8 +5496,10 @@ function render() {
   if (state.role === "admin") {
     if (parts[0] === "admin" && parts[1] === "attendance") return adminAttendance();
     if (parts[0] === "bus") return bus();
-    if (parts[0] === "lunch") return lunch();
+    if (parts[0] === "dismiss") return dismissView();
+    if (parts[0] === "lunch") return lunch(parts[1]);
     if (parts[0] === "calendar") return calendar();
+    if (parts[0] === "events") return eventsView(parts[1]);
     return adminHome();
   }
 
@@ -3628,7 +5507,9 @@ function render() {
   if (parts[0] === "attendance") return attendance();
   if (parts[0] === "reports") return reports();
   if (parts[0] === "calendar") return calendar();
-  if (parts[0] === "lunch") return lunch();
+  if (parts[0] === "events") return eventsView(parts[1]);
+  if (parts[0] === "lunch") return lunch(parts[1]);
+  if (parts[0] === "dismiss") return dismissView();
   if (parts[0] === "bus") return bus();
   if (parts[0] === "class") return classroom(parts[1]);
   if (parts[0] === "messages") return messages(parts[1]);
