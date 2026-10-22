@@ -206,7 +206,56 @@ button,
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
   margin-bottom: 28px;
+}
+
+.topbar-start {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.menu-btn {
+  display: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.menu-bars {
+  display: grid;
+  gap: 5px;
+  width: 16px;
+}
+
+.menu-bars span {
+  display: block;
+  height: 2px;
+  border-radius: 99px;
+  background: var(--ink);
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+body.nav-open .menu-bars span:nth-child(1) {
+  transform: translateY(7px) rotate(45deg);
+}
+
+body.nav-open .menu-bars span:nth-child(2) {
+  opacity: 0;
+}
+
+body.nav-open .menu-bars span:nth-child(3) {
+  transform: translateY(-7px) rotate(-45deg);
+}
+
+.nav-scrim {
+  display: none;
 }
 
 .topbar-end {
@@ -648,6 +697,72 @@ h2 {
   margin: 12px 0;
 }
 
+.find-filters {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.roster-results {
+  max-height: 240px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.roster-pick {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+}
+
+.roster-pick:last-child {
+  border-bottom: 0;
+}
+
+.roster-pick span {
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.roster-pick:hover {
+  background: rgba(47, 93, 74, 0.05);
+}
+
+.roster-pick.is-on {
+  background: rgba(47, 93, 74, 0.1);
+}
+
+.empty-copy {
+  margin: 0;
+  padding: 14px 12px;
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+
+.att-selected {
+  margin: 14px 0 4px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--paper-2);
+}
+
+.selected-student {
+  margin: 0;
+  font-size: 14px;
+}
+
 .field label {
   display: block;
   margin-bottom: 6px;
@@ -744,6 +859,10 @@ h2 {
   color: var(--ink);
 }
 
+.mvp-stack > * + * {
+  margin-top: 16px;
+}
+
 .widget-head {
   display: flex;
   justify-content: space-between;
@@ -758,6 +877,10 @@ h2 {
 .doc-stack {
   display: grid;
   gap: 16px;
+}
+
+.today-alerts {
+  margin-bottom: 0;
 }
 
 .doc-sub {
@@ -850,6 +973,7 @@ h2 {
   gap: 8px;
   font-size: 13px;
   color: var(--ink-soft);
+  white-space: nowrap;
 }
 
 .lang-picker select {
@@ -954,10 +1078,13 @@ h2 {
 
 @media print {
   .rail,
+  .menu-btn,
+  .nav-scrim,
   .edition-toggle,
   .no-print,
   .topbar-meta,
   .bell,
+  .lang-picker,
   .role-switch,
   .child-switch,
   form {
@@ -991,37 +1118,86 @@ h2 {
 
 @media (max-width: 980px) {
   .app {
-    grid-template-columns: 1fr;
+    display: block;
+  }
+
+  .topbar {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-areas:
+      "menu end"
+      "crumbs crumbs";
+    align-items: center;
+    gap: 10px 12px;
+  }
+
+  .topbar-start {
+    display: contents;
+  }
+
+  .menu-btn {
+    display: grid;
+    grid-area: menu;
+    position: relative;
+    z-index: 60;
+  }
+
+  .crumbs {
+    grid-area: crumbs;
+  }
+
+  .topbar-end {
+    grid-area: end;
+    justify-self: end;
+  }
+
+  .nav-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 45;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    padding: 0;
+    background: rgba(23, 32, 28, 0.46);
+  }
+
+  body.nav-open .nav-scrim {
+    display: block;
+  }
+
+  body.nav-open {
+    overflow: hidden;
   }
 
   .rail {
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 16px;
+    position: fixed;
+    z-index: 50;
+    inset: 0 auto 0 0;
+    width: min(280px, 88vw);
+    transform: translateX(-105%);
+    transition: transform 0.22s ease;
+    overflow: auto;
   }
 
-  .rail-nav {
-    flex-direction: row;
-    flex-wrap: wrap;
-    margin-top: 0;
+  body.nav-open .rail {
+    transform: none;
   }
 
-  .rail-foot {
+  .stage {
+    padding: 18px 16px 72px;
+  }
+
+  .topbar-meta {
     display: none;
-  }
-
-  .child-switch {
-    flex: 1 1 100%;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    margin-top: 0;
   }
 
   .metrics,
   .grid-2,
   .grid-3,
   .detail-head,
-  .week {
+  .week,
+  .find-filters {
     grid-template-columns: 1fr;
   }
 }
