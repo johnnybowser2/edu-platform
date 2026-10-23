@@ -15,7 +15,7 @@ const students = [
       { day: "Tue 14", status: "Present", note: "" },
       { day: "Wed 15", status: "Late", note: "Arrived 8:21 · dentist" },
       { day: "Thu 16", status: "Present", note: "" },
-      { day: "Fri 17", status: "Upcoming", note: "" },
+      { day: "Fri 17", status: "Absent", note: "Parent: dentist Friday" },
     ],
     report: [
       { subject: "Reading", mark: "Exceeding", comment: "Strong inference; still rushing endings." },
@@ -199,6 +199,113 @@ const roster = [
   { id: "kai", name: "Kai Nguyen", grade: "Grade 8", room: "Room 28", teacher: "Coach Rivera" },
 ];
 
+const STORE_SIZES = ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"];
+const STORE_SIZE_LABEL = {
+  YS: "Youth S",
+  YM: "Youth M",
+  YL: "Youth L",
+  AS: "Adult S",
+  AM: "Adult M",
+  AL: "Adult L",
+  AXL: "Adult XL",
+};
+const STORE_FILTERS = [
+  ["all", "All"],
+  ["shirt", "T-shirts"],
+  ["sweater", "Sweaters"],
+  ["hoodie", "Hoodies"],
+  ["ipad", "iPads"],
+];
+
+function defaultStoreCatalog() {
+  return [
+    {
+      id: "tee-navy",
+      kind: "shirt",
+      name: "Spirit tee",
+      color: "Navy",
+      price: 18,
+      listed: true,
+      blurb: "Soft cotton. Cedar Hill wordmark on the chest. Pickup at the office window.",
+      swatch: "#1e3a5f",
+      ink: "#e8eef6",
+      stock: { YS: 6, YM: 12, YL: 9, AS: 7, AM: 14, AL: 8, AXL: 3 },
+    },
+    {
+      id: "tee-white",
+      kind: "shirt",
+      name: "Spirit tee",
+      color: "White",
+      price: 18,
+      listed: true,
+      blurb: "Same cut as the navy tee. Holds up in the wash. Pickup at the office window.",
+      swatch: "#eef2f7",
+      ink: "#152033",
+      stock: { YS: 4, YM: 10, YL: 8, AS: 5, AM: 11, AL: 6, AXL: 2 },
+    },
+    {
+      id: "crew",
+      kind: "sweater",
+      name: "Crewneck",
+      color: "Heather gray",
+      price: 32,
+      listed: true,
+      blurb: "Midweight fleece. Small hill mark on the left chest.",
+      swatch: "#c5c9d1",
+      ink: "#152033",
+      stock: { YS: 2, YM: 5, YL: 4, AS: 3, AM: 8, AL: 5, AXL: 1 },
+    },
+    {
+      id: "hoodie",
+      kind: "hoodie",
+      name: "Harbor hoodie",
+      color: "Forest",
+      price: 42,
+      listed: true,
+      blurb: "Kangaroo pocket. School name on the back. The one students actually wear.",
+      swatch: "#2c4a3e",
+      ink: "#e8eef6",
+      stock: { YS: 1, YM: 4, YL: 3, AS: 2, AM: 7, AL: 4, AXL: 0 },
+    },
+    {
+      id: "ipad-8",
+      kind: "ipad",
+      name: "iPad (8th gen)",
+      color: "Space gray",
+      price: 89,
+      listed: true,
+      qty: 4,
+      condition: "Good",
+      spec: "32 GB · Wi-Fi · classroom wipe, ready for a new Apple ID",
+      blurb: "Retired Room 12 tablets. Sold as-is. Charging brick included. Pickup in the office.",
+    },
+    {
+      id: "ipad-7",
+      kind: "ipad",
+      name: "iPad (7th gen)",
+      color: "Silver",
+      price: 69,
+      listed: true,
+      qty: 2,
+      condition: "Fair",
+      spec: "128 GB · Wi-Fi · light scuffs on the back, screen is clean",
+      blurb: "Pulled from the cart when the school bought newer sets. Sold as-is.",
+    },
+    {
+      id: "ipad-air3",
+      kind: "ipad",
+      name: "iPad Air (3rd gen)",
+      color: "Space gray",
+      price: 129,
+      listed: true,
+      qty: 1,
+      condition: "Good",
+      spec: "64 GB · Wi-Fi · includes brick and a basic case",
+      blurb: "One left from the office loaner shelf. Sold as-is.",
+    },
+  ];
+}
+
 function rosterStudent(id) {
   return roster.find((s) => s.id === id);
 }
@@ -240,7 +347,18 @@ function mondayIndex(iso) {
 }
 
 function seedAttendanceRow(id, day) {
-  if (day.iso > "2026-10-16") return { iso: day.iso, dow: day.dow, status: "Upcoming", note: "" };
+  if (day.iso > "2026-10-16") {
+    if (id === "maya" && day.iso === "2026-10-17") {
+      return { iso: day.iso, dow: day.dow, status: "Absent", note: "Parent: dentist Friday" };
+    }
+    if (id === "amira" && day.iso === "2026-10-17") {
+      return { iso: day.iso, dow: day.dow, status: "Absent", note: "Parent: family day" };
+    }
+    if (id === "leo" && day.iso === "2026-10-17") {
+      return { iso: day.iso, dow: day.dow, status: "Absent", note: "Parent: family travel Friday" };
+    }
+    return { iso: day.iso, dow: day.dow, status: "Upcoming", note: "" };
+  }
   const week = mondayIndex(day.iso);
   if (id === "priya" && day.dow === "Mon" && week % 2 === 1) {
     return { iso: day.iso, dow: day.dow, status: "Absent", note: "Parent: absent Monday" };
@@ -741,6 +859,10 @@ function navBadgeCount(id) {
   if (id === "messages" || id === "inbox") return unreadComms();
   if (id === "docs") return unreadDocsCount();
   if (id === "events") return unreadEventsCount();
+  if (id === "store") {
+    if (state.role === "admin") return waitingStorePickups().length;
+    return storeCartCount();
+  }
   if (id === "lunch") {
     if (state.role === "parent") return cartCount();
     if (state.role === "teacher") {
@@ -804,6 +926,37 @@ function weekByDay() {
     if (days[item.day]) days[item.day].push(`${tx(item.title)} ${item.time}`);
   });
   return days;
+}
+
+function weekBoardHtml() {
+  return `
+    <section class="week">
+      ${["Mon", "Tue", "Wed", "Thu", "Fri"]
+        .map((day) => {
+          const items = kidSchedule().filter((item) => item.day === day);
+          const stamp = WEEK_DATES[day];
+          const dateLabel = stamp ? stamp.label.replace(/^[^,]+,\s*/, "") : "";
+          return `
+            <article class="card day">
+              <h3>${tx(day)}</h3>
+              ${dateLabel ? `<p class="kicker">${dateLabel}</p>` : ""}
+              ${
+                items.length
+                  ? items
+                      .map(
+                        (item) => `
+                <p>
+                  <strong>${item.time}</strong>
+                  ${tx(item.title)}${item.where ? ` · ${tx(item.where)}` : ""}
+                </p>`
+                      )
+                      .join("")
+                  : "<p>—</p>"
+              }
+            </article>`;
+        })
+        .join("")}
+    </section>`;
 }
 
 const SCHOOL_YEAR_MONTHS = [
@@ -1236,6 +1389,134 @@ function money(n) {
   return `$${Number(n).toFixed(2)}`;
 }
 
+function storeProduct(id) {
+  return state.storeCatalog.find((item) => item.id === id);
+}
+
+function storeKindLabel(kind) {
+  if (kind === "shirt") return "T-shirt";
+  if (kind === "sweater") return "Sweater";
+  if (kind === "hoodie") return "Hoodie";
+  if (kind === "ipad") return "iPad";
+  return "Item";
+}
+
+function storeOnHand(item) {
+  if (!item) return 0;
+  if (item.kind === "ipad") return Math.max(0, item.qty || 0);
+  return STORE_SIZES.reduce((sum, size) => sum + Math.max(0, item.stock?.[size] || 0), 0);
+}
+
+function storeSizeStock(item, size) {
+  if (!item) return 0;
+  if (item.kind === "ipad") return storeOnHand(item);
+  return Math.max(0, item.stock?.[size] || 0);
+}
+
+function storeLow(item) {
+  if (!item || !item.listed) return false;
+  if (item.kind === "ipad") return storeOnHand(item) <= 1;
+  return STORE_SIZES.some((size) => storeSizeStock(item, size) > 0 && storeSizeStock(item, size) < 3) || storeOnHand(item) < 8;
+}
+
+function listedStoreItems() {
+  return state.storeCatalog.filter((item) => item.listed && storeOnHand(item) >= 0);
+}
+
+function storeBag() {
+  const key = state.role;
+  if (!state.storeCart[key]) state.storeCart[key] = [];
+  return state.storeCart[key];
+}
+
+function storeLines() {
+  return storeBag().filter((line) => line.qty > 0);
+}
+
+function storeCartCount() {
+  return storeLines().reduce((sum, line) => sum + line.qty, 0);
+}
+
+function storeCartTotal() {
+  return storeLines().reduce((sum, line) => {
+    const item = storeProduct(line.productId);
+    return sum + (item ? item.price * line.qty : 0);
+  }, 0);
+}
+
+function storeLineMatch(line, productId, size) {
+  return line.productId === productId && (line.size || "") === (size || "");
+}
+
+function storeLineQty(productId, size) {
+  return storeBag().find((line) => storeLineMatch(line, productId, size))?.qty || 0;
+}
+
+function setStoreQty(productId, size, qty) {
+  const item = storeProduct(productId);
+  if (!item) return;
+  const cap = item.kind === "ipad" ? storeOnHand(item) : storeSizeStock(item, size);
+  const next = Math.max(0, Math.min(qty, cap));
+  const bag = storeBag();
+  const line = bag.find((row) => storeLineMatch(row, productId, size));
+  if (!next) {
+    state.storeCart[state.role] = bag.filter((row) => !storeLineMatch(row, productId, size));
+    return;
+  }
+  if (line) line.qty = next;
+  else bag.push({ productId, size: size || "", qty: next });
+}
+
+function addStoreItem(productId, size) {
+  const item = storeProduct(productId);
+  if (!item) return false;
+  if (item.kind !== "ipad" && !size) {
+    state.notice = tx("Pick a size first.");
+    return false;
+  }
+  const cap = item.kind === "ipad" ? storeOnHand(item) : storeSizeStock(item, size);
+  if (!cap) {
+    state.notice = tx("That size is sold out.");
+    return false;
+  }
+  setStoreQty(productId, size, storeLineQty(productId, size) + 1);
+  state.notice = "";
+  return true;
+}
+
+function takeStoreStock(productId, size, qty) {
+  const item = storeProduct(productId);
+  if (!item) return;
+  if (item.kind === "ipad") {
+    item.qty = Math.max(0, (item.qty || 0) - qty);
+    return;
+  }
+  if (!item.stock) item.stock = {};
+  item.stock[size] = Math.max(0, (item.stock[size] || 0) - qty);
+}
+
+function myStoreOrders() {
+  if (state.role === "admin") return state.storeOrders;
+  if (state.role === "parent") return state.storeOrders.filter((order) => order.buyerRole === "parent" && order.family === "bowser");
+  return state.storeOrders.filter((order) => order.buyerRole === state.role && order.buyer === people[state.role].name);
+}
+
+function waitingStorePickups() {
+  return state.storeOrders.filter((order) => order.pickup === "waiting");
+}
+
+function storeCrumbs(extra) {
+  return [boardCrumb(), { label: "Store", href: "#/store" }, ...(extra || [])];
+}
+
+function storePayLabel(method, last4) {
+  if (method === "apple") return tx("Apple Pay");
+  if (method === "google") return tx("Google Pay");
+  if (method === "pickup") return tx("Pay at pickup");
+  if (last4) return `${tx("Card")} · ${last4}`;
+  return tx("Credit card");
+}
+
 function cartBag() {
   const id = child().id;
   if (!state.lunchCart[id]) state.lunchCart[id] = [];
@@ -1402,6 +1683,37 @@ const state = {
       lines: [{ iso: LUNCH_TODAY, itemId: "caesar", name: "Caesar salad", qty: 1, price: 6 }],
     },
   ],
+  storeFilter: "all",
+  storePay: "card",
+  storeSize: {},
+  storeCart: { parent: [], teacher: [], admin: [] },
+  storeCatalog: defaultStoreCatalog(),
+  storeOrders: [
+    {
+      id: "so1",
+      buyer: "Jordan Bowser",
+      buyerRole: "parent",
+      family: "bowser",
+      method: "card",
+      last4: "4242",
+      total: 18,
+      paidAt: "Tue 21",
+      pickup: "waiting",
+      lines: [{ productId: "tee-navy", name: "Spirit tee", color: "Navy", size: "AM", qty: 1, price: 18 }],
+    },
+    {
+      id: "so2",
+      buyer: "Alicia Ellison",
+      buyerRole: "teacher",
+      family: "",
+      method: "pickup",
+      last4: "",
+      total: 42,
+      paidAt: "Mon 20",
+      pickup: "done",
+      lines: [{ productId: "hoodie", name: "Harbor hoodie", color: "Forest", size: "AM", qty: 1, price: 42 }],
+    },
+  ],
   eventFilter: "all",
   schoolEvents: [
     {
@@ -1561,6 +1873,33 @@ const state = {
       note: "Early pickup 1:30",
       source: "office",
       confirmed: true,
+    },
+    {
+      id: "oa4",
+      studentId: "maya",
+      day: "Fri 17",
+      status: "Absent",
+      note: "Parent: dentist Friday",
+      source: "parent",
+      confirmed: false,
+    },
+    {
+      id: "oa5",
+      studentId: "amira",
+      day: "Fri 17",
+      status: "Absent",
+      note: "Parent: family day",
+      source: "parent",
+      confirmed: false,
+    },
+    {
+      id: "oa6",
+      studentId: "leo",
+      day: "Fri 17",
+      status: "Absent",
+      note: "Parent: family travel Friday",
+      source: "parent",
+      confirmed: false,
     },
   ],
   comms: [
@@ -1946,6 +2285,7 @@ const navByRole = {
     ["calendar", "Calendar", "#/calendar"],
     ["events", "Events", "#/events"],
     ["lunch", "Cafeteria", "#/lunch"],
+    ["store", "Store", "#/store"],
     ["dismiss", "Dismissal", "#/dismiss"],
     ["bus", "Bus", "#/bus"],
     ["class", "Classroom", "#/class"],
@@ -1958,6 +2298,7 @@ const navByRole = {
     ["calendar", "Calendar", "#/calendar"],
     ["events", "Events", "#/events"],
     ["lunch", "Lunch list", "#/lunch"],
+    ["store", "Store", "#/store"],
     ["dismiss", "Dismissal", "#/dismiss"],
     ["class", "Activities", "#/class"],
     ["messages", "Families", "#/messages"],
@@ -1969,6 +2310,7 @@ const navByRole = {
     ["bus", "Buses", "#/bus"],
     ["dismiss", "Dismissal", "#/dismiss"],
     ["lunch", "Hot lunch menu", "#/lunch"],
+    ["store", "Store", "#/admin/store"],
     ["calendar", "Calendar", "#/calendar"],
     ["events", "Events", "#/events"],
   ],
@@ -1981,6 +2323,7 @@ const mvpNavByRole = {
     ["messages", "Inbox", "#/inbox"],
     ["calendar", "Schedule", "#/schedule"],
     ["events", "Events", "#/events"],
+    ["store", "Store", "#/store"],
     ["docs", "Documents", "#/docs"],
     ["config", "Configure", "#/configure"],
   ],
@@ -1991,6 +2334,7 @@ const mvpNavByRole = {
     ["messages", "Updates", "#/inbox"],
     ["calendar", "Schedule", "#/schedule"],
     ["events", "Events", "#/events"],
+    ["store", "Store", "#/store"],
     ["docs", "Documents", "#/docs"],
   ],
   admin: [
@@ -2000,6 +2344,7 @@ const mvpNavByRole = {
     ["messages", "Office inbox", "#/inbox"],
     ["calendar", "Schedule", "#/schedule"],
     ["events", "Events", "#/events"],
+    ["store", "Store", "#/admin/store"],
     ["docs", "Documents", "#/docs"],
     ["config", "Family board", "#/configure"],
   ],
@@ -2179,6 +2524,18 @@ const BOOK = {
   ["Today", "Aujourd’hui", "今天", "ਅੱਜ", "Hoy"],
   ["Attendance", "Présences", "出勤", "ਹਾਜ਼ਰੀ", "Asistencia"],
   ["Attendance trends", "Tendances de présence", "出勤趋势", "ਹਾਜ਼ਰੀ ਰੁਝਾਨ", "Tendencias de asistencia"],
+  ["Thursday attendance", "Présences du jeudi", "周四出勤", "ਵੀਰਵਾਰ ਹਾਜ਼ਰੀ", "Asistencia del jueves"],
+  ["Mark who is in the room. Parent notes stay on the row.", "Marquez qui est en classe. Les notes des parents restent sur la ligne.", "标记谁在教室。家长备注留在该行。", "ਕਮਰੇ ਵਿਚ ਕੌਣ ਹੈ ਮਾਰਕ ਕਰੋ। ਮਾਪਿਆਂ ਦੇ ਨੋਟ ਕਤਾਰ 'ਤੇ ਰਹਿੰਦੇ ਹਨ।", "Marca quién está en el salón. Las notas de padres quedan en la fila."],
+  ["In class today", "En classe aujourd’hui", "今日在班", "ਅੱਜ ਕਲਾਸ ਵਿਚ", "En clase hoy"],
+  ["Upcoming absences", "Absences à venir", "即将缺勤", "ਆਉਣ ਵਾਲੀ ਗੈਰਹਾਜ਼ਰੀ", "Ausencias próximas"],
+  ["No upcoming absences reported for this class.", "Aucune absence à venir pour cette classe.", "本班暂无即将缺勤。", "ਇਸ ਕਲਾਸ ਲਈ ਕੋਈ ਆਉਣ ਵਾਲੀ ਗੈਰਹਾਜ਼ਰੀ ਨਹੀਂ।", "No hay ausencias próximas en esta clase."],
+  ["Present", "Présent", "出勤", "ਹਾਜ਼ਰ", "Presente"],
+  ["Absent", "Absent", "缺勤", "ਗੈਰਹਾਜ਼ਰ", "Ausente"],
+  ["Late", "En retard", "迟到", "ਦੇਰ", "Tarde"],
+  ["Marked {name} {status}.", "{name} marqué {status}.", "已将{name}记为{status}。", "{name} ਨੂੰ {status} ਮਾਰਕ ਕੀਤਾ।", "Se marcó a {name} como {status}."],
+  ["present in class", "présent en classe", "在班", "ਕਲਾਸ ਵਿਚ ਹਾਜ਼ਰ", "presente en clase"],
+  ["absent from class", "absent de la classe", "未到班", "ਕਲਾਸ ਤੋਂ ਗੈਰਹਾਜ਼ਰ", "ausente de clase"],
+  ["late to class", "en retard en classe", "迟到", "ਕਲਾਸ ਲਈ ਦੇਰ", "tarde a clase"],
   ["Flags fire when a pattern repeats — every other Monday, most Tuesdays late, a drop in the last two weeks. Filter the window, then export.", "Une alerte se déclenche quand un motif se répète — un lundi sur deux, souvent en retard le mardi, une baisse sur deux semaines. Filtrez, puis exportez.", "模式重复时会标记 — 隔周周一缺勤、多数周二迟到、近两周下降。筛选日期后导出。", "ਜਦੋਂ ਰੁਝਾਨ ਦੁਹਰਾਉਂਦਾ ਹੈ ਫਲੈਗ ਲੱਗਦਾ ਹੈ — ਹਰ ਦੂਜੇ ਸੋਮਵਾਰ, ਜ਼ਿਆਦਾਤਰ ਮੰਗਲਵਾਰ ਲੇਟ, ਪਿਛਲੇ ਦੋ ਹਫ਼ਤਿਆਂ ਵਿਚ ਗਿਰਾਵਟ। ਫਿਲਟਰ ਕਰੋ, ਫਿਰ ਐਕਸਪੋਰਟ।", "Se marca cuando un patrón se repite — un lunes sí y otro no, tardanzas los martes, una baja en dos semanas. Filtre y exporte."],
   ["Live rate for the school or a class, then the students whose weekdays keep repeating.", "Taux en direct pour l’école ou une classe, puis les élèves dont les jours se répètent.", "全校或班级实时出勤率，以及星期几反复缺勤的学生。", "ਸਕੂਲ ਜਾਂ ਕਲਾਸ ਦੀ ਲਾਈਵ ਦਰ, ਫਿਰ ਵਿਦਿਆਰਥੀ ਜਿਨ੍ਹਾਂ ਦੇ ਹਫ਼ਤੇ ਦੇ ਦਿਨ ਦੁਹਰਾਉਂਦੇ ਹਨ।", "Tasa en vivo de la escuela o el salón, y los estudiantes cuyos días se repiten."],
   ["Filter", "Filtrer", "筛选", "ਫਿਲਟਰ", "Filtrar"],
@@ -2429,9 +2786,11 @@ const BOOK = {
   ["Just now", "À l’instant", "刚刚", "ਹੁਣੇ", "Justo ahora"],
   ["No note", "Aucune note", "无备注", "ਕੋਈ ਨੋਟ ਨਹੀਂ", "Sin nota"],
   ["Ask", "Demander", "提问", "ਪੁੱਛੋ", "Preguntar"],
+  ["Export calendar", "Exporter le calendrier", "导出日历", "ਕੈਲੰਡਰ ਐਕਸਪੋਰਟ", "Exportar calendario"],
   ["Apple Calendar", "Calendrier Apple", "苹果日历", "ਐਪਲ ਕੈਲੰਡਰ", "Calendario de Apple"],
   ["Google Calendar", "Calendrier Google", "谷歌日历", "ਗੂਗਲ ਕੈਲੰਡਰ", "Calendario de Google"],
   ["Download .ics", "Télécharger .ics", "下载 .ics", ".ics ਡਾਊਨਲੋਡ", "Descargar .ics"],
+  ["Choose Apple Calendar or Google Calendar.", "Choisissez Calendrier Apple ou Google Agenda.", "选择苹果日历或谷歌日历。", "ਐਪਲ ਕੈਲੰਡਰ ਜਾਂ ਗੂਗਲ ਕੈਲੰਡਰ ਚੁਣੋ।", "Elige Calendario de Apple o Google Calendar."],
   ["Print", "Imprimer", "打印", "ਛਾਪੋ", "Imprimir"],
   ["Events", "Événements", "活动", "ਈਵੈਂਟ", "Eventos"],
   ["Dances", "Danses", "舞会", "ਡਾਂਸ", "Bailes"],
@@ -2500,10 +2859,29 @@ const BOOK = {
   ["Calendar", "Calendrier", "日历", "ਕੈਲੰਡਰ", "Calendario"],
   ["{name}’s hot lunch", "Dîner chaud de {name}", "{name}的热午餐", "{name} ਦਾ ਗਰਮ ਲੰਚ", "Almuerzo caliente de {name}"],
   ["Today is at the top. Order ahead any school day through Friday, Nov 6 — packed lunch stays the default until you check out.", "Aujourd’hui est en haut. Commandez à l’avance jusqu’au vendredi 6 nov. — le lunch maison reste par défaut tant que vous ne payez pas.", "今天排在最前。可预订到11月6日周五的上课日 — 结账前默认带饭。", "ਅੱਜ ਸਿਖਰ 'ਤੇ ਹੈ। 6 ਨਵੰਬਰ ਸ਼ੁੱਕਰਵਾਰ ਤੱਕ ਪਹਿਲਾਂ ਆਰਡਰ — ਭੁਗਤਾਨ ਤੱਕ ਘਰ ਦਾ ਲੰਚ ਡਿਫਾਲਟ।", "Hoy va primero. Pida con anticipación hasta el viernes 6 nov. — el lunch de casa sigue hasta que pague."],
+  ["Pick a tray. Packed lunch stays the default. Order another school day through Nov 6 under the menu.", "Choisissez un plateau. Le lunch maison reste le défaut. Commandez un autre jour d’école jusqu’au 6 nov. sous le menu.", "选一份托盘餐。默认仍是带饭。可在菜单下方预订到11月6日的其他上课日。", "ਟਰੇ ਚੁਣੋ। ਘਰ ਦਾ ਲੰਚ ਡਿਫਾਲਟ ਰਹਿੰਦਾ ਹੈ। ਮੀਨੂ ਹੇਠਾਂ 6 ਨਵੰਬਰ ਤੱਕ ਹੋਰ ਸਕੂਲ ਦਿਨ ਆਰਡਰ ਕਰੋ।", "Elige una bandeja. El lunch de casa sigue por defecto. Pida otro día escolar hasta el 6 nov. bajo el menú."],
+  ["Add as many as you need. Days through Nov 6 sit beside the menu — packed lunch stays the default.", "Ajoutez autant que vous voulez. Les jours jusqu’au 6 nov. sont à côté du menu — le lunch maison reste le défaut.", "需要几份加几份。11月6日前的日期在菜单旁 — 默认仍是带饭。", "ਜਿੰਨੀਆਂ ਚਾਹੋ ਜੋੜੋ। 6 ਨਵੰਬਰ ਤੱਕ ਦੇ ਦਿਨ ਮੀਨੂ ਕੋਲ ਹਨ — ਘਰ ਦਾ ਲੰਚ ਡਿਫਾਲਟ।", "Agrega las que necesites. Los días hasta el 6 nov. están junto al menú — el lunch de casa sigue por defecto."],
+  ["Add as many as you need. Change week under the menu. Packed lunch stays the default.", "Ajoutez autant que vous voulez. Changez de semaine sous le menu. Le lunch maison reste le défaut.", "需要几份加几份。在菜单下切换周次。默认仍是带饭。", "ਜਿੰਨੀਆਂ ਚਾਹੋ ਜੋੜੋ। ਮੀਨੂ ਹੇਠਾਂ ਹਫ਼ਤਾ ਬਦਲੋ। ਘਰ ਦਾ ਲੰਚ ਡਿਫਾਲਟ।", "Agrega las que necesites. Cambia de semana bajo el menú. El lunch de casa sigue por defecto."],
+  ["In bag", "Au panier", "已加入", "ਬੈਗ ਵਿਚ", "En la bolsa"],
+  ["Ordered", "Commandé", "已点", "ਆਰਡਰ", "Pedido"],
+  ["Through Nov 6", "Jusqu’au 6 nov.", "至11月6日", "6 ਨਵੰਬਰ ਤੱਕ", "Hasta el 6 nov."],
+  ["Packed", "Maison", "带饭", "ਘਰ", "Casa"],
+  ["Today’s main", "Plat du jour", "今日主餐", "ਅੱਜ ਦਾ ਮੁੱਖ", "Plato de hoy"],
+  ["Pick one", "Choisissez-en un", "选一份", "ਇੱਕ ਚੁਣੋ", "Elige uno"],
+  ["Add-ons", "Extras", "加餐", "ਵਾਧੂ", "Complementos"],
+  ["Beverage", "Boisson", "饮料", "ਪੀਣ ਵਾਲਾ", "Bebida"],
+  ["Pick a main first. Then add a salad, beverage, or dessert.", "Choisissez d’abord un plat. Ensuite, ajoutez une salade, une boisson ou un dessert.", "请先选主餐，再加沙拉、饮料或甜点。", "ਪਹਿਲਾਂ ਮੁੱਖ ਚੁਣੋ। ਫਿਰ ਸਲਾਦ, ਪੀਣ ਵਾਲਾ ਜਾਂ ਮਿਠਾਈ ਜੋੜੋ।", "Elige primero un plato. Luego añade ensalada, bebida o postre."],
+  ["Order another day", "Commander un autre jour", "预订其他日期", "ਹੋਰ ਦਿਨ ਆਰਡਰ", "Pedir otro día"],
+  ["Packed lunch", "Lunch maison", "带饭", "ਘਰ ਦਾ ਲੰਚ", "Lunch de casa"],
+  ["Nothing charged for this day", "Rien n’est facturé pour ce jour", "这一天不收费", "ਇਸ ਦਿਨ ਕੁਝ ਚਾਰਜ ਨਹੀਂ", "Nada cobrado este día"],
+  ["Includes milk", "Comprend le lait", "含牛奶", "ਦੁੱਧ ਸ਼ਾਮਲ", "Incluye leche"],
+  ["Previous week", "Semaine précédente", "上周", "ਪਿਛਲਾ ਹਫ਼ਤਾ", "Semana anterior"],
+  ["Next week", "Semaine suivante", "下周", "ਅਗਲਾ ਹਫ਼ਤਾ", "Semana siguiente"],
   ["Hot lunch", "Dîner chaud", "热午餐", "ਗਰਮ ਲੰਚ", "Almuerzo caliente"],
   ["Order ahead", "Commander à l’avance", "提前点餐", "ਪਹਿਲਾਂ ਆਰਡਰ", "Pedir con anticipación"],
   ["Main", "Plat principal", "主餐", "ਮੁੱਖ", "Plato principal"],
   ["Sandwich", "Sandwich", "三明治", "ਸੈਂਡਵਿਚ", "Sándwich"],
+  ["Sandwiches", "Sandwichs", "三明治", "ਸੈਂਡਵਿਚ", "Sándwiches"],
   ["Salad", "Salade", "沙拉", "ਸਲਾਦ", "Ensalada"],
   ["Drink", "Boisson", "饮料", "ਪੀਣ ਵਾਲਾ", "Bebida"],
   ["Dessert", "Dessert", "甜点", "ਮਿਠਾਈ", "Postre"],
@@ -2733,6 +3111,60 @@ function remember(en, lang, translated) {
   ["Kindergarten · Room K2", "Maternelle · Salle K2", "幼儿园 · K2", "ਕਿੰਡਰਗਾਰਟਨ · ਕਮਰਾ K2", "Kínder · Salón K2"],
   ["Homeroom · Grade 8", "Classe · 8e année", "班主任 · 八年级", "ਹੋਮਰੂਮ · ਗ੍ਰੇਡ 8", "Salón · 8.º"],
   ["K–8 office", "Bureau K–8", "K–8办公室", "K–8 ਦਫ਼ਤਰ", "Oficina K–8"],
+  ["Store", "Boutique", "商店", "ਸਟੋਰ", "Tienda"],
+  ["School store", "Boutique de l’école", "学校商店", "ਸਕੂਲ ਸਟੋਰ", "Tienda escolar"],
+  ["All", "Tout", "全部", "ਸਭ", "Todo"],
+  ["T-shirts", "T-shirts", "T恤", "ਟੀ-ਸ਼ਰਟਾਂ", "Camisetas"],
+  ["Sweaters", "Pulls", "毛衣", "ਸਵੈਟਰ", "Suéteres"],
+  ["Hoodies", "Capuches", "连帽衫", "ਹੁਡੀਆਂ", "Sudaderas"],
+  ["iPads", "iPads", "iPad", "iPad", "iPads"],
+  ["T-shirt", "T-shirt", "T恤", "ਟੀ-ਸ਼ਰਟ", "Camiseta"],
+  ["Sweater", "Pull", "毛衣", "ਸਵੈਟਰ", "Suéter"],
+  ["Hoodie", "Capuche", "连帽衫", "ਹੁਡੀ", "Sudadera"],
+  ["iPad", "iPad", "iPad", "iPad", "iPad"],
+  ["Spirit tee", "T-shirt d’esprit", "校园T恤", "ਸਪਿਰਿਟ ਟੀ", "Camiseta de espíritu"],
+  ["Crewneck", "Col rond", "圆领衫", "ਕ੍ਰੂਨੈਕ", "Cuello redondo"],
+  ["Harbor hoodie", "Capuche Harbor", "Harbor连帽衫", "Harbor ਹੁਡੀ", "Sudadera Harbor"],
+  ["iPad (8th gen)", "iPad (8e gén.)", "iPad（第8代）", "iPad (8ਵੀਂ ਪੀੜ੍ਹੀ)", "iPad (8.ª gen.)"],
+  ["iPad (7th gen)", "iPad (7e gén.)", "iPad（第7代）", "iPad (7ਵੀਂ ਪੀੜ੍ਹੀ)", "iPad (7.ª gen.)"],
+  ["iPad Air (3rd gen)", "iPad Air (3e gén.)", "iPad Air（第3代）", "iPad Air (3ਰੀ ਪੀੜ੍ਹੀ)", "iPad Air (3.ª gen.)"],
+  ["Navy", "Marine", "深蓝", "ਨੇਵੀ", "Azul marino"],
+  ["White", "Blanc", "白色", "ਚਿੱਟਾ", "Blanco"],
+  ["Heather gray", "Gris chiné", "麻灰", "ਹੀਦਰ ਸਲੇਟੀ", "Gris jaspeado"],
+  ["Forest", "Forêt", "墨绿", "ਜੰਗਲੀ", "Bosque"],
+  ["Space gray", "Gris sidéral", "深空灰", "ਸਪੇਸ ਗ੍ਰੇ", "Gris espacial"],
+  ["Silver", "Argent", "银色", "ਚਾਂਦੀ", "Plata"],
+  ["Youth S", "Jeune P", "童装S", "ਯੂਥ S", "Niño S"],
+  ["Youth M", "Jeune M", "童装M", "ਯੂਥ M", "Niño M"],
+  ["Youth L", "Jeune G", "童装L", "ਯੂਥ L", "Niño L"],
+  ["Adult S", "Adulte P", "成人S", "ਐਡਲਟ S", "Adulto S"],
+  ["Adult M", "Adulte M", "成人M", "ਐਡਲਟ M", "Adulto M"],
+  ["Adult L", "Adulte G", "成人L", "ਐਡਲਟ L", "Adulto L"],
+  ["Adult XL", "Adulte TG", "成人XL", "ਐਡਲਟ XL", "Adulto XL"],
+  ["Good", "Bon", "良好", "ਚੰਗਾ", "Bueno"],
+  ["Fair", "Correct", "一般", "ਠੀਕ", "Regular"],
+  ["Sold out", "Épuisé", "售罄", "ਖ਼ਤਮ", "Agotado"],
+  ["Low stock", "Stock bas", "库存少", "ਘੱਟ ਸਟਾਕ", "Poco stock"],
+  ["On hand", "En stock", "现货", "ਮੌਜੂਦ", "En mano"],
+  ["Add to bag", "Ajouter au sac", "加入购物袋", "ਬੈਗ ਵਿਚ ਪਾਓ", "Añadir a la bolsa"],
+  ["Your bag", "Votre sac", "购物袋", "ਤੁਹਾਡਾ ਬੈਗ", "Tu bolsa"],
+  ["Bag is empty", "Le sac est vide", "购物袋是空的", "ਬੈਗ ਖਾਲੀ ਹੈ", "La bolsa está vacía"],
+  ["Keep shopping", "Continuer", "继续逛", "ਖ਼ਰੀਦਦਾਰੀ ਜਾਰੀ", "Seguir comprando"],
+  ["Pay at pickup", "Payer au retrait", "取货时付款", "ਪਿਕਅੱਪ ਤੇ ਭੁਗਤਾਨ", "Pagar al recoger"],
+  ["Pickup at the office", "Retrait au bureau", "办公室取货", "ਦਫ਼ਤਰ ਵਿਚ ਲੈਣਾ", "Recoger en la oficina"],
+  ["Waiting for pickup", "En attente de retrait", "待取货", "ਪਿਕਅੱਪ ਦੀ ਉਡੀਕ", "Esperando recoger"],
+  ["Picked up", "Retiré", "已取", "ਲੈ ਲਿਆ", "Recogido"],
+  ["Mark picked up", "Marquer retiré", "标记已取", "ਲਿਆ ਗਿਆ ਚਿੰਨ੍ਹਿਤ", "Marcar recogido"],
+  ["Inventory", "Inventaire", "库存", "ਇਨਵੈਂਟਰੀ", "Inventario"],
+  ["Listed", "En vitrine", "上架", "ਸੂਚੀਬੱਧ", "En lista"],
+  ["Hidden", "Masqué", "已隐藏", "ਲੁਕਿਆ", "Oculto"],
+  ["Hide from shop", "Retirer de la boutique", "从商店下架", "ਸਟੋਰ ਤੋਂ ਹਟਾਓ", "Quitar de la tienda"],
+  ["Show in shop", "Montrer en boutique", "在商店上架", "ਸਟੋਰ ਵਿਚ ਦਿਖਾਓ", "Mostrar en la tienda"],
+  ["View shop", "Voir la boutique", "查看商店", "ਸਟੋਰ ਵੇਖੋ", "Ver tienda"],
+  ["Orders", "Commandes", "订单", "ਆਰਡਰ", "Pedidos"],
+  ["Pick a size first.", "Choisissez une taille d’abord.", "请先选择尺码。", "ਪਹਿਲਾਂ ਸਾਈਜ਼ ਚੁਣੋ।", "Elige una talla primero."],
+  ["That size is sold out.", "Cette taille est épuisée.", "该尺码已售罄。", "ਉਹ ਸਾਈਜ਼ ਖ਼ਤਮ ਹੈ।", "Esa talla está agotada."],
+  ["Nothing in this aisle yet.", "Rien dans cette allée pour l’instant.", "这一类暂时没有商品。", "ਇਸ ਲੇਨ ਵਿਚ ਹਾਲੇ ਕੁਝ ਨਹੀਂ।", "Nada en este pasillo todavía."],
 ].forEach(([en, fr, zh, pa, es]) => {
   BOOK[en] = { fr, zh, pa, es };
   TO_EN[en] = en;
@@ -2841,6 +3273,17 @@ function askIndex() {
       zh: `${kid.short}的餐费余额是 $${kid.mealBalance.toFixed(2)}。本周已扣：${paid.map((m) => m.name).join("、") || "无"}。`,
       pa: `${kid.short} ਦਾ ਕੈਫੇਟੇਰੀਆ ਬਕਾਇਆ $${kid.mealBalance.toFixed(2)} ਹੈ। ਇਸ ਹਫ਼ਤੇ ਵੱਢਿਆ: ${paid.map((m) => m.name).join(" ਅਤੇ ") || "ਕੁਝ ਨਹੀਂ"}.`,
       es: `El saldo de cafetería de ${kid.short} es $${kid.mealBalance.toFixed(2)}. Ya está cobrado: ${paid.map((m) => m.name).join(" y ") || "nada"} esta semana.`,
+    },
+    {
+      id: "store",
+      keys: ["store", "shop", "hoodie", "sweater", "shirt", "tee", "ipad", "boutique", "tienda", "商店", "ਸਟੋਰ"],
+      href: "#/store",
+      source: "School store",
+      fr: "La boutique vend des t-shirts, pulls, capuches, et d’anciens iPads de classe. Retrait au bureau, mardi et jeudi de 15 h 15 à 15 h 45.",
+      en: "The school store sells tees, crewnecks, hoodies, and retired classroom iPads. Pickup at the office, Tuesday and Thursday 3:15–3:45.",
+      zh: "学校商店出售T恤、圆领衫、连帽衫，以及退役的课堂iPad。办公室取货，周二和周四 15:15–15:45。",
+      pa: "ਸਕੂਲ ਸਟੋਰ ਟੀ-ਸ਼ਰਟ, ਕ੍ਰੂਨੈਕ, ਹੁਡੀ ਅਤੇ ਪੁਰਾਣੇ ਕਲਾਸ iPad ਵੇਚਦਾ ਹੈ। ਦਫ਼ਤਰ ਤੋਂ ਲੈਣਾ, ਮੰਗਲਵਾਰ ਤੇ ਵੀਰਵਾਰ 3:15–3:45।",
+      es: "La tienda vende camisetas, suéteres, sudaderas e iPads de aula retirados. Recogida en la oficina, martes y jueves 3:15–3:45.",
     },
     {
       id: "lunch-menu",
@@ -3595,13 +4038,23 @@ function googleEventUrl(item) {
 function calendarExportBar() {
   return `
     <div class="cal-export no-print">
-      <button type="button" class="btn" id="cal-apple">${tx("Apple Calendar")}</button>
-      <button type="button" class="btn ghost" id="cal-google">${tx("Google Calendar")}</button>
-      <button type="button" class="btn ghost" id="cal-ics">${tx("Download .ics")}</button>
+      <div class="cal-export-wrap">
+        <button type="button" class="btn" id="cal-export" aria-haspopup="menu" aria-expanded="false" aria-controls="cal-export-list">
+          ${tx("Export calendar")}
+          <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+            <path fill="currentColor" d="M7.4 9.2 12 13.8l4.6-4.6 1.4 1.4L12 16.6 6 10.6z"/>
+          </svg>
+        </button>
+        <div class="cal-export-list" id="cal-export-list" hidden role="menu" aria-label="${tx("Export calendar")}">
+          <p class="kicker">${tx("Choose Apple Calendar or Google Calendar.")}</p>
+          <button type="button" role="menuitem" id="cal-apple">${tx("Apple Calendar")}</button>
+          <button type="button" role="menuitem" id="cal-google">${tx("Google Calendar")}</button>
+        </div>
+      </div>
       <button type="button" class="btn ghost" id="cal-print">${tx("Print")}</button>
     </div>
     <div class="card panel google-events no-print" id="google-events" hidden>
-      <h2>Add to Google Calendar</h2>
+      <h2>${tx("Google Calendar")}</h2>
       <p class="lede" style="margin-bottom:12px">Open an event in Google, or download the week as .ics and import it under Settings → Import.</p>
       ${kidSchedule()
         .map(
@@ -3633,14 +4086,48 @@ function calendarExportBar() {
     </section>`;
 }
 
+function onCalExportDocClick(e) {
+  const wrap = document.querySelector(".cal-export-wrap");
+  if (wrap?.contains(e.target)) return;
+  setCalExportOpen(false);
+}
+
+function onCalExportKey(e) {
+  if (e.key === "Escape") setCalExportOpen(false);
+}
+
+function setCalExportOpen(open) {
+  const btn = document.getElementById("cal-export");
+  const list = document.getElementById("cal-export-list");
+  if (!btn || !list) return;
+  list.hidden = !open;
+  btn.setAttribute("aria-expanded", open ? "true" : "false");
+  document.removeEventListener("click", onCalExportDocClick);
+  document.removeEventListener("keydown", onCalExportKey);
+  if (open) {
+    document.addEventListener("click", onCalExportDocClick);
+    document.addEventListener("keydown", onCalExportKey);
+  }
+}
+
 function bindCalendarExport() {
-  document.getElementById("cal-apple")?.addEventListener("click", downloadWeekIcs);
-  document.getElementById("cal-ics")?.addEventListener("click", downloadWeekIcs);
-  document.getElementById("cal-google-ics")?.addEventListener("click", downloadWeekIcs);
+  const list = document.getElementById("cal-export-list");
+  document.getElementById("cal-export")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    setCalExportOpen(list?.hidden);
+  });
+  document.getElementById("cal-apple")?.addEventListener("click", () => {
+    setCalExportOpen(false);
+    const panel = document.getElementById("google-events");
+    if (panel) panel.hidden = true;
+    downloadWeekIcs();
+  });
   document.getElementById("cal-google")?.addEventListener("click", () => {
+    setCalExportOpen(false);
     const panel = document.getElementById("google-events");
     if (panel) panel.hidden = !panel.hidden;
   });
+  document.getElementById("cal-google-ics")?.addEventListener("click", downloadWeekIcs);
   document.getElementById("cal-print")?.addEventListener("click", () => window.print());
 }
 
@@ -3663,17 +4150,7 @@ function calendar() {
       </div>
     </div>
     ${calendarExportBar()}
-    <section class="week">
-      ${Object.entries(weekByDay())
-        .map(
-          ([day, items]) => `
-        <article class="card day">
-          <h3>${tx(day)}</h3>
-          ${items.map((item) => `<p>${item}</p>`).join("") || "<p>—</p>"}
-        </article>`
-        )
-        .join("")}
-    </section>
+    ${weekBoardHtml()}
     ${yearCalendarHtml()}
   `;
   bindCalendarExport();
@@ -3699,22 +4176,124 @@ function bindLunchQty(step) {
     btn.addEventListener("click", () => {
       const iso = btn.dataset.lunchIso;
       const itemId = btn.dataset.lunchItem;
-      setLunchQty(iso, itemId, cartQty(iso, itemId) + Number(btn.dataset.lunchDelta));
+      const delta = Number(btn.dataset.lunchDelta);
+      const item = lunchItem(iso, itemId);
+      if (item?.cat === "main" && delta > 0) {
+        lunchMains(iso).forEach((main) => {
+          if (main.id !== itemId) setLunchQty(iso, main.id, 0);
+        });
+      }
+      setLunchQty(iso, itemId, cartQty(iso, itemId) + delta);
       lunch(step);
     });
   });
 }
 
+function lunchMains(iso) {
+  return lunchMenu(iso).filter((item) => item.cat === "main");
+}
+
+function lunchAddOns(iso) {
+  return lunchMenu(iso).filter((item) => item.cat !== "main");
+}
+
+const LUNCH_ADDON_GROUPS = [
+  ["sandwich", "Sandwiches"],
+  ["salad", "Salad"],
+  ["drink", "Beverage"],
+  ["dessert", "Dessert"],
+];
+
+function selectedMainId(iso) {
+  return lunchMains(iso).find((item) => cartQty(iso, item.id) > 0)?.id || "";
+}
+
+function dayLineCount(iso) {
+  return cartLines()
+    .filter((line) => line.iso === iso)
+    .reduce((sum, line) => sum + line.qty, 0);
+}
+
+function lunchWeekdayRow(weekMonday) {
+  const open = new Set(lunchDays().map((day) => day.iso));
+  const days = [];
+  for (let i = 0; i < 5; i += 1) {
+    const dt = parseIso(weekMonday);
+    dt.setDate(dt.getDate() + i);
+    const iso = isoDay(dt.getFullYear(), dt.getMonth(), dt.getDate());
+    days.push({ ...lunchDateMeta(iso), open: open.has(iso) });
+  }
+  return days;
+}
+
+function lunchDayMark(iso) {
+  if (lunchLinesForChild(iso, child().id).length) return "ordered";
+  if (dayLineCount(iso)) return "bag";
+  return "packed";
+}
+
+function lunchWeekBar(selectedIso) {
+  const weeks = lunchWeeks();
+  const weekAt = lunchWeekIndex();
+  const week = weeks[weekAt] || weeks[0];
+  if (!week) return "";
+  return `
+    <div class="lunch-weekbar">
+      <div class="widget-head">
+        <h2>${week.title}</h2>
+        <span class="kicker">${tx("Through Nov 6")}</span>
+      </div>
+      <div class="lunch-days is-bar">
+        <button type="button" class="lunch-week-nav" data-lunch-week="-1" ${weekAt <= 0 ? "disabled" : ""} aria-label="${tx("Previous week")}">‹</button>
+        ${lunchWeekdayRow(week.week)
+          .map((day) => {
+            const mark = day.open ? lunchDayMark(day.iso) : "";
+            const label = !day.open ? "—" : mark === "ordered" ? tx("Ordered") : mark === "bag" ? tx("In bag") : tx("Packed");
+            const on = day.iso === selectedIso;
+            return `
+          <button type="button" class="day-chip ${on ? "is-on" : ""} ${day.today ? "is-today" : ""} ${day.open && mark !== "packed" ? "has-order" : ""} ${day.open ? "" : "is-off"}" data-lunch-day="${day.iso}" ${day.open ? "" : "disabled"}>
+            <span class="kicker">${day.today ? tx("Today") : tx(day.dow)}</span>
+            <strong>${day.day}</strong>
+            <span class="lunch-mark">${label}</span>
+          </button>`;
+          })
+          .join("")}
+        <button type="button" class="lunch-week-nav" data-lunch-week="1" ${weekAt >= weeks.length - 1 ? "disabled" : ""} aria-label="${tx("Next week")}">›</button>
+      </div>
+    </div>`;
+}
+
+function lunchWeekIndex() {
+  const weeks = lunchWeeks();
+  const i = weeks.findIndex((group) => group.days.some((day) => day.iso === state.lunchDay));
+  return i >= 0 ? i : 0;
+}
+
+function shiftLunchWeek(delta) {
+  const weeks = lunchWeeks();
+  const next = weeks[lunchWeekIndex() + delta];
+  if (!next) return;
+  const sameDow = next.days.find((day) => day.dow === lunchDateMeta(state.lunchDay).dow);
+  state.lunchDay = sameDow?.iso || next.days[0].iso;
+  lunch();
+}
+
 function lunchDock() {
   const count = cartCount();
-  if (!count) return "";
+  const iso = state.lunchDay;
+  const dayTotal = dayCartTotal(iso);
+  const names = cartLines()
+    .filter((line) => line.iso === iso)
+    .map((line) => tx(lunchItem(line.iso, line.itemId)?.name || ""))
+    .filter(Boolean)
+    .join(" · ");
   return `
     <div class="lunch-dock no-print">
       <div>
-        <strong>${count} ${tx(count === 1 ? "item" : "items")}</strong>
-        <span class="kicker">${money(cartTotal())} · ${child().short}</span>
+        <strong>${dayTotal ? names : tx("Packed lunch")}</strong>
+        <span class="kicker">${dayTotal ? money(dayTotal) : tx("Nothing charged for this day")} · ${child().short}</span>
       </div>
-      <a class="btn" href="#/lunch/cart">${tx("View cart")}</a>
+      ${count ? `<a class="btn" href="#/lunch/cart">${tx("Check out")} · ${money(cartTotal())}</a>` : ""}
     </div>`;
 }
 
@@ -3722,8 +4301,9 @@ function lunchMenuView() {
   const days = lunchDays();
   if (!days.some((d) => d.iso === state.lunchDay)) state.lunchDay = LUNCH_TODAY;
   const selected = days.find((d) => d.iso === state.lunchDay) || days[0];
-  const menu = lunchMenu(selected.iso);
-  const dayTotal = dayCartTotal(selected.iso);
+  const mains = lunchMains(selected.iso);
+  const addOns = lunchAddOns(selected.iso);
+  const pickedMain = selectedMainId(selected.iso);
   paintChrome("lunch");
   setCrumbs(lunchCrumbs());
   view.innerHTML = `
@@ -3731,59 +4311,58 @@ function lunchMenuView() {
     <div class="hero">
       <div>
         <h1>${txf("{name}’s hot lunch", { name: child().short })}</h1>
-        <p class="lede">${tx("Today is at the top. Order ahead any school day through Friday, Nov 6 — packed lunch stays the default until you check out.")}</p>
+        <p class="lede">${tx("Add as many as you need. Change week under the menu. Packed lunch stays the default.")}</p>
       </div>
       <div class="stat-row">
         <div><div class="num">${money(child().mealBalance)}</div><div class="kicker">${tx("On the account")}</div></div>
       </div>
     </div>
-    ${lunchWeeks()
-      .map(
-        (group) => `
-      <section class="lunch-week">
-        <div class="widget-head">
-          <h2>${group.title}</h2>
-        </div>
-        <div class="lunch-days">
-          ${group.days
-            .map(
-              (day) => `
-            <button type="button" class="day-chip ${day.iso === selected.iso ? "is-on" : ""} ${day.today ? "is-today" : ""}" data-lunch-day="${day.iso}">
-              <span class="kicker">${day.today ? tx("Today") : tx(day.dow)}</span>
-              <strong>${day.day}</strong>
-            </button>`
-            )
-            .join("")}
-        </div>
-      </section>`
-      )
-      .join("")}
     <article class="card lunch-sheet">
       <header class="lunch-sheet-head">
         <div>
           <div class="kicker">${selected.today ? tx("Today") : tx("Order ahead")}</div>
-          <h2>${tx("Hot lunch")} · ${tx(selected.dow)} ${selected.day} ${tx(selected.month)}</h2>
+          <h2>${tx(selected.dow)} ${tx(selected.month)} ${selected.day}</h2>
         </div>
-        <div class="lunch-day-total">${money(dayTotal)}</div>
       </header>
-      ${LUNCH_CATS.map((cat) => {
-        const rows = menu.filter((item) => item.cat === cat.id);
-        if (!rows.length) return "";
+      <p class="lunch-section">${tx("Today’s main")} · ${tx("Pick one")}</p>
+      <div class="lunch-mains">
+        ${mains
+          .map((item) => {
+            const on = pickedMain === item.id;
+            return `
+          <div class="lunch-main ${on ? "is-on" : ""}">
+            <div class="title-block">
+              <strong>${tx(item.name)}</strong>
+              <span class="kicker">${/milk/i.test(item.name) ? tx("Includes milk") : tx("Hot lunch")}</span>
+            </div>
+            <b>${money(item.price)}</b>
+            ${qtyControl(selected.iso, item)}
+          </div>`;
+          })
+          .join("")}
+      </div>
+      ${LUNCH_ADDON_GROUPS.map(([cat, title]) => {
+        const items = addOns.filter((item) => item.cat === cat);
+        if (!items.length) return "";
         return `
-          <h3 class="lunch-cat">${tx(cat.title)}</h3>
-          ${rows
-            .map(
-              (item) => `
-            <div class="lunch-row">
-              <div class="title-block">
-                <strong>${tx(item.name)}</strong>
-              </div>
-              ${qtyControl(selected.iso, item)}
-              <span class="lunch-price">${money(item.price)}</span>
-            </div>`
-            )
-            .join("")}`;
+      <p class="lunch-section">${tx(title)}</p>
+      <div class="lunch-side-list">
+        ${items
+          .map((item) => {
+            const qty = cartQty(selected.iso, item.id);
+            return `
+          <div class="lunch-side-row ${qty ? "is-on" : ""}">
+            <div class="title-block">
+              <strong>${tx(item.name)}</strong>
+            </div>
+            <span class="lunch-price">${money(item.price)}</span>
+            ${qtyControl(selected.iso, item)}
+          </div>`;
+          })
+          .join("")}
+      </div>`;
       }).join("")}
+      ${lunchWeekBar(selected.iso)}
     </article>
     ${lunchDock()}
   `;
@@ -3792,6 +4371,9 @@ function lunchMenuView() {
       state.lunchDay = btn.dataset.lunchDay;
       lunch();
     });
+  });
+  view.querySelectorAll("[data-lunch-week]").forEach((btn) => {
+    btn.addEventListener("click", () => shiftLunchWeek(Number(btn.dataset.lunchWeek)));
   });
   bindLunchQty();
 }
@@ -4971,6 +5553,101 @@ function attendanceTrends() {
   bindAttendanceTrends();
 }
 
+function teacherClassRoster() {
+  return roster.filter((s) => s.room === "Room 12");
+}
+
+function teacherDayStatus(studentId, iso) {
+  return (state.attendanceByStudent[studentId] || []).find((r) => r.iso === iso) || { iso, status: "Present", note: "" };
+}
+
+function teacherTodayCounts() {
+  const kids = teacherClassRoster();
+  const counts = { present: 0, out: 0, total: kids.length };
+  kids.forEach((s) => {
+    const status = teacherDayStatus(s.id, CAL_TODAY).status;
+    if (status === "Present" || status === "Upcoming") counts.present += 1;
+    else counts.out += 1;
+  });
+  return counts;
+}
+
+function attendWhenLabel(iso, dayLabel) {
+  if (dayLabel) return dayLabel;
+  const proto = Object.keys(WEEK_DAY_ISO).find((key) => WEEK_DAY_ISO[key] === iso);
+  if (proto) return proto;
+  const meta = lunchDateMeta(iso);
+  return `${tx(meta.dow)} ${meta.day}`;
+}
+
+function isAwayStatus(status) {
+  return status === "Absent" || status === "Late" || status === "Left early";
+}
+
+function teacherUpcomingAbsences() {
+  const items = [];
+  const seen = new Set();
+  teacherClassRoster().forEach((s) => {
+    (state.attendanceByStudent[s.id] || []).forEach((row) => {
+      if (row.iso > CAL_TODAY && isAwayStatus(row.status)) {
+        seen.add(`${s.id}:${row.iso}`);
+        items.push({ student: s, row, when: attendWhenLabel(row.iso) });
+      }
+    });
+    state.officeAttendance.forEach((entry) => {
+      if (entry.studentId !== s.id || !isAwayStatus(entry.status)) return;
+      const iso = WEEK_DAY_ISO[entry.day] || entry.iso;
+      if (!iso || iso <= CAL_TODAY) return;
+      const key = `${s.id}:${iso}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      items.push({
+        student: s,
+        when: attendWhenLabel(iso, entry.day),
+        row: { iso, status: entry.status, note: entry.note || "" },
+      });
+    });
+  });
+  items.sort((a, b) => a.row.iso.localeCompare(b.row.iso) || a.student.name.localeCompare(b.student.name));
+  return items;
+}
+
+function markTeacherAttendance(studentId, status) {
+  const student = rosterStudent(studentId);
+  const existing = teacherDayStatus(studentId, CAL_TODAY);
+  const parentNote = existing.note && /parent/i.test(existing.note) ? existing.note : "";
+  let note = "";
+  if (status === "Present") note = parentNote ? `Teacher: present in class · ${parentNote}` : "";
+  else if (parentNote) note = parentNote;
+  else if (status === "Absent") note = "Teacher: absent from class";
+  else if (status === "Late") note = "Teacher: late to class";
+  else note = `Teacher: ${status.toLowerCase()}`;
+  upsertAttendance(studentId, CAL_TODAY, status, note);
+  state.officeAttendance.unshift({
+    id: "oa" + Date.now(),
+    studentId,
+    day: "Thu 16",
+    status,
+    note: note || `Teacher: ${status.toLowerCase()} Thu 16`,
+    source: "teacher",
+    confirmed: true,
+  });
+  state.notice = txf("Marked {name} {status}.", { name: student?.name || "Student", status: tx(status) });
+  teacherAttendance();
+}
+
+function attMarkButtons(studentId, status) {
+  return `
+    <div class="att-mark" role="group" aria-label="${tx("Attendance")}">
+      ${["Present", "Absent", "Late"]
+        .map(
+          (kind) => `
+        <button type="button" class="${status === kind ? "is-on" : ""}" data-att-id="${studentId}" data-att-mark="${kind}">${tx(kind)}</button>`
+        )
+        .join("")}
+    </div>`;
+}
+
 function teacherAttendance() {
   if (!requireStaff()) return;
   paintChrome("attendance");
@@ -4978,29 +5655,63 @@ function teacherAttendance() {
     boardCrumb(),
     { label: "Attendance", href: "#/teach/attendance" },
   ]);
-  const todayIso = "2026-10-16";
-  const roomKids = roster.filter((s) => s.room === "Room 12");
+  const roomKids = teacherClassRoster();
+  const counts = teacherTodayCounts();
+  const upcoming = teacherUpcomingAbsences();
   view.innerHTML = `
+    ${notice()}
     <div class="hero">
       <div>
-        <h1>Thursday attendance</h1>
-        <p class="lede">Parent-reported changes already sit on the row. Tap to confirm.</p>
+        <h1>${tx("Thursday attendance")}</h1>
+        <p class="lede">${tx("Mark who is in the room. Parent notes stay on the row.")}</p>
       </div>
+      <p class="kicker">${counts.present} ${tx("Present")} · ${counts.out} ${tx("Absent")} · Room 12</p>
     </div>
     <section class="card panel">
+      <div class="widget-head">
+        <h2>${tx("In class today")}</h2>
+        <span class="kicker">${counts.present}/${counts.total}</span>
+      </div>
       ${roomKids
         .map((s) => {
-          const row = (state.attendanceByStudent[s.id] || []).find((r) => r.iso === todayIso);
-          const status = row?.status || "Present";
+          const row = teacherDayStatus(s.id, CAL_TODAY);
           return `
-        <div class="list-row">
-          <div class="title-block"><strong>${s.name}</strong><span class="kicker">${row?.note || ""}</span></div>
-          ${pill(status, statusKind(status))}
+        <div class="list-row att-row">
+          <div class="title-block">
+            <strong>${s.name}</strong>
+            <span class="kicker">${row.note ? tx(row.note) : tx("No note")}</span>
+          </div>
+          ${attMarkButtons(s.id, row.status)}
         </div>`;
         })
         .join("")}
     </section>
+    <section class="card panel">
+      <div class="widget-head">
+        <h2>${tx("Upcoming absences")}</h2>
+        <span class="kicker">${upcoming.length || tx("None")}</span>
+      </div>
+      ${
+        upcoming.length
+          ? upcoming
+              .map(({ student, row, when }) => {
+                return `
+        <div class="list-row">
+          <div class="title-block">
+            <strong>${student.name}</strong>
+            <span class="kicker">${when} · ${row.note ? tx(row.note) : tx(row.status)}</span>
+          </div>
+          ${pill(row.status, statusKind(row.status))}
+        </div>`;
+              })
+              .join("")
+          : `<p class="empty-copy">${tx("No upcoming absences reported for this class.")}</p>`
+      }
+    </section>
   `;
+  view.querySelectorAll("[data-att-mark]").forEach((btn) => {
+    btn.addEventListener("click", () => markTeacherAttendance(btn.dataset.attId, btn.dataset.attMark));
+  });
 }
 
 function adminHome() {
@@ -5028,7 +5739,7 @@ function adminHome() {
       <a class="card metric" href="#/admin/attendance/trends"><div class="metric-label">Attendance</div><div class="metric-value">${schoolAttendMix(trendSummaries()).rate}%</div><div class="metric-hint">${tx("Present since September")} · ${tx("Trends")}</div></a>
       <a class="card metric" href="#/dismiss"><div class="metric-label">${tx("Dismissal")}</div><div class="metric-value">${dismissChangedCount()}</div><div class="metric-hint">${tx("Live pickup changes")}</div></a>
       <a class="card metric" href="#/lunch"><div class="metric-label">${tx("Hot lunch menu")}</div><div class="metric-value">${lunchOrdersForDay(LUNCH_TODAY).length}</div><div class="metric-hint">${tx("Family orders today · post this week")}</div></a>
-      <a class="card metric" href="#/events"><div class="metric-label">${tx("Events")}</div><div class="metric-value">${kidEvents().length}</div><div class="metric-hint">${kidEvents()[0] ? tx(kidEvents()[0].title) : tx("None upcoming")}</div></a>
+      <a class="card metric" href="#/admin/store"><div class="metric-label">${tx("Store")}</div><div class="metric-value">${waitingStorePickups().length}</div><div class="metric-hint">${tx("Waiting for pickup")}</div></a>
     </section>
   `;
 }
@@ -5656,10 +6367,14 @@ function mvpStaffHome() {
       <a class="btn" href="#/scan">Scan a flyer</a>
     </div>
     <section class="metrics">
-      <a class="card metric" href="${isTeacher ? "#/teach/attendance" : "#/admin/attendance"}"><div class="metric-label">Attendance</div><div class="metric-value">${isTeacher ? "24" : "96%"}</div><div class="metric-hint">${isTeacher ? "Room 12 today" : "Add an office entry"}</div></a>
+      <a class="card metric" href="${isTeacher ? "#/teach/attendance" : "#/admin/attendance"}"><div class="metric-label">Attendance</div><div class="metric-value">${isTeacher ? ((c) => `${c.present}/${c.total}`)(teacherTodayCounts()) : "96%"}</div><div class="metric-hint">${isTeacher ? "Room 12 today" : "Add an office entry"}</div></a>
       <a class="card metric" href="#/inbox"><div class="metric-label">Posted</div><div class="metric-value">${state.comms.filter((c) => (isTeacher ? c.source === "teacher" : c.source === "admin")).length}</div><div class="metric-hint">${isTeacher ? "From Room 12" : "From the office"}</div></a>
       <a class="card metric" href="#/events"><div class="metric-label">${tx("Events")}</div><div class="metric-value">${kidEvents().length}</div><div class="metric-hint">${tx("Dances, games, and fundraisers in one place")}</div></a>
-      <a class="card metric" href="#/docs"><div class="metric-label">Documents</div><div class="metric-value">${state.docs.length}</div><div class="metric-hint">School · class · fundraisers</div></a>
+      ${
+        isTeacher
+          ? `<a class="card metric" href="#/docs"><div class="metric-label">Documents</div><div class="metric-value">${state.docs.length}</div><div class="metric-hint">School · class · fundraisers</div></a>`
+          : `<a class="card metric" href="#/admin/store"><div class="metric-label">${tx("Store")}</div><div class="metric-value">${waitingStorePickups().length}</div><div class="metric-hint">${tx("Waiting for pickup")}</div></a>`
+      }
     </section>
     <div class="grid-2">
       <section class="card panel" style="padding-bottom:18px">
@@ -5836,7 +6551,7 @@ function mvpSchedule() {
       </section>`
         : ""
     }
-    <section class="card panel">${kidSchedule().map(schedRow).join("")}</section>
+    ${weekBoardHtml()}
     ${yearCalendarHtml()}
   `;
   bindCalendarExport();
@@ -6172,6 +6887,522 @@ function mvpConfigure() {
   });
 }
 
+function storeSwatch(item, tall) {
+  const kind = item.kind === "ipad" ? "is-ipad" : `is-${item.kind}`;
+  const mark = item.kind === "hoodie" ? "CH" : "Cedar Hill";
+  return `
+    <div class="store-swatch ${kind} ${tall ? "is-tall" : ""}" style="--swatch:${item.swatch || "#d8dbe2"};--mark:${item.ink || "#152033"}" aria-hidden="true">
+      ${item.kind === "ipad" ? `<span class="store-ipad-body"></span>` : `<span class="store-mark">${mark}</span>`}
+    </div>`;
+}
+
+function storeLineLabel(line) {
+  const item = storeProduct(line.productId);
+  const name = tx(item?.name || line.name || "Item");
+  const color = tx(item?.color || line.color || "");
+  const size = line.size ? tx(STORE_SIZE_LABEL[line.size] || line.size) : "";
+  return [name, color, size].filter(Boolean).join(" · ");
+}
+
+function storeDock() {
+  const count = storeCartCount();
+  return `
+    <div class="lunch-dock store-dock">
+      <div>
+        <strong>${count ? tx("Your bag") : tx("Pickup at the office")}</strong>
+        <span class="kicker">${count ? `${count} · ${money(storeCartTotal())}` : tx("Tue & Thu 3:15–3:45")}</span>
+      </div>
+      ${count ? `<a class="btn" href="#/store/cart">${tx("Check out")} · ${money(storeCartTotal())}</a>` : `<a class="btn ghost" href="#/store/cart">${tx("Your bag")}</a>`}
+    </div>`;
+}
+
+function storeOrdersPanel(orders, { staff } = {}) {
+  if (!orders.length) {
+    return `<p class="empty-copy">${tx("No orders yet.")}</p>`;
+  }
+  return orders
+    .map((order) => {
+      const waiting = order.pickup === "waiting";
+      return `
+        <div class="list-row">
+          <div class="title-block">
+            <strong>${staff ? order.buyer : storePayLabel(order.method, order.last4)}</strong>
+            <span class="kicker">${order.paidAt} · ${order.lines.map((line) => storeLineLabel(line)).join(", ")} · ${money(order.total)}</span>
+          </div>
+          ${waiting ? pill("Waiting for pickup", "amber") : pill("Picked up")}
+          ${staff && waiting ? `<button type="button" class="btn ghost" data-pickup="${order.id}">${tx("Mark picked up")}</button>` : ""}
+        </div>`;
+    })
+    .join("");
+}
+
+function bindStorePickups(rerender) {
+  view.querySelectorAll("[data-pickup]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const order = state.storeOrders.find((row) => row.id === btn.dataset.pickup);
+      if (order) order.pickup = "done";
+      rerender();
+    });
+  });
+}
+
+function storeFrontView() {
+  paintChrome("store");
+  setCrumbs(storeCrumbs());
+  const kind = state.storeFilter;
+  const items = state.storeCatalog.filter((item) => item.listed && (kind === "all" || item.kind === kind));
+  const orders = myStoreOrders();
+  const lede =
+    state.edition === "dream"
+      ? tx("Spirit wear and retired classroom iPads. Pickup Tuesday and Thursday 3:15–3:45 at the office window.")
+      : tx("Spirit wear and retired classroom iPads. Pickup at the office window.");
+  view.innerHTML = `
+    ${notice()}
+    <div class="hero">
+      <div>
+        <h1>${tx("School store")}</h1>
+        <p class="lede">${lede}</p>
+      </div>
+      <div class="stat-row">
+        <div><div class="num">${storeCartCount() || "0"}</div><div class="kicker">${tx("In the bag")}</div></div>
+      </div>
+    </div>
+    <div class="store-filters" role="tablist">
+      ${STORE_FILTERS.map(
+        ([id, label]) => `
+        <button type="button" class="day-chip ${kind === id ? "is-on" : ""}" data-store-filter="${id}">${tx(label)}</button>`
+      ).join("")}
+    </div>
+    ${
+      items.length
+        ? `<div class="store-grid">
+        ${items
+          .map((item) => {
+            const n = storeOnHand(item);
+            const out = n === 0;
+            return `
+          <a class="store-card ${out ? "is-out" : ""}" href="#/store/item/${item.id}">
+            ${storeSwatch(item)}
+            <div class="store-card-copy">
+              <span class="kicker">${tx(storeKindLabel(item.kind))}${item.kind === "ipad" ? ` · ${tx(item.condition)}` : ""}</span>
+              <strong>${tx(item.name)}</strong>
+              <span class="kicker">${tx(item.color)}</span>
+              <b>${money(item.price)}</b>
+            </div>
+            ${out ? `<span class="store-flag">${tx("Sold out")}</span>` : storeLow(item) ? `<span class="store-flag is-low">${tx("Low stock")}</span>` : ""}
+          </a>`;
+          })
+          .join("")}
+      </div>`
+        : `<p class="empty-copy">${tx("Nothing in this aisle yet.")}</p>`
+    }
+    ${
+      orders.length
+        ? `<section class="card panel" style="margin-top:18px">
+        <div class="widget-head"><h2>${tx("Your orders")}</h2><span class="kicker">${orders.length}</span></div>
+        ${storeOrdersPanel(orders)}
+      </section>`
+        : ""
+    }
+    ${storeDock()}
+  `;
+  view.querySelectorAll("[data-store-filter]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.storeFilter = btn.dataset.storeFilter;
+      storeFrontView();
+    });
+  });
+}
+
+function storeItemView(id) {
+  const item = storeProduct(id);
+  if (!item || !item.listed) {
+    location.hash = "#/store";
+    return storeFrontView();
+  }
+  paintChrome("store");
+  setCrumbs(storeCrumbs([{ label: item.name, href: `#/store/item/${item.id}` }]));
+  const apparel = item.kind !== "ipad";
+  const size = state.storeSize[item.id] || "";
+  const remaining = apparel ? (size ? storeSizeStock(item, size) : storeOnHand(item)) : storeOnHand(item);
+  const out = remaining === 0 || (apparel && size && !storeSizeStock(item, size));
+  view.innerHTML = `
+    ${notice()}
+    <article class="card lunch-sheet store-item">
+      ${storeSwatch(item, true)}
+      <header class="lunch-sheet-head">
+        <div>
+          <div class="kicker">${tx(storeKindLabel(item.kind))}${item.kind === "ipad" ? ` · ${tx(item.condition)}` : ` · ${tx(item.color)}`}</div>
+          <h2>${tx(item.name)}</h2>
+        </div>
+        <div class="lunch-day-total">${money(item.price)}</div>
+      </header>
+      <p class="lede">${tx(item.blurb)}</p>
+      ${item.spec ? `<p class="kicker">${tx(item.spec)}</p>` : ""}
+      ${
+        apparel
+          ? `<p class="lunch-section">${tx("Size")}</p>
+        <div class="store-sizes">
+          ${STORE_SIZES.map((code) => {
+            const n = storeSizeStock(item, code);
+            const on = size === code;
+            return `
+            <button type="button" class="store-size ${on ? "is-on" : ""}" data-size="${code}" ${n ? "" : "disabled"}>
+              ${tx(STORE_SIZE_LABEL[code])}
+              <span>${n ? n : tx("Sold out")}</span>
+            </button>`;
+          }).join("")}
+        </div>`
+          : `<p class="kicker">${remaining} ${tx("On hand")}</p>`
+      }
+      <div class="actions" style="margin-top:16px">
+        <button type="button" class="btn" id="store-add" ${out || (apparel && !size) ? "disabled" : ""}>${tx("Add to bag")}</button>
+        <a class="btn ghost" href="#/store">${tx("Keep shopping")}</a>
+      </div>
+    </article>
+    ${storeDock()}
+  `;
+  view.querySelectorAll("[data-size]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.storeSize[item.id] = btn.dataset.size;
+      state.notice = "";
+      storeItemView(item.id);
+    });
+  });
+  document.getElementById("store-add")?.addEventListener("click", () => {
+    if (addStoreItem(item.id, apparel ? size : "")) storeItemView(item.id);
+    else storeItemView(item.id);
+  });
+}
+
+function storeCartView() {
+  const lines = storeLines();
+  paintChrome("store");
+  setCrumbs(storeCrumbs([{ label: "Your bag", href: "#/store/cart" }]));
+  if (!lines.length) {
+    view.innerHTML = `
+      ${notice()}
+      <div class="hero">
+        <div>
+          <h1>${tx("Bag is empty")}</h1>
+          <p class="lede">${tx("Spirit wear and retired classroom iPads. Pickup at the office window.")}</p>
+        </div>
+        <a class="btn" href="#/store">${tx("Keep shopping")}</a>
+      </div>`;
+    return;
+  }
+  view.innerHTML = `
+    ${notice()}
+    <div class="hero">
+      <div>
+        <h1>${tx("Your bag")}</h1>
+        <p class="lede">${tx("Pickup at the office")} · ${tx("Tue & Thu 3:15–3:45")}</p>
+      </div>
+      <div class="stat-row">
+        <div><div class="num">${money(storeCartTotal())}</div><div class="kicker">${tx("Due")}</div></div>
+      </div>
+    </div>
+    <section class="card panel">
+      ${lines
+        .map((line) => {
+          const item = storeProduct(line.productId);
+          if (!item) return "";
+          const cap = item.kind === "ipad" ? storeOnHand(item) : storeSizeStock(item, line.size);
+          return `
+        <div class="lunch-row">
+          <div class="title-block">
+            <strong>${storeLineLabel(line)}</strong>
+            <span class="kicker">${money(item.price)} ${tx("each")}</span>
+          </div>
+          <span class="lunch-price">${money(item.price * line.qty)}</span>
+          <div class="qty">
+            <button type="button" class="qty-btn" data-store-qty="${line.productId}" data-size="${line.size || ""}" data-delta="-1">−</button>
+            <span class="qty-n">${line.qty}</span>
+            <button type="button" class="qty-btn add" data-store-qty="${line.productId}" data-size="${line.size || ""}" data-delta="1" ${line.qty >= cap ? "disabled" : ""}>+</button>
+          </div>
+        </div>`;
+        })
+        .join("")}
+    </section>
+    <div class="actions">
+      <a class="btn ghost" href="#/store">${tx("Keep shopping")}</a>
+      <a class="btn" href="#/store/pay">${tx("Check out")} · ${money(storeCartTotal())}</a>
+    </div>
+  `;
+  view.querySelectorAll("[data-store-qty]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.storeQty;
+      const size = btn.dataset.size || "";
+      setStoreQty(id, size, storeLineQty(id, size) + Number(btn.dataset.delta));
+      storeCartView();
+    });
+  });
+}
+
+function storePayView() {
+  if (!storeCartCount()) {
+    location.hash = "#/store/cart";
+    return storeCartView();
+  }
+  paintChrome("store");
+  setCrumbs(
+    storeCrumbs([
+      { label: "Your bag", href: "#/store/cart" },
+      { label: "Pay", href: "#/store/pay" },
+    ])
+  );
+  const method = state.storePay || "card";
+  view.innerHTML = `
+    ${notice()}
+    <div class="hero">
+      <div>
+        <h1>${tx("Pay")}</h1>
+        <p class="lede">${tx("Demo checkout — Harbor does not charge a real card. Pickup stays at the office.")}</p>
+      </div>
+      <div class="stat-row">
+        <div><div class="num">${money(storeCartTotal())}</div><div class="kicker">${people[state.role].name}</div></div>
+      </div>
+    </div>
+    <section class="card panel" style="padding-bottom:18px">
+      <h2>${tx("Payment method")}</h2>
+      <div class="pay-methods">
+        <button type="button" class="pay-choice ${method === "apple" ? "is-on" : ""}" data-pay="apple">${tx("Apple Pay")}</button>
+        <button type="button" class="pay-choice ${method === "google" ? "is-on" : ""}" data-pay="google">${tx("Google Pay")}</button>
+        <button type="button" class="pay-choice ${method === "card" ? "is-on" : ""}" data-pay="card">${tx("Credit card")}</button>
+        <button type="button" class="pay-choice ${method === "pickup" ? "is-on" : ""}" data-pay="pickup">${tx("Pay at pickup")}</button>
+      </div>
+      ${
+        method === "card"
+          ? `<form id="card-form" class="card-form">
+              <div class="field"><label for="card-name">${tx("Name on card")}</label><input id="card-name" autocomplete="cc-name" value="${people[state.role].name}" required /></div>
+              <div class="field"><label for="card-number">${tx("Card number")}</label><input id="card-number" inputmode="numeric" autocomplete="cc-number" placeholder="4242 4242 4242 4242" required /></div>
+              <div class="card-grid">
+                <div class="field"><label for="card-exp">${tx("Expiry")}</label><input id="card-exp" placeholder="MM/YY" autocomplete="cc-exp" required /></div>
+                <div class="field"><label for="card-cvc">${tx("CVC")}</label><input id="card-cvc" inputmode="numeric" autocomplete="cc-csc" placeholder="123" required /></div>
+              </div>
+              <button class="btn" type="submit">${tx("Pay")} ${money(storeCartTotal())}</button>
+            </form>`
+          : method === "pickup"
+            ? `<p class="lede" style="margin:12px 0">${tx("Pay cash or card at the office window. We’ll hold the bag under your name.")}</p>
+               <button class="btn" type="button" id="pay-now">${tx("Reserve for pickup")}</button>`
+            : `<p class="lede" style="margin:12px 0">${tx("Opens the wallet on a phone. In this demo it confirms without leaving Harbor.")}</p>
+               <button class="btn pay-wallet ${method === "apple" ? "apple" : "google"}" type="button" id="pay-now">${method === "apple" ? tx("Pay with Apple Pay") : tx("Pay with Google Pay")}</button>`
+      }
+    </section>
+  `;
+  view.querySelectorAll("[data-pay]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.storePay = btn.dataset.pay;
+      storePayView();
+    });
+  });
+  document.getElementById("card-form")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const number = (document.getElementById("card-number").value || "").replace(/\D/g, "");
+    const exp = (document.getElementById("card-exp").value || "").trim();
+    const cvc = (document.getElementById("card-cvc").value || "").replace(/\D/g, "");
+    if (number.length < 13 || number.length > 19 || !/^\d{2}\/\d{2}$/.test(exp) || cvc.length < 3) {
+      state.notice = tx("Check the card number, expiry, and CVC. Demo cards like 4242 4242 4242 4242 work.");
+      storePayView();
+      return;
+    }
+    completeStorePay("card", number.slice(-4));
+  });
+  document.getElementById("pay-now")?.addEventListener("click", () => completeStorePay(method));
+}
+
+function completeStorePay(method, last4) {
+  const lines = storeLines();
+  for (const line of lines) {
+    const item = storeProduct(line.productId);
+    const cap = item?.kind === "ipad" ? storeOnHand(item) : storeSizeStock(item, line.size);
+    if (!item || line.qty > cap) {
+      state.notice = tx("That size is sold out.");
+      storeCartView();
+      return;
+    }
+  }
+  const snapshot = lines.map((line) => {
+    const item = storeProduct(line.productId);
+    takeStoreStock(line.productId, line.size, line.qty);
+    return {
+      productId: line.productId,
+      name: item.name,
+      color: item.color,
+      size: line.size || "",
+      qty: line.qty,
+      price: item.price,
+    };
+  });
+  const order = {
+    id: "so" + Date.now(),
+    buyer: people[state.role].name,
+    buyerRole: state.role,
+    family: state.role === "parent" ? "bowser" : "",
+    method,
+    last4: last4 || "",
+    total: snapshot.reduce((sum, line) => sum + line.price * line.qty, 0),
+    paidAt: "Just now",
+    pickup: "waiting",
+    lines: snapshot,
+  };
+  state.storeOrders.unshift(order);
+  state.storeCart[state.role] = [];
+  state.storeReceipt = order.id;
+  state.notice = "";
+  location.hash = "#/store/receipt";
+  render();
+}
+
+function storeReceiptView() {
+  const order = state.storeOrders.find((row) => row.id === state.storeReceipt) || myStoreOrders()[0];
+  paintChrome("store");
+  setCrumbs(storeCrumbs([{ label: "Receipt", href: "#/store/receipt" }]));
+  if (!order) {
+    location.hash = "#/store";
+    return storeFrontView();
+  }
+  view.innerHTML = `
+    ${notice()}
+    <div class="hero">
+      <div>
+        <h1>${tx("You’re on the pickup list.")}</h1>
+        <p class="lede">${tx("Pickup at the office")} · ${tx("Tue & Thu 3:15–3:45")} · ${storePayLabel(order.method, order.last4)}</p>
+      </div>
+      <div class="stat-row">
+        <div><div class="num">${money(order.total)}</div><div class="kicker">${order.paidAt}</div></div>
+      </div>
+    </div>
+    <section class="card panel">
+      ${order.lines
+        .map(
+          (line) => `
+        <div class="lunch-row">
+          <div class="title-block">
+            <strong>${storeLineLabel(line)}</strong>
+            <span class="kicker">${line.qty} × ${money(line.price)}</span>
+          </div>
+          <span class="lunch-price">${money(line.price * line.qty)}</span>
+        </div>`
+        )
+        .join("")}
+    </section>
+    <div class="actions">
+      <a class="btn" href="#/store">${tx("Keep shopping")}</a>
+    </div>
+  `;
+}
+
+function adminStore() {
+  if (state.role !== "admin") {
+    if (isParentRole()) return sendParentHome();
+    location.hash = "#/store";
+    return storeFrontView();
+  }
+  paintChrome("store");
+  setCrumbs([boardCrumb(), { label: "Store", href: "#/admin/store" }]);
+  const waiting = waitingStorePickups();
+  view.innerHTML = `
+    ${notice()}
+    <div class="hero">
+      <div>
+        <h1>${tx("School store")}</h1>
+        <p class="lede">${tx("Inventory lives with the office for now. Later, Grade 7–8 store captains will use a student account instead of this board.")}</p>
+      </div>
+      <a class="btn ghost" href="#/store">${tx("View shop")}</a>
+    </div>
+    <section class="metrics">
+      <div class="card metric"><div class="metric-label">${tx("Waiting for pickup")}</div><div class="metric-value">${waiting.length}</div><div class="metric-hint">${tx("Office window")}</div></div>
+      <div class="card metric"><div class="metric-label">${tx("On hand")}</div><div class="metric-value">${state.storeCatalog.reduce((sum, item) => sum + storeOnHand(item), 0)}</div><div class="metric-hint">${tx("Pieces and iPads")}</div></div>
+      <div class="card metric"><div class="metric-label">${tx("Low stock")}</div><div class="metric-value">${state.storeCatalog.filter(storeLow).length}</div><div class="metric-hint">${tx("Needs a restock")}</div></div>
+    </section>
+    <section class="card panel">
+      <div class="widget-head">
+        <h2>${tx("Inventory")}</h2>
+        <span class="kicker">${state.storeCatalog.length}</span>
+      </div>
+      ${state.storeCatalog
+        .map((item) => {
+          const n = storeOnHand(item);
+          return `
+        <div class="store-admin">
+          <div class="store-admin-head">
+            ${storeSwatch(item)}
+            <div class="title-block">
+              <strong>${tx(item.name)} · ${tx(item.color)}</strong>
+              <span class="kicker">${money(item.price)} · ${n} ${tx("On hand")}${storeLow(item) ? ` · ${tx("Low stock")}` : ""}</span>
+            </div>
+            ${item.listed ? pill("Listed") : pill("Hidden", "amber")}
+            <button type="button" class="btn ghost" data-store-list="${item.id}">${item.listed ? tx("Hide from shop") : tx("Show in shop")}</button>
+          </div>
+          ${
+            item.kind === "ipad"
+              ? `<div class="qty">
+                  <button type="button" class="qty-btn" data-ipad-qty="${item.id}" data-delta="-1">−</button>
+                  <span class="qty-n">${item.qty}</span>
+                  <button type="button" class="qty-btn add" data-ipad-qty="${item.id}" data-delta="1">+</button>
+                </div>`
+              : `<div class="store-sizes is-admin">
+                  ${STORE_SIZES.map(
+                    (code) => `
+                    <label class="store-size-edit">
+                      <span>${tx(STORE_SIZE_LABEL[code])}</span>
+                      <input type="number" min="0" value="${item.stock[code] || 0}" data-stock="${item.id}" data-size="${code}" />
+                    </label>`
+                  ).join("")}
+                </div>`
+          }
+        </div>`;
+        })
+        .join("")}
+    </section>
+    <section class="card panel">
+      <div class="widget-head">
+        <h2>${tx("Orders")}</h2>
+        <span class="kicker">${state.storeOrders.length}</span>
+      </div>
+      ${storeOrdersPanel(state.storeOrders, { staff: true })}
+    </section>
+    <aside class="notes">
+      <h3>Harbor AI</h3>
+      ${tx("A student-manager login is the next step — older students run stock and pickup without seeing attendance or family messages.")}
+    </aside>
+  `;
+  view.querySelectorAll("[data-store-list]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const item = storeProduct(btn.dataset.storeList);
+      if (item) item.listed = !item.listed;
+      adminStore();
+    });
+  });
+  view.querySelectorAll("[data-ipad-qty]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const item = storeProduct(btn.dataset.ipadQty);
+      if (!item) return;
+      item.qty = Math.max(0, (item.qty || 0) + Number(btn.dataset.delta));
+      adminStore();
+    });
+  });
+  view.querySelectorAll("[data-stock]").forEach((input) => {
+    input.addEventListener("change", () => {
+      const item = storeProduct(input.dataset.stock);
+      if (!item.stock) item.stock = {};
+      item.stock[input.dataset.size] = Math.max(0, Number(input.value) || 0);
+      adminStore();
+    });
+  });
+  bindStorePickups(adminStore);
+}
+
+function storeRoute(parts) {
+  if (parts[0] === "admin" && parts[1] === "store") return adminStore();
+  if (parts[1] === "item") return storeItemView(parts[2]);
+  if (parts[1] === "cart") return storeCartView();
+  if (parts[1] === "pay") return storePayView();
+  if (parts[1] === "receipt") return storeReceiptView();
+  return storeFrontView();
+}
+
 function setNavOpen(open) {
   document.body.classList.toggle("nav-open", open);
   const btn = document.getElementById("menu-btn");
@@ -6200,6 +7431,7 @@ function render() {
   }
   if (parts[0] === "alerts") return alertsView();
   if (parts[0] === "scan") return scanView(parts[1]);
+  if (parts[0] === "store" || (parts[0] === "admin" && parts[1] === "store")) return storeRoute(parts);
 
   if (state.edition === "mvp") {
     if (parts[0] === "inbox") return mvpInbox(parts[1]);
