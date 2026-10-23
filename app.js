@@ -203,6 +203,301 @@ function rosterStudent(id) {
   return roster.find((s) => s.id === id);
 }
 
+const ATTEND_START = "2026-09-08";
+const ATTEND_END = "2026-10-17";
+const ATTEND_HOLIDAYS = new Set(["2026-10-12"]);
+const WEEK_DAY_ISO = {
+  "Mon 13": "2026-10-13",
+  "Tue 14": "2026-10-14",
+  "Wed 15": "2026-10-15",
+  "Thu 16": "2026-10-16",
+  "Fri 17": "2026-10-17",
+};
+
+function attendHash(id, iso) {
+  let h = 2166136261;
+  const s = `${id}:${iso}`;
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
+  return (h >>> 0) / 4294967296;
+}
+
+function attendSchoolDays(from, to) {
+  const days = [];
+  const end = parseIso(to);
+  for (let dt = parseIso(from); dt <= end; dt.setDate(dt.getDate() + 1)) {
+    const iso = isoDay(dt.getFullYear(), dt.getMonth(), dt.getDate());
+    const dow = dt.getDay();
+    if (dow < 1 || dow > 5 || ATTEND_HOLIDAYS.has(iso)) continue;
+    days.push({ iso, dow: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][dow] });
+  }
+  return days;
+}
+
+function mondayIndex(iso) {
+  const start = parseIso(mondayIso(ATTEND_START));
+  const cur = parseIso(mondayIso(iso));
+  return Math.round((cur - start) / 604800000);
+}
+
+function seedAttendanceRow(id, day) {
+  if (day.iso > "2026-10-16") return { iso: day.iso, dow: day.dow, status: "Upcoming", note: "" };
+  const week = mondayIndex(day.iso);
+  if (id === "priya" && day.dow === "Mon" && week % 2 === 1) {
+    return { iso: day.iso, dow: day.dow, status: "Absent", note: "Parent: absent Monday" };
+  }
+  if (id === "jonas" && day.dow === "Tue") {
+    return { iso: day.iso, dow: day.dow, status: "Late", note: "Arrived 8:24" };
+  }
+  if (id === "leo" && day.dow === "Fri" && week % 2 === 0) {
+    return { iso: day.iso, dow: day.dow, status: "Absent", note: "Family travel" };
+  }
+  if (id === "maya" && day.iso === "2026-10-15") {
+    return { iso: day.iso, dow: day.dow, status: "Late", note: "Arrived 8:21 · dentist" };
+  }
+  if (id === "samira" && day.iso === "2026-10-15") {
+    return { iso: day.iso, dow: day.dow, status: "Left early", note: "Volleyball away game" };
+  }
+  if (id === "priya" && day.iso === "2026-10-16") {
+    return { iso: day.iso, dow: day.dow, status: "Absent", note: "Parent: absent Thu" };
+  }
+  const r = attendHash(id, day.iso);
+  const quiet = id === "maya" || id === "noah" || id === "elias";
+  if (r < (quiet ? 0.015 : 0.045)) return { iso: day.iso, dow: day.dow, status: "Absent", note: "Illness" };
+  if (r < (quiet ? 0.03 : 0.07)) return { iso: day.iso, dow: day.dow, status: "Late", note: "Arrived late" };
+  if (r < (quiet ? 0.04 : 0.085)) return { iso: day.iso, dow: day.dow, status: "Left early", note: "Appointment" };
+  return { iso: day.iso, dow: day.dow, status: "Present", note: "" };
+}
+
+function buildAttendanceLog() {
+  const days = attendSchoolDays(ATTEND_START, ATTEND_END);
+  const log = {};
+  roster.forEach((s) => {
+    log[s.id] = days.map((day) => seedAttendanceRow(s.id, day));
+  });
+  return log;
+}
+
+function upsertAttendance(studentId, iso, status, note) {
+  const rows = state.attendanceByStudent[studentId];
+  if (rows) {
+    const row = rows.find((r) => r.iso === iso);
+    if (row) {
+      row.status = status;
+      row.note = note || "";
+    } else {
+      const meta = lunchDateMeta(iso);
+      rows.push({ iso, dow: meta.dow, status, note: note || "" });
+      rows.sort((a, b) => a.iso.localeCompare(b.iso));
+    }
+  }
+  const kid = students.find((s) => s.id === studentId);
+  const label = Object.keys(WEEK_DAY_ISO).find((k) => WEEK_DAY_ISO[k] === iso);
+  if (kid && label) {
+    const weekRow = kid.attendance.find((d) => d.day === label);
+    if (weekRow) {
+      weekRow.status = status;
+      weekRow.note = note || "";
+    }
+  }
+}
+
+function trendHref() {
+  return "#/admin/attendance/trends";
+}
+
+function attendBaseHref() {
+  if (state.role === "teacher") return "#/teach/attendance";
+  if (state.role === "admin") return "#/admin/attendance";
+  return "#/attendance";
+}
+
+function trendRoster() {
+  let list = roster.slice();
+  const { grade, room, student } = state.attTrend;
+  if (grade && grade !== "all") list = list.filter((s) => s.grade === grade);
+  if (room && room !== "all") list = list.filter((s) => s.room === room);
+  if (student && student !== "all") list = list.filter((s) => s.id === student);
+  return list;
+}
+
+function studentTrendRows(id) {
+  const from = state.attTrend.from || ATTEND_START;
+  const to = state.attTrend.to || "2026-10-16";
+  return (state.attendanceByStudent[id] || []).filter((row) => row.iso >= from && row.iso <= to && row.status !== "Upcoming");
+}
+
+function detectAttendFlags(s, rows) {
+  const flags = [];
+  const name = s.name.split(" ")[0];
+  ["Mon", "Tue", "Wed", "Thu", "Fri"].forEach((dow) => {
+    const of = rows.filter((r) => r.dow === dow);
+    if (of.length < 3) return;
+    ["Absent", "Late", "Left early"].forEach((st) => {
+      const hits = of.filter((r) => r.status === st);
+      if (hits.length >= 2 && hits.length / of.length >= 0.5) {
+        const word = st === "Left early" ? "leaving early" : st.toLowerCase();
+        const days = { Mon: "Mondays", Tue: "Tuesdays", Wed: "Wednesdays", Thu: "Thursdays", Fri: "Fridays" };
+        flags.push({
+          id: `${s.id}-${dow}-${st}`,
+          tone: st === "Absent" ? "risk" : "amber",
+          text: `${name} is ${word} most ${days[dow]} · ${hits.length} of ${of.length}`,
+        });
+      }
+    });
+  });
+  const mondays = rows.filter((r) => r.dow === "Mon").sort((a, b) => a.iso.localeCompare(b.iso));
+  if (mondays.length >= 4) {
+    const abs = mondays.map((m) => m.status === "Absent");
+    const odd = abs.filter((a, i) => a === (i % 2 === 1)).length;
+    const even = abs.filter((a, i) => a === (i % 2 === 0)).length;
+    const absCount = abs.filter(Boolean).length;
+    if (absCount >= 2 && (odd >= mondays.length - 1 || even >= mondays.length - 1)) {
+      flags.push({ id: `${s.id}-alt-mon`, tone: "risk", text: `${name} is absent every other Monday` });
+    }
+  }
+  let streak = 0;
+  let max = 0;
+  rows
+    .slice()
+    .sort((a, b) => a.iso.localeCompare(b.iso))
+    .forEach((r) => {
+      if (r.status === "Absent") {
+        streak += 1;
+        if (streak > max) max = streak;
+      } else streak = 0;
+    });
+  if (max >= 3) flags.push({ id: `${s.id}-streak`, tone: "risk", text: `${name} had ${max} absences in a row` });
+  const weeks = {};
+  rows.forEach((r) => {
+    const w = mondayIso(r.iso);
+    if (!weeks[w]) weeks[w] = { p: 0, n: 0 };
+    weeks[w].n += 1;
+    if (r.status === "Present") weeks[w].p += 1;
+  });
+  const keys = Object.keys(weeks).sort();
+  if (keys.length >= 4) {
+    const early = keys.slice(0, 2);
+    const latew = keys.slice(-2);
+    const rate = (ks) => ks.reduce((sum, k) => sum + weeks[k].p, 0) / Math.max(1, ks.reduce((sum, k) => sum + weeks[k].n, 0));
+    if (rate(early) - rate(latew) >= 0.2 && rate(latew) < 0.85) {
+      flags.push({ id: `${s.id}-drop`, tone: "amber", text: `${name}’s attendance dropped in the last two weeks` });
+    }
+  }
+  return flags;
+}
+
+function summarizeStudentAttend(s) {
+  const rows = studentTrendRows(s.id);
+  const count = (st) => rows.filter((r) => r.status === st).length;
+  const present = count("Present");
+  const absent = count("Absent");
+  const late = count("Late");
+  const early = count("Left early");
+  const n = rows.length;
+  return {
+    student: s,
+    rows,
+    present,
+    absent,
+    late,
+    early,
+    n,
+    rate: n ? Math.round((present / n) * 100) : 0,
+    flags: detectAttendFlags(s, rows),
+  };
+}
+
+function trendSummaries() {
+  return trendRoster()
+    .map(summarizeStudentAttend)
+    .sort((a, b) => b.flags.length - a.flags.length || a.rate - b.rate || a.student.name.localeCompare(b.student.name));
+}
+
+function schoolAttendMix(summaries) {
+  const mix = { Present: 0, Late: 0, Absent: 0, "Left early": 0 };
+  summaries.forEach((row) => {
+    mix.Present += row.present;
+    mix.Late += row.late;
+    mix.Absent += row.absent;
+    mix["Left early"] += row.early;
+  });
+  const total = mix.Present + mix.Late + mix.Absent + mix["Left early"];
+  return { mix, total, rate: total ? Math.round((mix.Present / total) * 100) : 0 };
+}
+
+function weeklyAttendSeries(summaries) {
+  const weeks = {};
+  summaries.forEach((row) => {
+    row.rows.forEach((r) => {
+      const w = mondayIso(r.iso);
+      if (!weeks[w]) weeks[w] = { p: 0, n: 0 };
+      weeks[w].n += 1;
+      if (r.status === "Present") weeks[w].p += 1;
+    });
+  });
+  return Object.keys(weeks)
+    .sort()
+    .map((iso) => {
+      const meta = lunchDateMeta(iso);
+      const n = weeks[iso].n;
+      return { iso, label: `${meta.month.slice(0, 3)} ${meta.day}`, rate: n ? Math.round((weeks[iso].p / n) * 100) : 0 };
+    });
+}
+
+function weekdayAbsentSeries(summaries) {
+  const order = ["Mon", "Tue", "Wed", "Thu", "Fri"];
+  const counts = { Mon: 0, Tue: 0, Wed: 0, Thu: 0, Fri: 0 };
+  summaries.forEach((row) => {
+    row.rows.forEach((r) => {
+      if (r.status === "Absent" && counts[r.dow] !== undefined) counts[r.dow] += 1;
+    });
+  });
+  const max = Math.max(1, ...order.map((d) => counts[d]));
+  return order.map((dow) => ({ dow, count: counts[dow], pct: Math.round((counts[dow] / max) * 100) }));
+}
+
+function csvCell(value) {
+  const s = String(value ?? "");
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function exportAttendanceCsv() {
+  const summaries = trendSummaries();
+  const lines = [["Student", "Grade", "Room", "Date", "Weekday", "Status", "Note"].map(csvCell).join(",")];
+  summaries.forEach((row) => {
+    row.rows.forEach((r) => {
+      lines.push(
+        [row.student.name, row.student.grade, row.student.room, r.iso, r.dow, r.status, r.note].map(csvCell).join(",")
+      );
+    });
+  });
+  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `cedar-hill-attendance-${state.attTrend.from}-to-${state.attTrend.to}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  state.notice = tx("Attendance CSV downloaded.");
+}
+
+function donutStyle(mix, total) {
+  if (!total) return "conic-gradient(var(--paper-2) 0 360deg)";
+  const parts = [
+    ["#1e3a5f", mix.Present],
+    ["#a67c3d", mix.Late],
+    ["#8f2d3a", mix.Absent],
+    ["#5b6b8a", mix["Left early"]],
+  ];
+  let start = 0;
+  const stops = parts.map(([color, n]) => {
+    const end = start + (n / total) * 360;
+    const slice = `${color} ${start}deg ${end}deg`;
+    start = end;
+    return slice;
+  });
+  return `conic-gradient(${stops.join(", ")})`;
+}
+
 const DISMISS_MODES = [
   { id: "bus", title: "Bus", lane: "Bus loop" },
   { id: "carpool", title: "Carpool", lane: "Carpool line" },
@@ -274,6 +569,7 @@ function rosterRooms() {
 }
 
 function filteredRoster() {
+  if (isParentRole()) return [];
   const q = (state.officeFind.q || "").trim().toLowerCase();
   const grade = state.officeFind.grade;
   const room = state.officeFind.room;
@@ -290,13 +586,42 @@ function child() {
   return students.find((s) => s.id === state.childId) || students[0];
 }
 
-function kidItems(list) {
+function isParentRole() {
+  return state.role === "parent";
+}
+
+function parentBlockedPath(parts) {
+  const head = parts[0] || "";
+  return head === "scan" || head === "teach" || head === "admin";
+}
+
+function sendParentHome() {
+  if (location.hash && location.hash !== "#" && location.hash !== "#/") {
+    history.replaceState(null, "", `${location.pathname}${location.search}#/`);
+  }
+  return state.edition === "mvp" ? mvpParentHome() : parentHome();
+}
+
+function requireStaff() {
+  if (!isParentRole()) return true;
+  sendParentHome();
+  return false;
+}
+
+function parentMaySeeRecord(item) {
+  if (!item || typeof item !== "object") return false;
+  if (item.staffOnly) return false;
+  if (item.audience && item.audience !== "parent") return false;
+  const who = item.for;
+  if (!who || who === "all") return true;
   const id = child().id;
-  return list.filter((item) => {
-    const who = item.for;
-    if (!who || who === "all") return true;
-    return Array.isArray(who) ? who.includes(id) : who === id;
-  });
+  return Array.isArray(who) ? who.includes(id) : who === id;
+}
+
+function kidItems(list) {
+  const rows = list || [];
+  if (!isParentRole()) return rows;
+  return rows.filter(parentMaySeeRecord);
 }
 
 function parentThreads() {
@@ -386,8 +711,8 @@ function visibleAlerts() {
   return state.alerts.filter((alert) => {
     const audience = alert.audience || "parent";
     if (audience !== state.role) return false;
-    if (state.role !== "parent") return true;
-    return forKid([alert], child().id).length > 0;
+    if (!isParentRole()) return true;
+    return parentMaySeeRecord({ ...alert, audience: "parent" });
   });
 }
 
@@ -453,7 +778,7 @@ function alertHref(alert) {
 
 function markAlertsFor(ref) {
   if (!ref) return;
-  state.alerts.forEach((alert) => {
+  visibleAlerts().forEach((alert) => {
     if (alert.ref === ref) alert.unread = false;
   });
 }
@@ -618,22 +943,161 @@ function monthWeekdays(y, m) {
   const lead = firstDow === 0 ? 6 : firstDow - 1;
   const last = new Date(y, m + 1, 0).getDate();
   const cells = Array(lead).fill(null);
-  for (let d = 1; d <= last; d += 1) {
-    const dow = new Date(y, m, d).getDay();
-    if (dow === 0 || dow === 6) continue;
-    cells.push(d);
-  }
-  while (cells.length % 5) cells.push(null);
+  for (let d = 1; d <= last; d += 1) cells.push(d);
+  while (cells.length % 7) cells.push(null);
   return cells;
+}
+
+function currentSchoolMonthIndex() {
+  const dt = parseIso(CAL_TODAY);
+  const i = SCHOOL_YEAR_MONTHS.findIndex((month) => month.y === dt.getFullYear() && month.m === dt.getMonth());
+  return i >= 0 ? i : 1;
+}
+
+function eventIso(item) {
+  const when = item.when || "";
+  const match = when.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+(\d{1,2})\b/i);
+  if (!match) return "";
+  const month = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 }[match[1].slice(0, 3).toLowerCase()];
+  if (month == null) return "";
+  return isoDay(month >= 8 ? 2026 : 2027, month, Number(match[2]));
+}
+
+function calDayEvents(iso) {
+  return kidEvents().filter((item) => eventIso(item) === iso);
+}
+
+function calDaySchedule(iso) {
+  const dow = lunchDateMeta(iso).dow;
+  if (dow === "Sat" || dow === "Sun") return [];
+  return kidSchedule().filter((item) => item.day === dow);
+}
+
+function calDayAttend(iso) {
+  if (!isParentRole()) return null;
+  return (state.attendanceByStudent[child().id] || []).find((row) => row.iso === iso) || null;
+}
+
+function calDayHasItems(iso) {
+  return Boolean(SCHOOL_YEAR_MARKS[iso] || calDayEvents(iso).length || calDaySchedule(iso).length || calDayAttend(iso));
+}
+
+function closeCalDay() {
+  state.calDay = "";
+  document.removeEventListener("keydown", onCalModalKey);
+  document.getElementById("cal-modal-host")?.replaceChildren();
+}
+
+function calDayModalHtml(iso) {
+  const meta = lunchDateMeta(iso);
+  const mark = SCHOOL_YEAR_MARKS[iso];
+  const legend = YEAR_LEGEND.find((row) => row[0] === mark);
+  const weekend = meta.dow === "Sat" || meta.dow === "Sun";
+  const events = calDayEvents(iso);
+  const holds = calDaySchedule(iso);
+  const attend = calDayAttend(iso);
+  const empty = !legend && !events.length && !holds.length && !attend && !weekend;
+  return `
+    <div class="cal-modal-scrim" id="cal-modal" role="presentation">
+      <div class="cal-modal" role="dialog" aria-modal="true" aria-labelledby="cal-modal-title">
+        <p class="kicker">${iso === CAL_TODAY ? tx("Today") : tx("School year")}</p>
+        <h2 id="cal-modal-title">${tx(meta.dow)} · ${tx(meta.month)} ${meta.day}, ${meta.year}</h2>
+        ${legend ? `<p class="lede">${tx(legend[1])}</p>` : ""}
+        ${weekend && !legend ? `<p class="lede">${tx("Weekend. No school.")}</p>` : ""}
+        ${empty ? `<p class="lede">${tx("A regular school day. Nothing extra is on the calendar.")}</p>` : ""}
+        ${
+          attend
+            ? `<div class="list-row">
+                <div class="title-block"><span class="kicker">${tx("Attendance")}</span><strong>${tx(attend.status)}</strong><span class="kicker">${attend.note ? tx(attend.note) : tx("No note")}</span></div>
+                ${pill(attend.status, statusKind(attend.status))}
+              </div>`
+            : ""
+        }
+        ${holds
+          .map(
+            (item) => `
+          <div class="list-row">
+            <div class="title-block">
+              <span class="kicker">${item.time} · ${tx(item.where || "")}</span>
+              <strong>${tx(item.title)}</strong>
+            </div>
+            ${sourcePill(item.source)}
+          </div>`
+          )
+          .join("")}
+        ${events
+          .map(
+            (item) => `
+          <a class="list-row" href="#/events/${item.id}">
+            <div class="title-block">
+              <span class="kicker">${tx(eventKindMeta(item.kind).singular)} · ${tx(item.where || "")}</span>
+              <strong>${tx(item.title)}</strong>
+            </div>
+            ${pill(eventKindMeta(item.kind).singular, eventKindTone(item.kind))}
+          </a>`
+          )
+          .join("")}
+        <div class="actions"><button type="button" class="btn" id="cal-modal-close">${tx("Close")}</button></div>
+      </div>
+    </div>`;
+}
+
+function onCalModalKey(e) {
+  if (e.key === "Escape") closeCalDay();
+}
+
+function openCalDay(iso) {
+  state.calDay = iso;
+  const host = document.getElementById("cal-modal-host");
+  if (!host) return;
+  host.innerHTML = calDayModalHtml(iso);
+  document.getElementById("cal-modal-close")?.addEventListener("click", closeCalDay);
+  document.getElementById("cal-modal")?.addEventListener("click", (e) => {
+    if (e.target.id === "cal-modal") closeCalDay();
+  });
+  document.removeEventListener("keydown", onCalModalKey);
+  document.addEventListener("keydown", onCalModalKey);
+  document.getElementById("cal-modal-close")?.focus();
+}
+
+function bindYearCalendar() {
+  const rerender = () => (state.edition === "mvp" ? mvpSchedule() : calendar());
+  document.getElementById("cal-prev")?.addEventListener("click", () => {
+    if (state.calMonthIndex > 0) {
+      state.calMonthIndex -= 1;
+      state.calDay = "";
+      rerender();
+    }
+  });
+  document.getElementById("cal-next")?.addEventListener("click", () => {
+    if (state.calMonthIndex < SCHOOL_YEAR_MONTHS.length - 1) {
+      state.calMonthIndex += 1;
+      state.calDay = "";
+      rerender();
+    }
+  });
+  document.getElementById("cal-month")?.addEventListener("change", (e) => {
+    state.calMonthIndex = Number(e.target.value);
+    state.calDay = "";
+    rerender();
+  });
+  view.querySelectorAll("[data-cal-iso]").forEach((btn) => {
+    btn.addEventListener("click", () => openCalDay(btn.dataset.calIso));
+  });
 }
 
 function yearCalendarHtml() {
   const kid = state.role === "parent" ? child() : null;
+  if (state.calMonthIndex == null || state.calMonthIndex < 0) state.calMonthIndex = currentSchoolMonthIndex();
+  const month = SCHOOL_YEAR_MONTHS[state.calMonthIndex] || SCHOOL_YEAR_MONTHS[1];
+  const cells = monthWeekdays(month.y, month.m);
+  const prevOff = state.calMonthIndex <= 0;
+  const nextOff = state.calMonthIndex >= SCHOOL_YEAR_MONTHS.length - 1;
   return `
     <section class="year-wrap">
       <div class="widget-head">
         <h2>${tx("School year")} 2026–2027</h2>
-        <span class="kicker">${tx("Mon–Fri · Cedar Hill K–8")}</span>
+        <span class="kicker">${tx("Cedar Hill K–8")}</span>
       </div>
       <p class="lede year-lede">${
         kid
@@ -643,32 +1107,44 @@ function yearCalendarHtml() {
             })
           : tx("Holidays, PD days, and Friday timetables for students and staff.")
       }</p>
-      <div class="year-cal">
-        ${SCHOOL_YEAR_MONTHS.map((month) => {
-          const cells = monthWeekdays(month.y, month.m);
-          return `
-            <article class="card year-month">
-              <h3>${tx(month.name)} ${month.m === 8 || month.m === 0 ? month.y : ""}</h3>
-              <div class="year-grid" role="grid" aria-label="${tx(month.name)}">
-                ${["Mon", "Tue", "Wed", "Thu", "Fri"].map((d) => `<span class="year-dow">${tx(d)}</span>`).join("")}
-                ${cells
-                  .map((d) => {
-                    if (!d) return `<span class="year-day is-empty"></span>`;
-                    const iso = isoDay(month.y, month.m, d);
-                    const mark = SCHOOL_YEAR_MARKS[iso] || "";
-                    const label = YEAR_LEGEND.find((row) => row[0] === mark);
-                    const today = iso === CAL_TODAY ? " is-today" : "";
-                    const title = label ? tx(label[1]) : "";
-                    return `<span class="year-day ${mark}${today}" title="${title}">${d}</span>`;
-                  })
-                  .join("")}
-              </div>
-            </article>`;
-        }).join("")}
-      </div>
+      <article class="card year-month year-month-lg">
+        <div class="year-nav">
+          <button type="button" class="btn ghost" id="cal-prev" ${prevOff ? "disabled" : ""}>${tx("Previous month")}</button>
+          <label class="year-month-pick">
+            <span class="visually-hidden">${tx("Month")}</span>
+            <select id="cal-month">
+              ${SCHOOL_YEAR_MONTHS.map(
+                (item, i) =>
+                  `<option value="${i}" ${i === state.calMonthIndex ? "selected" : ""}>${tx(item.name)} ${item.y}</option>`
+              ).join("")}
+            </select>
+          </label>
+          <button type="button" class="btn ghost" id="cal-next" ${nextOff ? "disabled" : ""}>${tx("Next month")}</button>
+        </div>
+        <div class="year-grid is-month" role="grid" aria-label="${tx(month.name)} ${month.y}">
+          ${["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => `<span class="year-dow">${tx(d)}</span>`).join("")}
+          ${cells
+            .map((d) => {
+              if (!d) return `<span class="year-day is-empty"></span>`;
+              const iso = isoDay(month.y, month.m, d);
+              const mark = SCHOOL_YEAR_MARKS[iso] || "";
+              const label = YEAR_LEGEND.find((row) => row[0] === mark);
+              const dt = new Date(month.y, month.m, d);
+              const weekend = dt.getDay() === 0 || dt.getDay() === 6 ? " is-weekend" : "";
+              const today = iso === CAL_TODAY ? " is-today" : "";
+              const title = label ? tx(label[1]) : tx(month.name) + " " + d;
+              return `<button type="button" class="year-day ${mark}${weekend}${today}" data-cal-iso="${iso}" title="${title}">
+                <span>${d}</span>
+                ${calDayHasItems(iso) ? `<span class="year-dot" aria-hidden="true"></span>` : ""}
+              </button>`;
+            })
+            .join("")}
+        </div>
+      </article>
       <ul class="year-legend">
         ${YEAR_LEGEND.map(([id, label]) => `<li><span class="year-swatch ${id}"></span>${tx(label)}</li>`).join("")}
       </ul>
+      <div id="cal-modal-host"></div>
     </section>`;
 }
 
@@ -735,7 +1211,9 @@ function lunchDaysInWeek(week) {
 }
 
 function lunchOrdersForDay(iso) {
-  return state.lunchOrders.filter((order) => order.lines.some((line) => line.iso === iso));
+  const rows = state.lunchOrders.filter((order) => order.lines.some((line) => line.iso === iso));
+  if (!isParentRole()) return rows;
+  return rows.filter((order) => order.childId === child().id);
 }
 
 function lunchLinesForChild(iso, childId) {
@@ -824,7 +1302,7 @@ function lunchWeeks() {
 }
 
 function lastLunchOrder() {
-  return state.lunchOrders.find((order) => order.childId === child().id) || state.lunchOrders[0];
+  return state.lunchOrders.find((order) => order.childId === child().id) || null;
 }
 
 function teacherThreadId() {
@@ -1052,6 +1530,10 @@ const state = {
   showOriginal: {},
   widgets: { comms: true, schedule: true, docs: true, attendance: true, events: true },
   officeFind: { q: "", grade: "all", room: "all", pick: "" },
+  attTrend: { from: ATTEND_START, to: "2026-10-16", grade: "all", room: "all", student: "all" },
+  calMonthIndex: null,
+  calDay: "",
+  attendanceByStudent: buildAttendanceLog(),
   officeAttendance: [
     {
       id: "oa1",
@@ -1459,7 +1941,6 @@ const state = {
 const navByRole = {
   parent: [
     ["home", "Today", "#/"],
-    ["alerts", "Notifications", "#/alerts"],
     ["attendance", "Attendance", "#/attendance"],
     ["reports", "Report cards", "#/reports"],
     ["calendar", "Calendar", "#/calendar"],
@@ -1472,7 +1953,6 @@ const navByRole = {
   ],
   teacher: [
     ["home", "My class", "#/"],
-    ["alerts", "Notifications", "#/alerts"],
     ["scan", "Scan flyer", "#/scan"],
     ["attendance", "Attendance", "#/teach/attendance"],
     ["calendar", "Calendar", "#/calendar"],
@@ -1484,7 +1964,6 @@ const navByRole = {
   ],
   admin: [
     ["home", "School", "#/"],
-    ["alerts", "Notifications", "#/alerts"],
     ["scan", "Scan flyer", "#/scan"],
     ["attendance", "Attendance", "#/admin/attendance"],
     ["bus", "Buses", "#/bus"],
@@ -1498,7 +1977,6 @@ const navByRole = {
 const mvpNavByRole = {
   parent: [
     ["home", "Today", "#/"],
-    ["alerts", "Notifications", "#/alerts"],
     ["attendance", "Attendance", "#/attendance"],
     ["messages", "Inbox", "#/inbox"],
     ["calendar", "Schedule", "#/schedule"],
@@ -1508,7 +1986,6 @@ const mvpNavByRole = {
   ],
   teacher: [
     ["home", "Class board", "#/"],
-    ["alerts", "Notifications", "#/alerts"],
     ["scan", "Scan flyer", "#/scan"],
     ["attendance", "Attendance", "#/teach/attendance"],
     ["messages", "Updates", "#/inbox"],
@@ -1518,7 +1995,6 @@ const mvpNavByRole = {
   ],
   admin: [
     ["home", "School board", "#/"],
-    ["alerts", "Notifications", "#/alerts"],
     ["scan", "Scan flyer", "#/scan"],
     ["attendance", "Attendance", "#/admin/attendance"],
     ["messages", "Office inbox", "#/inbox"],
@@ -1702,6 +2178,44 @@ const BOOK = {
   ["Close menu", "Fermer le menu", "关闭菜单", "ਮੀਨੂ ਬੰਦ ਕਰੋ", "Cerrar menú"],
   ["Today", "Aujourd’hui", "今天", "ਅੱਜ", "Hoy"],
   ["Attendance", "Présences", "出勤", "ਹਾਜ਼ਰੀ", "Asistencia"],
+  ["Attendance trends", "Tendances de présence", "出勤趋势", "ਹਾਜ਼ਰੀ ਰੁਝਾਨ", "Tendencias de asistencia"],
+  ["Flags fire when a pattern repeats — every other Monday, most Tuesdays late, a drop in the last two weeks. Filter the window, then export.", "Une alerte se déclenche quand un motif se répète — un lundi sur deux, souvent en retard le mardi, une baisse sur deux semaines. Filtrez, puis exportez.", "模式重复时会标记 — 隔周周一缺勤、多数周二迟到、近两周下降。筛选日期后导出。", "ਜਦੋਂ ਰੁਝਾਨ ਦੁਹਰਾਉਂਦਾ ਹੈ ਫਲੈਗ ਲੱਗਦਾ ਹੈ — ਹਰ ਦੂਜੇ ਸੋਮਵਾਰ, ਜ਼ਿਆਦਾਤਰ ਮੰਗਲਵਾਰ ਲੇਟ, ਪਿਛਲੇ ਦੋ ਹਫ਼ਤਿਆਂ ਵਿਚ ਗਿਰਾਵਟ। ਫਿਲਟਰ ਕਰੋ, ਫਿਰ ਐਕਸਪੋਰਟ।", "Se marca cuando un patrón se repite — un lunes sí y otro no, tardanzas los martes, una baja en dos semanas. Filtre y exporte."],
+  ["Live rate for the school or a class, then the students whose weekdays keep repeating.", "Taux en direct pour l’école ou une classe, puis les élèves dont les jours se répètent.", "全校或班级实时出勤率，以及星期几反复缺勤的学生。", "ਸਕੂਲ ਜਾਂ ਕਲਾਸ ਦੀ ਲਾਈਵ ਦਰ, ਫਿਰ ਵਿਦਿਆਰਥੀ ਜਿਨ੍ਹਾਂ ਦੇ ਹਫ਼ਤੇ ਦੇ ਦਿਨ ਦੁਹਰਾਉਂਦੇ ਹਨ।", "Tasa en vivo de la escuela o el salón, y los estudiantes cuyos días se repiten."],
+  ["Filter", "Filtrer", "筛选", "ਫਿਲਟਰ", "Filtrar"],
+  ["From", "Du", "从", "ਤੋਂ", "Desde"],
+  ["To", "Au", "到", "ਤੱਕ", "Hasta"],
+  ["Apply dates", "Appliquer les dates", "应用日期", "ਤਾਰੀਖਾਂ ਲਾਗੂ", "Aplicar fechas"],
+  ["Export CSV", "Exporter CSV", "导出CSV", "CSV ਐਕਸਪੋਰਟ", "Exportar CSV"],
+  ["Attendance CSV downloaded.", "CSV des présences téléchargé.", "出勤CSV已下载。", "ਹਾਜ਼ਰੀ CSV ਡਾਊਨਲੋਡ ਹੋਈ।", "CSV de asistencia descargado."],
+  ["Weekly present rate", "Taux de présence par semaine", "每周出勤率", "ਹਫ਼ਤਾਵਾਰੀ ਹਾਜ਼ਰੀ ਦਰ", "Tasa semanal de presente"],
+  ["School days", "Jours d’école", "上课日", "ਸਕੂਲ ਦਿਨ", "Días de clase"],
+  ["Absences by weekday", "Absences par jour", "按星期缺勤", "ਹਫ਼ਤੇ ਦੇ ਦਿਨ ਅਨੁਸਾਰ ਗੈਰਹਾਜ਼ਰੀ", "Ausencias por día"],
+  ["Where patterns hide", "Où les motifs se cachent", "模式藏在这里", "ਰੁਝਾਨ ਇੱਥੇ ਲੁਕਦੇ ਹਨ", "Donde se esconden los patrones"],
+  ["Status mix", "Mélange de statuts", "状态构成", "ਸਥਿਤੀ ਮਿਸ਼ਰਣ", "Mezcla de estados"],
+  ["marks", "mentions", "条记录", "ਮਾਰਕ", "marcas"],
+  ["Pattern flags", "Alertes de motif", "模式标记", "ਰੁਝਾਨ ਫਲੈਗ", "Alertas de patrón"],
+  ["Needs a look", "À regarder", "需要关注", "ਵੇਖਣਾ ਚਾਹੀਦਾ", "Requiere revisión"],
+  ["None in this window", "Rien dans cette période", "此区间没有", "ਇਸ ਵਿੰਡੋ ਵਿਚ ਕੁਝ ਨਹੀਂ", "Nada en este período"],
+  ["No repeating absence or late pattern in this date range.", "Aucun motif d’absence ou de retard dans cette période.", "该日期范围内没有重复缺勤或迟到。", "ਇਸ ਮਿਤੀ ਰੇਂਜ ਵਿਚ ਦੁਹਰਾਈ ਗੈਰਹਾਜ਼ਰੀ ਜਾਂ ਲੇਟ ਨਹੀਂ।", "No hay un patrón de ausencia o tardanza en este rango."],
+  ["No days in this range.", "Aucun jour dans cette période.", "此范围内没有日期。", "ਇਸ ਰੇਂਜ ਵਿਚ ਕੋਈ ਦਿਨ ਨਹੀਂ।", "No hay días en este rango."],
+  ["Per student", "Par élève", "按学生", "ਵਿਦਿਆਰਥੀ ਅਨੁਸਾਰ", "Por estudiante"],
+  ["{name}’s rate", "Taux de {name}", "{name}的出勤率", "{name} ਦੀ ਦਰ", "Tasa de {name}"],
+  ["{name} since September", "{name} depuis septembre", "{name}自九月起", "{name} ਸਤੰਬਰ ਤੋਂ", "{name} desde septiembre"],
+  ["Room 12 and filtered classes", "Salle 12 et classes filtrées", "12班及筛选班级", "ਕਮਰਾ 12 ਅਤੇ ਫਿਲਟਰ ਕਲਾਸਾਂ", "Salón 12 y clases filtradas"],
+  ["Cedar Hill K–8", "Cedar Hill M–8", "Cedar Hill K–8", "Cedar Hill K–8", "Cedar Hill K–8"],
+  ["Today’s list", "Liste du jour", "今日名单", "ਅੱਜ ਦੀ ਸੂਚੀ", "Lista de hoy"],
+  ["Trends", "Tendances", "趋势", "ਰੁਝਾਨ", "Tendencias"],
+  ["Present since September", "Présents depuis septembre", "九月以来出勤", "ਸਤੰਬਰ ਤੋਂ ਹਾਜ਼ਰ", "Presente desde septiembre"],
+  ["All grades", "Tous les niveaux", "全部年级", "ਸਾਰੀਆਂ ਗ੍ਰੇਡਾਂ", "Todos los grados"],
+  ["All classrooms", "Toutes les salles", "全部教室", "ਸਾਰੀਆਂ ਕਲਾਸਾਂ", "Todos los salones"],
+  ["All students", "Tous les élèves", "全部学生", "ਸਾਰੇ ਵਿਦਿਆਰਥੀ", "Todos los estudiantes"],
+  ["present", "présents", "出勤", "ਹਾਜ਼ਰ", "presentes"],
+  ["absent", "absents", "缺勤", "ਗੈਰਹਾਜ਼ਰ", "ausentes"],
+  ["late", "en retard", "迟到", "ਲੇਟ", "tarde"],
+  ["Flag", "Alerte", "标记", "ਫਲੈਗ", "Alerta"],
+  ["Flags", "Alertes", "标记", "ਫਲੈਗ", "Alertas"],
+  ["Student", "Élève", "学生", "ਵਿਦਿਆਰਥੀ", "Estudiante"],
+  ["Grade", "Niveau", "年级", "ਗ੍ਰੇਡ", "Grado"],
   ["Report cards", "Bulletins", "成绩单", "ਰਿਪੋਰਟ ਕਾਰਡ", "Boletines"],
   ["Calendar", "Calendrier", "日历", "ਕੈਲੰਡਰ", "Calendario"],
   ["Cafeteria", "Cafétéria", "食堂", "ਕੈਫੇਟੇਰੀਆ", "Cafetería"],
@@ -1726,6 +2240,15 @@ const BOOK = {
   ["This week", "Cette semaine", "本周", "ਇਸ ਹਫ਼ਤੇ", "Esta semana"],
   ["School year", "Année scolaire", "学年", "ਸਕੂਲ ਸਾਲ", "Año escolar"],
   ["Mon–Fri · Cedar Hill K–8", "Lun–ven · Cedar Hill K–8", "周一至周五 · Cedar Hill K–8", "ਸੋਮ–ਸ਼ੁੱਕ · Cedar Hill K–8", "Lun–vie · Cedar Hill K–8"],
+  ["Cedar Hill K–8", "Cedar Hill K–8", "Cedar Hill K–8", "Cedar Hill K–8", "Cedar Hill K–8"],
+  ["Previous month", "Mois précédent", "上个月", "ਪਿਛਲਾ ਮਹੀਨਾ", "Mes anterior"],
+  ["Next month", "Mois suivant", "下个月", "ਅਗਲਾ ਮਹੀਨਾ", "Mes siguiente"],
+  ["Month", "Mois", "月份", "ਮਹੀਨਾ", "Mes"],
+  ["Close", "Fermer", "关闭", "ਬੰਦ ਕਰੋ", "Cerrar"],
+  ["Sat", "Sam", "周六", "ਸ਼ਨਿ", "Sáb"],
+  ["Sun", "Dim", "周日", "ਐਤ", "Dom"],
+  ["Weekend. No school.", "Fin de semaine. Pas d’école.", "周末。不上学。", "ਹਫ਼ਤੇ ਅੰਤ। ਸਕੂਲ ਨਹੀਂ।", "Fin de semana. No hay escuela."],
+  ["A regular school day. Nothing extra is on the calendar.", "Une journée d’école ordinaire. Rien de plus au calendrier.", "普通上课日。日历上没有额外安排。", "ਆਮ ਸਕੂਲ ਦਿਨ। ਕੈਲੰਡਰ 'ਤੇ ਹੋਰ ਕੁਝ ਨਹੀਂ।", "Un día escolar habitual. Nada extra en el calendario."],
   ["Holidays, PD days, and Friday timetables for students and staff.", "Congés, journées pédagogiques et horaires du vendredi pour les élèves et le personnel.", "学生和教职工的假期、教研日和周五课表。", "ਵਿਦਿਆਰਥੀਆਂ ਅਤੇ ਸਟਾਫ ਲਈ ਛੁੱਟੀਆਂ, ਪੀ.ਡੀ. ਅਤੇ ਸ਼ੁੱਕਰਵਾਰ ਟਾਈਮਟੇਬਲ।", "Vacaciones, días pedagógicos y horario de viernes para estudiantes y personal."],
   ["Holidays and Friday timetables for the whole school. Primary days matter for {primary}. Secondary days matter for {secondary}.", "Congés et horaires du vendredi pour toute l’école. Les jours du primaire concernent {primary}. Les jours du secondaire concernent {secondary}.", "全校假期和周五课表。小学日适用于{primary}。中学日适用于{secondary}。", "ਸਾਰੇ ਸਕੂਲ ਲਈ ਛੁੱਟੀਆਂ ਅਤੇ ਸ਼ੁੱਕਰਵਾਰ ਟਾਈਮਟੇਬਲ। ਪ੍ਰਾਇਮਰੀ {primary} ਲਈ। ਸੈਕੰਡਰੀ {secondary} ਲਈ।", "Vacaciones y horario de viernes para toda la escuela. Los días de primaria aplican a {primary}. Los de secundaria, a {secondary}."],
   ["First day of class", "Première journée de classe", "开学第一天", "ਪਹਿਲਾ ਸਕੂਲ ਦਿਨ", "Primer día de clase"],
@@ -1899,6 +2422,8 @@ const BOOK = {
   ["Wed", "Mer", "周三", "ਬੁੱਧ", "Mié"],
   ["Thu", "Jeu", "周四", "ਵੀਰ", "Jue"],
   ["Fri", "Ven", "周五", "ਸ਼ੁੱਕ", "Vie"],
+  ["Sat", "Sam", "周六", "ਸ਼ਨਿ", "Sáb"],
+  ["Sun", "Dim", "周日", "ਐਤ", "Dom"],
   ["This morning", "Ce matin", "今早", "ਅੱਜ ਸਵੇਰੇ", "Esta mañana"],
   ["Yesterday", "Hier", "昨天", "ਕੱਲ੍ਹ", "Ayer"],
   ["Just now", "À l’instant", "刚刚", "ਹੁਣੇ", "Justo ahora"],
@@ -2934,9 +3459,8 @@ function attendanceReport() {
     const kind = document.getElementById("kind").value;
     const day = document.getElementById("day").value;
     const note = document.getElementById("note").value.trim();
-    const row = child().attendance.find((d) => d.day === day);
-    row.status = kind;
-    row.note = note || kind;
+    const iso = WEEK_DAY_ISO[day];
+    upsertAttendance(child().id, iso || day, kind, note || kind);
     state.notice = `${kind} recorded for ${day}. ${child().teacher} and the office can see it.`;
     location.hash = "#/attendance";
   });
@@ -3153,6 +3677,7 @@ function calendar() {
     ${yearCalendarHtml()}
   `;
   bindCalendarExport();
+  bindYearCalendar();
 }
 
 function lunchCrumbs(extra) {
@@ -3507,8 +4032,8 @@ function lunchReceiptView() {
 }
 
 function lunch(step) {
-  if (state.role === "admin") return adminLunch();
-  if (state.role === "teacher") return teacherLunchList();
+  if (state.role === "admin") return requireStaff() && adminLunch();
+  if (state.role === "teacher") return requireStaff() && teacherLunchList();
   if (step === "cart") return lunchCartView();
   if (step === "pay") return lunchPayView();
   if (step === "receipt") return lunchReceiptView();
@@ -3526,6 +4051,7 @@ function postLunchWeek(week, filename) {
 }
 
 function adminLunch() {
+  if (!requireStaff()) return;
   const weeks = lunchWeeks();
   const week = weeks.some((g) => g.week === mondayIso(state.lunchDay))
     ? mondayIso(state.lunchDay)
@@ -3653,6 +4179,7 @@ function adminLunch() {
 }
 
 function teacherLunchList() {
+  if (!requireStaff()) return;
   const until = parseIso(LUNCH_TODAY);
   until.setDate(until.getDate() + 14);
   const cap = isoDay(until.getFullYear(), until.getMonth(), until.getDate());
@@ -3917,6 +4444,7 @@ function parentDismiss() {
 }
 
 function teacherDismiss() {
+  if (!requireStaff()) return;
   const rooms = [
     { id: "Room 12", title: "My class · Room 12" },
     { id: "Room K2", title: "Kindergarten · Room K2" },
@@ -3962,6 +4490,7 @@ function teacherDismiss() {
 }
 
 function dutyDismiss() {
+  if (!requireStaff()) return;
   const q = (state.dismissFind || "").trim().toLowerCase();
   const lane = state.dismissLane || "all";
   const kids = roster
@@ -4217,6 +4746,7 @@ function messages(id) {
 }
 
 function teacherHome() {
+  if (!requireStaff()) return;
   paintChrome("home");
   setCrumbs([{ label: "My class", href: "#/" }]);
   view.innerHTML = `
@@ -4242,19 +4772,214 @@ function teacherHome() {
   `;
 }
 
+function attendanceTrendBoard() {
+  const summaries = trendSummaries();
+  const { mix, total, rate } = schoolAttendMix(summaries);
+  const weekly = weeklyAttendSeries(summaries);
+  const weekdays = weekdayAbsentSeries(summaries);
+  const flags = summaries.flatMap((row) => row.flags);
+  const maxWeek = Math.max(1, ...weekly.map((w) => w.rate));
+  const scope = tx("Cedar Hill K–8");
+  return `
+    <section class="trend-board">
+      <div class="hero" style="margin-top:28px">
+        <div>
+          <h2 style="font-family:var(--font-display);font-size:28px;font-weight:500;margin:0 0 8px">${tx("Attendance trends")}</h2>
+          <p class="lede">${tx("Flags fire when a pattern repeats — every other Monday, most Tuesdays late, a drop in the last two weeks. Filter the window, then export.")}</p>
+        </div>
+        <div class="stat-row">
+          <div><div class="num">${rate}%</div><div class="kicker">${tx("Present")}</div></div>
+          <div><div class="num">${flags.length}</div><div class="kicker">${tx("Flags")}</div></div>
+        </div>
+      </div>
+      <form class="card panel trend-filters" id="trend-filters" style="padding-bottom:18px;margin-bottom:16px">
+        <div class="widget-head"><h2>${tx("Filter")}</h2><span class="kicker">${scope}</span></div>
+        <div class="find-filters trend-dates">
+          <div class="field">
+            <label for="trend-from">${tx("From")}</label>
+            <input id="trend-from" type="date" value="${state.attTrend.from}" min="${ATTEND_START}" max="${ATTEND_END}" />
+          </div>
+          <div class="field">
+            <label for="trend-to">${tx("To")}</label>
+            <input id="trend-to" type="date" value="${state.attTrend.to}" min="${ATTEND_START}" max="${ATTEND_END}" />
+          </div>
+          <div class="field">
+            <label for="trend-grade">${tx("Grade")}</label>
+            <select id="trend-grade">
+              <option value="all">${tx("All grades")}</option>
+              ${rosterGrades().map((g) => `<option value="${g}" ${state.attTrend.grade === g ? "selected" : ""}>${g}</option>`).join("")}
+            </select>
+          </div>
+          <div class="field">
+            <label for="trend-room">${tx("Classroom")}</label>
+            <select id="trend-room">
+              <option value="all">${tx("All classrooms")}</option>
+              ${rosterRooms().map((r) => `<option value="${r}" ${state.attTrend.room === r ? "selected" : ""}>${r}</option>`).join("")}
+            </select>
+          </div>
+          <div class="field">
+            <label for="trend-student">${tx("Student")}</label>
+            <select id="trend-student">
+              <option value="all">${tx("All students")}</option>
+              ${roster
+                .filter((s) => {
+                  if (state.attTrend.grade !== "all" && s.grade !== state.attTrend.grade) return false;
+                  if (state.attTrend.room !== "all" && s.room !== state.attTrend.room) return false;
+                  return true;
+                })
+                .map((s) => `<option value="${s.id}" ${state.attTrend.student === s.id ? "selected" : ""}>${s.name}</option>`)
+                .join("")}
+            </select>
+          </div>
+        </div>
+        <div class="actions">
+          <button type="submit" class="btn">${tx("Apply dates")}</button>
+          <button type="button" class="btn ghost" id="trend-export">${tx("Export CSV")}</button>
+        </div>
+      </form>
+      <div class="trend-charts">
+        <section class="card panel">
+          <div class="widget-head"><h2>${tx("Weekly present rate")}</h2><span class="kicker">${tx("School days")}</span></div>
+          <div class="trend-plot" role="img" aria-label="${tx("Weekly present rate")}">
+            ${
+              weekly.length
+                ? weekly
+                    .map(
+                      (w) => `
+              <div class="trend-col">
+                <span class="trend-val">${w.rate}%</span>
+                <span class="trend-bar" style="height:${Math.max(8, (w.rate / maxWeek) * 120)}px"></span>
+                <span class="kicker">${w.label}</span>
+              </div>`
+                    )
+                    .join("")
+                : `<p class="doc-empty">${tx("No days in this range.")}</p>`
+            }
+          </div>
+        </section>
+        <section class="card panel">
+          <div class="widget-head"><h2>${tx("Absences by weekday")}</h2><span class="kicker">${tx("Where patterns hide")}</span></div>
+          <div class="trend-plot" role="img" aria-label="${tx("Absences by weekday")}">
+            ${weekdays
+              .map(
+                (d) => `
+              <div class="trend-col">
+                <span class="trend-val">${d.count}</span>
+                <span class="trend-bar is-absent" style="height:${Math.max(8, (d.pct / 100) * 120)}px"></span>
+                <span class="kicker">${tx(d.dow)}</span>
+              </div>`
+              )
+              .join("")}
+          </div>
+        </section>
+        <section class="card panel trend-mix">
+          <div class="widget-head"><h2>${tx("Status mix")}</h2><span class="kicker">${total} ${tx("marks")}</span></div>
+          <div class="trend-donut-wrap">
+            <div class="trend-donut" style="background:${donutStyle(mix, total)}" aria-hidden="true"></div>
+            <ul class="trend-legend">
+              <li><span class="swatch is-present"></span>${tx("Present")} · ${mix.Present}</li>
+              <li><span class="swatch is-late"></span>${tx("Late")} · ${mix.Late}</li>
+              <li><span class="swatch is-absent"></span>${tx("Absent")} · ${mix.Absent}</li>
+              <li><span class="swatch is-early"></span>${tx("Left early")} · ${mix["Left early"]}</li>
+            </ul>
+          </div>
+        </section>
+      </div>
+      <section class="card panel" style="margin-top:16px">
+        <div class="widget-head"><h2>${tx("Pattern flags")}</h2><span class="kicker">${flags.length ? tx("Needs a look") : tx("None in this window")}</span></div>
+        ${
+          flags.length
+            ? flags
+                .map(
+                  (flag) => `
+            <div class="list-row">
+              <div class="title-block"><strong>${flag.text}</strong></div>
+              ${pill("Flag", flag.tone)}
+            </div>`
+                )
+                .join("")
+            : `<p class="doc-empty">${tx("No repeating absence or late pattern in this date range.")}</p>`
+        }
+      </section>
+      <section class="card panel" style="margin-top:16px">
+        <div class="widget-head"><h2>${tx("Per student")}</h2><span class="kicker">${summaries.length}</span></div>
+        ${summaries
+          .map(
+            (row) => `
+          <div class="list-row ${row.flags.length ? "is-new" : ""}">
+            <div class="title-block">
+              <span class="kicker">${row.student.grade} · ${row.student.room}</span>
+              <strong>${row.student.name}</strong>
+              <span class="kicker">${row.present}/${row.n} ${tx("present")} · ${row.absent} ${tx("absent")} · ${row.late} ${tx("late")}${
+                row.flags[0] ? ` · ${row.flags[0].text}` : ""
+              }</span>
+            </div>
+            ${pill(`${row.rate}%`, row.rate < 90 ? "risk" : "")}
+            ${row.flags.length ? pill("Flag", "risk") : ""}
+          </div>`
+          )
+          .join("")}
+      </section>
+    </section>`;
+}
+
+function bindAttendanceTrends() {
+  const form = document.getElementById("trend-filters");
+  form?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const from = document.getElementById("trend-from").value || ATTEND_START;
+    const to = document.getElementById("trend-to").value || "2026-10-16";
+    state.attTrend.from = from <= to ? from : to;
+    state.attTrend.to = from <= to ? to : from;
+    state.attTrend.grade = document.getElementById("trend-grade")?.value || "all";
+    state.attTrend.room = document.getElementById("trend-room")?.value || "all";
+    state.attTrend.student = document.getElementById("trend-student")?.value || "all";
+    attendanceTrends();
+  });
+  document.getElementById("trend-grade")?.addEventListener("change", () => form.requestSubmit());
+  document.getElementById("trend-room")?.addEventListener("change", () => form.requestSubmit());
+  document.getElementById("trend-student")?.addEventListener("change", () => form.requestSubmit());
+  document.getElementById("trend-export")?.addEventListener("click", () => {
+    exportAttendanceCsv();
+    attendanceTrends();
+  });
+}
+
+function attendanceTrends() {
+  if (state.role !== "admin") {
+    if (state.role === "teacher") return teacherAttendance();
+    return attendance();
+  }
+  if (!requireStaff()) return;
+  paintChrome("attendance");
+  setCrumbs([
+    boardCrumb(),
+    { label: "Attendance", href: attendBaseHref() },
+    { label: "Trends", href: trendHref() },
+  ]);
+  view.innerHTML = `
+    ${notice()}
+    <div class="hero">
+      <div>
+        <h1>${tx("Attendance trends")}</h1>
+        <p class="lede">${tx("Live rate for the school or a class, then the students whose weekdays keep repeating.")}</p>
+      </div>
+      <a class="btn ghost" href="${attendBaseHref()}">${tx("Today’s list")}</a>
+    </div>
+    ${attendanceTrendBoard()}
+  `;
+  bindAttendanceTrends();
+}
+
 function teacherAttendance() {
+  if (!requireStaff()) return;
   paintChrome("attendance");
   setCrumbs([
     boardCrumb(),
     { label: "Attendance", href: "#/teach/attendance" },
   ]);
-  const roster = [
-    ["Maya Bowser", students.find((s) => s.id === "maya").attendance.find((d) => d.day === "Thu 16").status],
-    ["Leo Park", "Present"],
-    ["Amira Chen", "Present"],
-    ["Priya Nair", "Absent"],
-    ["Jonas Feldt", "Late"],
-  ];
+  const todayIso = "2026-10-16";
+  const roomKids = roster.filter((s) => s.room === "Room 12");
   view.innerHTML = `
     <div class="hero">
       <div>
@@ -4263,20 +4988,23 @@ function teacherAttendance() {
       </div>
     </div>
     <section class="card panel">
-      ${roster
-        .map(
-          ([name, status]) => `
+      ${roomKids
+        .map((s) => {
+          const row = (state.attendanceByStudent[s.id] || []).find((r) => r.iso === todayIso);
+          const status = row?.status || "Present";
+          return `
         <div class="list-row">
-          <div class="title-block"><strong>${name}</strong></div>
+          <div class="title-block"><strong>${s.name}</strong><span class="kicker">${row?.note || ""}</span></div>
           ${pill(status, statusKind(status))}
-        </div>`
-        )
+        </div>`;
+        })
         .join("")}
     </section>
   `;
 }
 
 function adminHome() {
+  if (!requireStaff()) return;
   paintChrome("home");
   setCrumbs([{ label: "School", href: "#/" }]);
   view.innerHTML = `
@@ -4297,7 +5025,7 @@ function adminHome() {
       <a class="btn" href="#/scan">Scan a flyer</a>
     </div>
     <section class="metrics">
-      <a class="card metric" href="#/admin/attendance"><div class="metric-label">Attendance</div><div class="metric-value">96%</div><div class="metric-hint">12 absences schoolwide</div></a>
+      <a class="card metric" href="#/admin/attendance/trends"><div class="metric-label">Attendance</div><div class="metric-value">${schoolAttendMix(trendSummaries()).rate}%</div><div class="metric-hint">${tx("Present since September")} · ${tx("Trends")}</div></a>
       <a class="card metric" href="#/dismiss"><div class="metric-label">${tx("Dismissal")}</div><div class="metric-value">${dismissChangedCount()}</div><div class="metric-hint">${tx("Live pickup changes")}</div></a>
       <a class="card metric" href="#/lunch"><div class="metric-label">${tx("Hot lunch menu")}</div><div class="metric-value">${lunchOrdersForDay(LUNCH_TODAY).length}</div><div class="metric-hint">${tx("Family orders today · post this week")}</div></a>
       <a class="card metric" href="#/events"><div class="metric-label">${tx("Events")}</div><div class="metric-value">${kidEvents().length}</div><div class="metric-hint">${kidEvents()[0] ? tx(kidEvents()[0].title) : tx("None upcoming")}</div></a>
@@ -4323,12 +5051,8 @@ function rosterResultsHtml() {
 }
 
 function applyOfficeAttendance(entry) {
-  const kid = students.find((s) => s.id === entry.studentId);
-  if (!kid) return;
-  const row = kid.attendance.find((d) => d.day === entry.day);
-  if (!row) return;
-  row.status = entry.status;
-  row.note = entry.note || entry.status;
+  const iso = WEEK_DAY_ISO[entry.day] || entry.iso;
+  if (iso) upsertAttendance(entry.studentId, iso, entry.status, entry.note || entry.status);
 }
 
 function bindRosterPicks() {
@@ -4351,6 +5075,7 @@ function selectedStudentHtml() {
 }
 
 function adminAttendance() {
+  if (!requireStaff()) return;
   paintChrome("attendance");
   setCrumbs([
     boardCrumb(),
@@ -4364,6 +5089,12 @@ function adminAttendance() {
         <h1>School attendance</h1>
         <p class="lede">Add a late, absence, or early pickup from the office. Search by name, or narrow by grade and classroom.</p>
       </div>
+      <a class="btn ghost" href="#/admin/attendance/trends">
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+          <path fill="currentColor" d="M4 18h3.2V10H4v8Zm6.4 0H14V5h-3.6v13ZM16.8 18H20v-6h-3.2v6ZM3 20.5h18v1.8H3v-1.8Z"/>
+        </svg>
+        ${tx("Trends")}
+      </a>
     </div>
     <div class="grid-2">
       <section class="card panel" style="padding-bottom:18px">
@@ -4717,10 +5448,7 @@ function scanReview() {
 }
 
 function scanView(step) {
-  if (state.role === "parent") {
-    location.hash = "#/";
-    return render();
-  }
+  if (!requireStaff()) return;
   if (step === "review") return scanReview();
   scanCapture();
 }
@@ -4910,6 +5638,7 @@ function mvpParentHome() {
 }
 
 function mvpStaffHome() {
+  if (!requireStaff()) return;
   const isTeacher = state.role === "teacher";
   paintChrome("home");
   setCrumbs([{ label: isTeacher ? "Class board" : "School board", href: "#/" }]);
@@ -5111,6 +5840,7 @@ function mvpSchedule() {
     ${yearCalendarHtml()}
   `;
   bindCalendarExport();
+  bindYearCalendar();
   const form = document.getElementById("sched-form");
   if (form) {
     form.addEventListener("submit", (e) => {
@@ -5465,6 +6195,9 @@ function render() {
   if (parts[0] === "ask") {
     return askView(decodeURIComponent(parts.slice(1).join("/") || ""));
   }
+  if (isParentRole() && parentBlockedPath(parts)) {
+    return sendParentHome();
+  }
   if (parts[0] === "alerts") return alertsView();
   if (parts[0] === "scan") return scanView(parts[1]);
 
@@ -5476,6 +6209,7 @@ function render() {
     if (parts[0] === "attendance" && parts[1] === "report") return attendanceReport();
     if (parts[0] === "attendance") return attendance();
     if (parts[0] === "teach" && parts[1] === "attendance") return teacherAttendance();
+    if (parts[0] === "admin" && parts[1] === "attendance" && parts[2] === "trends") return attendanceTrends();
     if (parts[0] === "admin" && parts[1] === "attendance") return adminAttendance();
     if (parts[0] === "configure") return mvpConfigure();
     if (parts[0] === "bus") return bus();
@@ -5494,6 +6228,7 @@ function render() {
     return teacherHome();
   }
   if (state.role === "admin") {
+    if (parts[0] === "admin" && parts[1] === "attendance" && parts[2] === "trends") return attendanceTrends();
     if (parts[0] === "admin" && parts[1] === "attendance") return adminAttendance();
     if (parts[0] === "bus") return bus();
     if (parts[0] === "dismiss") return dismissView();
