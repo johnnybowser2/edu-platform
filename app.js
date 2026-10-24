@@ -2325,7 +2325,6 @@ const mvpNavByRole = {
     ["events", "Events", "#/events"],
     ["store", "Store", "#/store"],
     ["docs", "Documents", "#/docs"],
-    ["config", "Configure", "#/configure"],
   ],
   teacher: [
     ["home", "Class board", "#/"],
@@ -2346,7 +2345,6 @@ const mvpNavByRole = {
     ["events", "Events", "#/events"],
     ["store", "Store", "#/admin/store"],
     ["docs", "Documents", "#/docs"],
-    ["config", "Family board", "#/configure"],
   ],
 };
 
@@ -6310,6 +6308,16 @@ function widgetDocs() {
     </section>`;
 }
 
+function configureBtn(extraClass = "ghost") {
+  return `
+    <a class="btn ${extraClass}" href="#/configure">
+      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+        <path fill="currentColor" d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.07 7.07 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.59.24-1.13.55-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.71 8.84a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94L2.83 14.52a.5.5 0 0 0-.12.64l1.92 3.32c.12.22.39.3.6.22l2.39-.96c.5.39 1.04.7 1.63.94l.36 2.54c.05.24.26.42.5.42h3.84c.24 0 .45-.18.5-.42l.36-2.54c.59-.24 1.13-.55 1.63-.94l2.39.96c.22.08.48 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58ZM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2Z"/>
+      </svg>
+      ${tx("Configure")}
+    </a>`;
+}
+
 function mvpParentHome() {
   paintChrome("home");
   setCrumbs([boardCrumb()]);
@@ -6325,6 +6333,7 @@ function mvpParentHome() {
         <h1>${txf("{name}’s day.", { name: kid.name })}</h1>
         <p class="lede">${txf("{grade} · {band} with {teacher} in {room}. Reminders, notices, and posts arrive in {lang}.", { grade: tx(kid.grade), band: tx(kid.band), teacher: kid.teacher, room: kid.room, lang: LANGS[state.parentLang].native })}</p>
       </div>
+      ${configureBtn()}
     </div>
     ${askBar()}
     <section class="metrics">
@@ -6364,7 +6373,10 @@ function mvpStaffHome() {
             : "Bulletin, events, and forms sit beside Ms. Ellison’s class notes — translated per family."
         }</p>
       </div>
-      <a class="btn" href="#/scan">Scan a flyer</a>
+      <div class="actions" style="margin-top:0">
+        ${isTeacher ? "" : configureBtn()}
+        <a class="btn" href="#/scan">Scan a flyer</a>
+      </div>
     </div>
     <section class="metrics">
       <a class="card metric" href="${isTeacher ? "#/teach/attendance" : "#/admin/attendance"}"><div class="metric-label">Attendance</div><div class="metric-value">${isTeacher ? ((c) => `${c.present}/${c.total}`)(teacherTodayCounts()) : "96%"}</div><div class="metric-hint">${isTeacher ? "Room 12 today" : "Add an office entry"}</div></a>
