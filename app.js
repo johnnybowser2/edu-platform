@@ -3511,6 +3511,32 @@ const view = document.getElementById("view");
 const crumbs = document.getElementById("crumbs");
 const railNav = document.getElementById("rail-nav");
 
+/** Compact filled glyphs for chrome (rail, a few CTAs). Keep the set small. */
+const ICONS = {
+  home: "M12 3.2 3.5 10.2V21h6.2v-6.1h4.6V21h6.2V10.2L12 3.2Z",
+  attendance: "M7 3h10a2 2 0 0 1 2 2v14l-7-3.2L5 19V5a2 2 0 0 1 2-2Zm2 4v2h6V7H9Zm0 4v2h6v-2H9Z",
+  messages: "M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8A2.5 2.5 0 0 1 17.5 16H9l-5 4v-4.2A2.5 2.5 0 0 1 4 13.5v-8Z",
+  calendar: "M8 3.2h1.8V5h4.4V3.2H16V5h2.2A1.8 1.8 0 0 1 20 6.8V19a1.8 1.8 0 0 1-1.8 1.8H5.8A1.8 1.8 0 0 1 4 19V6.8A1.8 1.8 0 0 1 5.8 5H8V3.2ZM5.8 9.5V19h12.4V9.5H5.8Zm2.2 2.2h3V14H8v-2.3Zm4.4 0h3V14h-3v-2.3Z",
+  events: "M12 3.5a1.2 1.2 0 0 1 1.05.6l1.7 3.05 3.4.55a1.2 1.2 0 0 1 .65 2l-2.45 2.55.55 3.45a1.2 1.2 0 0 1-1.7 1.25L12 15.7l-3.2 1.6a1.2 1.2 0 0 1-1.7-1.25l.55-3.45L5.2 9.7a1.2 1.2 0 0 1 .65-2l3.4-.55L11 4.1A1.2 1.2 0 0 1 12 3.5Z",
+  store: "M5 7.2 6.4 3.8h11.2L19 7.2v1.3A2.5 2.5 0 0 1 16 11a2.5 2.5 0 0 1-2.2-1.3A2.5 2.5 0 0 1 12 11a2.5 2.5 0 0 1-1.8-1.3A2.5 2.5 0 0 1 8 11 2.5 2.5 0 0 1 5 8.5V7.2Zm1.5 5.3h11V20H6.5v-7.5Z",
+  docs: "M7 3.5h7.2L19 8.3V20a1.5 1.5 0 0 1-1.5 1.5h-10A1.5 1.5 0 0 1 6 20V5A1.5 1.5 0 0 1 7.5 3.5H7Zm6.2.7v4.1H17L13.2 4.2ZM9 12h6v1.6H9V12Zm0 3.2h6V17H9v-1.8Z",
+  scan: "M4 7V4.8A1.8 1.8 0 0 1 5.8 3H8v1.8H5.8V7H4Zm12-4h2.2A1.8 1.8 0 0 1 20 4.8V7h-1.8V4.8H16V3ZM4 17h1.8v2.2H8V21H5.8A1.8 1.8 0 0 1 4 19.2V17Zm14.2 2.2H16V21h2.2A1.8 1.8 0 0 0 20 19.2V17h-1.8v2.2ZM8 8h8v8H8V8Z",
+  lunch: "M4.5 4.2h2.2v7.1c0 1.7.9 2.6 2.3 2.6s2.3-.9 2.3-2.6V4.2h2.1v7.1c0 2.9-1.9 4.6-4.4 4.6S4.5 14.2 4.5 11.3V4.2Zm13.2 0c2.2 0 3.8 1.5 3.8 3.7v4.6h-2.1V8.1c0-.9-.5-1.4-1.3-1.4h-.4v12.1h-2.1V4.2h2.1Z",
+  dismiss: "M12 3a9 9 0 1 1 0 18 9 9 0 0 1 0-18Zm0 1.8a7.2 7.2 0 1 0 0 14.4 7.2 7.2 0 0 0 0-14.4Zm.7 3.2v4.05l3.1 1.85-.9 1.5L11 12.4V8h1.7Z",
+  bus: "M6 4.2h12c1.3 0 2.2.9 2.2 2.2v9.2c0 .9-.5 1.6-1.3 1.9l.9 1.7h-1.9l-.7-1.4H7.8l-.7 1.4H5.2l.9-1.7c-.8-.3-1.3-1-1.3-1.9V6.4c0-1.3.9-2.2 2.2-2.2Zm0 2.2v4.4h12V6.4H6Zm1.6 7.2a1.2 1.2 0 1 1 0 2.4 1.2 1.2 0 0 1 0-2.4Zm9.2 0a1.2 1.2 0 1 1 0 2.4 1.2 1.2 0 0 1 0-2.4Z",
+  class: "M3.8 6.2 12 3.5l8.2 2.7v2.1L12 5.6 3.8 8.3V6.2Zm1.4 3.3h13.6V18H5.2V9.5Zm2.2 2.1v4.2h2.2v-4.2H7.4Zm4.4 0v4.2h2.2v-4.2h-2.2Zm4.4 0v4.2H18v-4.2h-1.8ZM3.5 19h17v1.8h-17V19Z",
+  reports: "M6 3.5h9.2L18.5 7v13.5A1.5 1.5 0 0 1 17 22H6a1.5 1.5 0 0 1-1.5-1.5v-15A1.5 1.5 0 0 1 6 3.5Zm8.2.8v3.2h3.2L14.2 4.3ZM8 11h2.2v7H8v-7Zm4.2 2.5H14V18h-1.8v-4.5Zm4.2-4H18V18h-1.6V9.5Z",
+  alerts: "M12 22a2.4 2.4 0 0 0 2.4-2.4H9.6A2.4 2.4 0 0 0 12 22Zm7-5.2V11a7 7 0 1 0-14 0v5.8L3 18.6V20h18v-1.4l-2-1.8Z",
+  config:
+    "M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.07 7.07 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.59.24-1.13.55-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.71 8.84a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94L2.83 14.52a.5.5 0 0 0-.12.64l1.92 3.32c.12.22.39.3.6.22l2.39-.96c.5.39 1.04.7 1.63.94l.36 2.54c.05.24.26.42.5.42h3.84c.24 0 .45-.18.5-.42l.36-2.54c.59-.24 1.13-.55 1.63-.94l2.39.96c.22.08.48 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58ZM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2Z",
+};
+
+function icon(name, size = 16) {
+  const path = ICONS[name];
+  if (!path) return "";
+  return `<svg class="icon" viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true"><path fill="currentColor" d="${path}"/></svg>`;
+}
+
 function homeHref() {
   return "#/";
 }
@@ -3607,7 +3633,8 @@ function paintChrome(active) {
   railNav.innerHTML = nav
     .map(([id, label, href]) => {
       const count = navBadgeCount(id);
-      return `<a class="rail-link ${id === active ? "is-active" : ""}" href="${href}" data-nav="${id}"><span>${tx(label)}</span>${badgeMarkup(count)}</a>`;
+      const glyph = icon(id, 16);
+      return `<a class="rail-link ${id === active ? "is-active" : ""}" href="${href}" data-nav="${id}"><span class="rail-link-main">${glyph}<span>${tx(label)}</span></span>${badgeMarkup(count)}</a>`;
     })
     .join("");
 }
@@ -5337,7 +5364,7 @@ function teacherHome() {
       </div>
     </div>
     <div class="actions" style="margin-bottom:22px">
-      <a class="btn" href="#/scan">Scan a flyer</a>
+      ${scanFlyerBtn()}
       <a class="btn ghost" href="#/teach/attendance">Take attendance</a>
     </div>
     <section class="metrics">
@@ -5731,7 +5758,7 @@ function adminHome() {
       </div>
     </div>
     <div class="actions" style="margin-bottom:22px">
-      <a class="btn" href="#/scan">Scan a flyer</a>
+      ${scanFlyerBtn()}
     </div>
     <section class="metrics">
       <a class="card metric" href="#/admin/attendance/trends"><div class="metric-label">Attendance</div><div class="metric-value">${schoolAttendMix(trendSummaries()).rate}%</div><div class="metric-hint">${tx("Present since September")} · ${tx("Trends")}</div></a>
@@ -6309,13 +6336,11 @@ function widgetDocs() {
 }
 
 function configureBtn(extraClass = "ghost") {
-  return `
-    <a class="btn ${extraClass}" href="#/configure">
-      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-        <path fill="currentColor" d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.07 7.07 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.59.24-1.13.55-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.71 8.84a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94L2.83 14.52a.5.5 0 0 0-.12.64l1.92 3.32c.12.22.39.3.6.22l2.39-.96c.5.39 1.04.7 1.63.94l.36 2.54c.05.24.26.42.5.42h3.84c.24 0 .45-.18.5-.42l.36-2.54c.59-.24 1.13-.55 1.63-.94l2.39.96c.22.08.48 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58ZM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2Z"/>
-      </svg>
-      ${tx("Configure")}
-    </a>`;
+  return `<a class="btn ${extraClass}" href="#/configure">${icon("config", 16)}${tx("Configure")}</a>`;
+}
+
+function scanFlyerBtn(extraClass = "") {
+  return `<a class="btn ${extraClass}" href="#/scan">${icon("scan", 16)}Scan a flyer</a>`;
 }
 
 function mvpParentHome() {
@@ -6375,7 +6400,7 @@ function mvpStaffHome() {
       </div>
       <div class="actions" style="margin-top:0">
         ${isTeacher ? "" : configureBtn()}
-        <a class="btn" href="#/scan">Scan a flyer</a>
+        ${scanFlyerBtn()}
       </div>
     </div>
     <section class="metrics">

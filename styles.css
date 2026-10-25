@@ -138,10 +138,27 @@ button,
   color: #b8c2d1;
 }
 
+.rail-link-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.rail-link .icon {
+  flex: 0 0 auto;
+  opacity: 0.7;
+}
+
 .rail-link:hover,
 .rail-link.is-active {
   background: rgba(255, 255, 255, 0.07);
   color: #fff;
+}
+
+.rail-link:hover .icon,
+.rail-link.is-active .icon {
+  opacity: 1;
 }
 
 .rail-foot {
