@@ -772,41 +772,32 @@ label.btn {
   overflow: hidden;
 }
 
+.lunch-week-viewport {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.lunch-week-track {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 100%;
+  width: 100%;
+  will-change: transform;
+  transition: transform 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.lunch-week-track.is-sliding {
+  pointer-events: none;
+}
+
 .lunch-days.is-bar {
   align-items: stretch;
   flex-wrap: nowrap;
   min-width: 0;
-  will-change: transform, opacity;
-  transition: transform 0.26s ease, opacity 0.26s ease;
-}
-
-.lunch-days.is-bar.is-exit-to-left {
-  transform: translateX(-22%);
-  opacity: 0;
-}
-
-.lunch-days.is-bar.is-exit-to-right {
-  transform: translateX(22%);
-  opacity: 0;
-}
-
-.lunch-days.is-bar.is-enter-from-right {
-  transform: translateX(22%);
-  opacity: 0;
-}
-
-.lunch-days.is-bar.is-enter-from-left {
-  transform: translateX(-22%);
-  opacity: 0;
-}
-
-.lunch-days.is-bar.is-enter-active {
-  transform: translateX(0);
-  opacity: 1;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .lunch-days.is-bar {
+  .lunch-week-track {
     transition: none;
   }
 }

@@ -4439,7 +4439,6 @@ function lunchTodayChipLabel() {
   return ({ en: "Today", fr: "Auj.", zh: "今天", pa: "ਅੱਜ", es: "Hoy" }[readLang()] || "Today");
 }
 
-let lunchWeekSlideDir = 0;
 let lunchWeekSliding = false;
 
 function preferReducedMotion() {
@@ -4447,7 +4446,7 @@ function preferReducedMotion() {
 }
 
 function scrollLunchWeekChipIntoView(iso) {
-  const scroller = view.querySelector(".lunch-days.is-bar");
+  const scroller = view.querySelector(".lunch-week-track > .lunch-days.is-bar") || view.querySelector(".lunch-days.is-bar");
   if (!scroller) return;
   const chip =
     (iso && scroller.querySelector(`.day-chip[data-lunch-day="${iso}"]`)) ||
@@ -4466,27 +4465,20 @@ function scrollLunchWeekChipIntoView(iso) {
   }
 }
 
-function playLunchWeekSlideIn(iso) {
-  const scroller = view.querySelector(".lunch-days.is-bar");
-  const dir = lunchWeekSlideDir;
-  lunchWeekSlideDir = 0;
-  if (!scroller || !dir || preferReducedMotion()) {
-    requestAnimationFrame(() => scrollLunchWeekChipIntoView(iso));
-    return;
-  }
-  scroller.classList.add(dir > 0 ? "is-enter-from-right" : "is-enter-from-left");
-  // Force layout, then ease into place.
-  void scroller.offsetWidth;
-  requestAnimationFrame(() => {
-    scroller.classList.add("is-enter-active");
-    scrollLunchWeekChipIntoView(iso);
-    const clear = () => {
-      scroller.classList.remove("is-enter-from-right", "is-enter-from-left", "is-enter-active");
-      scroller.removeEventListener("transitionend", clear);
-    };
-    scroller.addEventListener("transitionend", clear);
-    setTimeout(clear, 320);
-  });
+function lunchDayChipsHtml(weekMonday, selectedIso) {
+  return lunchWeekdayRow(weekMonday)
+    .map((day) => {
+      const mark = day.open ? lunchDayMark(day.iso) : "";
+      const label = !day.open ? "—" : mark === "ordered" ? tx("Ordered") : mark === "bag" ? tx("In bag") : tx("Packed");
+      const on = day.iso === selectedIso;
+      return `
+            <button type="button" class="day-chip ${on ? "is-on" : ""} ${day.today ? "is-today" : ""} ${day.open && mark !== "packed" ? "has-order" : ""} ${day.open ? "" : "is-off"}" data-lunch-day="${day.iso}" ${day.today ? 'aria-current="date"' : ""} ${day.open ? "" : "disabled"}>
+              <span class="kicker">${tx(day.dow)}${day.today ? `<span class="day-chip-today">${lunchTodayChipLabel()}</span>` : ""}</span>
+              <strong>${day.day}</strong>
+              <span class="lunch-mark">${label}</span>
+            </button>`;
+    })
+    .join("");
 }
 
 function lunchWeekBar(selectedIso) {
@@ -4497,25 +4489,17 @@ function lunchWeekBar(selectedIso) {
   return `
     <div class="lunch-weekbar">
       <div class="widget-head">
-        <h2>${week.title}</h2>
+        <h2 data-lunch-week-title>${week.title}</h2>
         <span class="kicker">${tx("Through Nov 6")}</span>
       </div>
       <div class="lunch-week-strip">
         <button type="button" class="lunch-week-nav" data-lunch-week="-1" ${weekAt <= 0 ? "disabled" : ""} aria-label="${tx("Previous week")}">‹</button>
-        <div class="lunch-days is-bar">
-          ${lunchWeekdayRow(week.week)
-            .map((day) => {
-              const mark = day.open ? lunchDayMark(day.iso) : "";
-              const label = !day.open ? "—" : mark === "ordered" ? tx("Ordered") : mark === "bag" ? tx("In bag") : tx("Packed");
-              const on = day.iso === selectedIso;
-              return `
-            <button type="button" class="day-chip ${on ? "is-on" : ""} ${day.today ? "is-today" : ""} ${day.open && mark !== "packed" ? "has-order" : ""} ${day.open ? "" : "is-off"}" data-lunch-day="${day.iso}" ${day.today ? 'aria-current="date"' : ""} ${day.open ? "" : "disabled"}>
-              <span class="kicker">${tx(day.dow)}${day.today ? `<span class="day-chip-today">${lunchTodayChipLabel()}</span>` : ""}</span>
-              <strong>${day.day}</strong>
-              <span class="lunch-mark">${label}</span>
-            </button>`;
-            })
-            .join("")}
+        <div class="lunch-week-viewport">
+          <div class="lunch-week-track">
+            <div class="lunch-days is-bar">
+              ${lunchDayChipsHtml(week.week, selectedIso)}
+            </div>
+          </div>
         </div>
         <button type="button" class="lunch-week-nav" data-lunch-week="1" ${weekAt >= weeks.length - 1 ? "disabled" : ""} aria-label="${tx("Next week")}">›</button>
       </div>
@@ -4535,31 +4519,54 @@ function shiftLunchWeek(delta) {
   if (!next) return;
   const sameDow = next.days.find((day) => day.dow === lunchDateMeta(state.lunchDay).dow);
   const nextIso = sameDow?.iso || next.days[0].iso;
-  const scroller = view.querySelector(".lunch-days.is-bar");
-  const go = () => {
+  const commit = () => {
     lunchWeekSliding = false;
-    lunchWeekSlideDir = preferReducedMotion() ? 0 : delta;
     state.lunchDay = nextIso;
     lunch();
   };
-  if (!scroller || preferReducedMotion()) {
-    go();
+  const track = view.querySelector(".lunch-week-track");
+  if (!track || preferReducedMotion()) {
+    commit();
     return;
   }
+
   lunchWeekSliding = true;
   view.querySelectorAll("[data-lunch-week]").forEach((btn) => {
     btn.disabled = true;
   });
-  scroller.classList.add(delta > 0 ? "is-exit-to-left" : "is-exit-to-right");
+
+  const incoming = document.createElement("div");
+  incoming.className = "lunch-days is-bar";
+  incoming.setAttribute("aria-hidden", "true");
+  incoming.innerHTML = lunchDayChipsHtml(next.week, nextIso);
+
+  const titleEl = view.querySelector("[data-lunch-week-title]");
+  track.style.transition = "none";
+  if (delta > 0) {
+    track.appendChild(incoming);
+    track.style.transform = "translateX(0)";
+  } else {
+    track.insertBefore(incoming, track.firstElementChild);
+    track.style.transform = "translateX(-100%)";
+  }
+  void track.offsetWidth;
+  track.style.transition = "";
+  track.classList.add("is-sliding");
+  requestAnimationFrame(() => {
+    track.style.transform = delta > 0 ? "translateX(-100%)" : "translateX(0)";
+    if (titleEl) titleEl.textContent = next.title;
+  });
+
   let done = false;
-  const finish = () => {
+  const finish = (event) => {
+    if (event && event.target !== track) return;
     if (done) return;
     done = true;
-    scroller.removeEventListener("transitionend", finish);
-    go();
+    track.removeEventListener("transitionend", finish);
+    commit();
   };
-  scroller.addEventListener("transitionend", finish);
-  setTimeout(finish, 280);
+  track.addEventListener("transitionend", finish);
+  setTimeout(finish, 420);
 }
 
 function lunchDock() {
@@ -4660,7 +4667,7 @@ function lunchMenuView() {
     btn.addEventListener("click", () => shiftLunchWeek(Number(btn.dataset.lunchWeek)));
   });
   bindLunchQty();
-  playLunchWeekSlideIn(selected.iso);
+  requestAnimationFrame(() => scrollLunchWeekChipIntoView(selected.iso));
 }
 
 function lunchCartView() {
