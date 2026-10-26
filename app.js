@@ -853,7 +853,42 @@ function childUnread(id) {
   ).filter((alert) => alert.unread).length;
 }
 
-function navBadgeCount(id) {
+function normalizeNavItem(item) {
+  if (Array.isArray(item)) {
+    const [id, label, href] = item;
+    return { id, label, href };
+  }
+  return item;
+}
+
+function currentNavItems() {
+  const raw = state.edition === "mvp" ? mvpNavByRole[state.role] : navByRole[state.role];
+  return (raw || []).map(normalizeNavItem);
+}
+
+function findNavItem(id) {
+  for (const item of currentNavItems()) {
+    if (item.id === id) return item;
+    const child = item.children?.find((entry) => entry.id === id);
+    if (child) return child;
+  }
+  return null;
+}
+
+function hubForLeaf(leafId) {
+  if (state.edition !== "dream") return null;
+  for (const item of currentNavItems()) {
+    if (item.children?.some((entry) => entry.id === leafId)) return item;
+  }
+  return null;
+}
+
+function railActiveId(active) {
+  const hub = hubForLeaf(active);
+  return hub ? hub.id : active;
+}
+
+function leafNavBadge(id) {
   const reminders = unreadAlerts().filter((alert) => alert.section === id || (id === "calendar" && alert.section === "schedule")).length;
   if (id === "alerts") return unreadAlerts().length;
   if (id === "messages" || id === "inbox") return unreadComms();
@@ -878,6 +913,24 @@ function navBadgeCount(id) {
   }
   if (id === "bus" || id === "class" || id === "attendance") return reminders;
   return 0;
+}
+
+function navBadgeCount(id) {
+  const item = findNavItem(id);
+  if (item?.children?.length) {
+    return item.children.reduce((sum, child) => sum + leafNavBadge(child.id), 0);
+  }
+  return leafNavBadge(id);
+}
+
+function hubCrumb(leafId) {
+  const hub = hubForLeaf(leafId);
+  return hub ? { label: hub.label, href: hub.href } : null;
+}
+
+function crumbsWithHub(leafId, leafCrumb, extras = []) {
+  const hub = hubCrumb(leafId);
+  return [boardCrumb(), ...(hub ? [hub] : []), leafCrumb, ...extras];
 }
 
 function badgeMarkup(count) {
@@ -1506,7 +1559,7 @@ function waitingStorePickups() {
 }
 
 function storeCrumbs(extra) {
-  return [boardCrumb(), { label: "Store", href: "#/store" }, ...(extra || [])];
+  return crumbsWithHub("store", { label: "Store", href: "#/store" }, extra || []);
 }
 
 function storePayLabel(method, last4) {
@@ -2279,40 +2332,96 @@ const state = {
 
 const navByRole = {
   parent: [
-    ["home", "Today", "#/"],
-    ["attendance", "Attendance", "#/attendance"],
-    ["reports", "Report cards", "#/reports"],
-    ["calendar", "Calendar", "#/calendar"],
-    ["events", "Events", "#/events"],
-    ["lunch", "Cafeteria", "#/lunch"],
-    ["store", "Store", "#/store"],
-    ["dismiss", "Dismissal", "#/dismiss"],
-    ["bus", "Bus", "#/bus"],
-    ["class", "Classroom", "#/class"],
-    ["messages", "Messages", "#/messages"],
+    { id: "home", label: "Today", href: "#/" },
+    { id: "messages", label: "Messages", href: "#/messages" },
+    { id: "attendance", label: "Attendance", href: "#/attendance" },
+    {
+      id: "life",
+      label: "School life",
+      href: "#/life",
+      lede: "Calendar, events, classroom, and report cards.",
+      children: [
+        { id: "calendar", label: "Calendar", href: "#/calendar", hint: "Week and year schedule" },
+        { id: "events", label: "Events", href: "#/events", hint: "Sign-ups and going" },
+        { id: "class", label: "Classroom", href: "#/class", hint: "Class feed" },
+        { id: "reports", label: "Report cards", href: "#/reports", hint: "Grades" },
+      ],
+    },
+    {
+      id: "transit",
+      label: "Coming & going",
+      href: "#/transit",
+      lede: "Dismissal plans and bus.",
+      children: [
+        { id: "dismiss", label: "Dismissal", href: "#/dismiss", hint: "Pickup plan" },
+        { id: "bus", label: "Bus", href: "#/bus", hint: "Route and walk" },
+      ],
+    },
+    {
+      id: "buy",
+      label: "Buy",
+      href: "#/buy",
+      lede: "Cafeteria and school store.",
+      children: [
+        { id: "lunch", label: "Cafeteria", href: "#/lunch", hint: "Order hot lunch" },
+        { id: "store", label: "Store", href: "#/store", hint: "Spirit wear" },
+      ],
+    },
   ],
   teacher: [
-    ["home", "My class", "#/"],
-    ["scan", "Scan flyer", "#/scan"],
-    ["attendance", "Attendance", "#/teach/attendance"],
-    ["calendar", "Calendar", "#/calendar"],
-    ["events", "Events", "#/events"],
-    ["lunch", "Lunch list", "#/lunch"],
-    ["store", "Store", "#/store"],
-    ["dismiss", "Dismissal", "#/dismiss"],
-    ["class", "Activities", "#/class"],
-    ["messages", "Families", "#/messages"],
+    { id: "home", label: "My class", href: "#/" },
+    { id: "messages", label: "Families", href: "#/messages" },
+    { id: "attendance", label: "Attendance", href: "#/teach/attendance" },
+    {
+      id: "publish",
+      label: "Publish",
+      href: "#/publish",
+      lede: "Scan flyers, activities, events, and calendar.",
+      children: [
+        { id: "scan", label: "Scan flyer", href: "#/scan", hint: "Turn a flyer into a post" },
+        { id: "class", label: "Activities", href: "#/class", hint: "Class feed" },
+        { id: "events", label: "Events", href: "#/events", hint: "Dances, games, fundraisers" },
+        { id: "calendar", label: "Calendar", href: "#/calendar", hint: "Week and year schedule" },
+      ],
+    },
+    {
+      id: "duty",
+      label: "Duty",
+      href: "#/duty",
+      lede: "Dismissal board and lunch list.",
+      children: [
+        { id: "dismiss", label: "Dismissal", href: "#/dismiss", hint: "Pickup changes" },
+        { id: "lunch", label: "Lunch list", href: "#/lunch", hint: "Who ordered today" },
+      ],
+    },
+    { id: "store", label: "Store", href: "#/store" },
   ],
   admin: [
-    ["home", "School", "#/"],
-    ["scan", "Scan flyer", "#/scan"],
-    ["attendance", "Attendance", "#/admin/attendance"],
-    ["bus", "Buses", "#/bus"],
-    ["dismiss", "Dismissal", "#/dismiss"],
-    ["lunch", "Hot lunch menu", "#/lunch"],
-    ["store", "Store", "#/admin/store"],
-    ["calendar", "Calendar", "#/calendar"],
-    ["events", "Events", "#/events"],
+    { id: "home", label: "School", href: "#/" },
+    { id: "attendance", label: "Attendance", href: "#/admin/attendance" },
+    { id: "scan", label: "Scan flyer", href: "#/scan" },
+    {
+      id: "ops",
+      label: "Operations",
+      href: "#/ops",
+      lede: "Buses, dismissal, hot lunch, and store.",
+      children: [
+        { id: "bus", label: "Buses", href: "#/bus", hint: "Routes and changes" },
+        { id: "dismiss", label: "Dismissal", href: "#/dismiss", hint: "Live pickup board" },
+        { id: "lunch", label: "Hot lunch menu", href: "#/lunch", hint: "Post this week" },
+        { id: "store", label: "Store", href: "#/admin/store", hint: "Inventory and pickups" },
+      ],
+    },
+    {
+      id: "cal",
+      label: "Calendar & events",
+      href: "#/cal",
+      lede: "School calendar and events.",
+      children: [
+        { id: "calendar", label: "Calendar", href: "#/calendar", hint: "Week and year schedule" },
+        { id: "events", label: "Events", href: "#/events", hint: "Dances, games, fundraisers" },
+      ],
+    },
   ],
 };
 
@@ -2577,6 +2686,36 @@ const BOOK = {
   ["Bus", "Autobus", "校车", "ਬੱਸ", "Autobús"],
   ["Classroom", "Classe", "课堂", "ਕਲਾਸ", "Salón"],
   ["Messages", "Messages", "消息", "ਸੁਨੇਹੇ", "Mensajes"],
+  ["School life", "Vie scolaire", "校园生活", "ਸਕੂਲ ਜੀਵਨ", "Vida escolar"],
+  ["Coming & going", "Aller-retour", "往返", "ਆਉਣ-ਜਾਣ", "Ida y vuelta"],
+  ["Buy", "Acheter", "购买", "ਖ਼ਰੀਦੋ", "Comprar"],
+  ["Publish", "Publier", "发布", "ਪ੍ਰਕਾਸ਼ਿਤ", "Publicar"],
+  ["Duty", "Service", "值班", "ਡਿਊਟੀ", "Turno"],
+  ["Operations", "Opérations", "运营", "ਓਪਰੇਸ਼ਨ", "Operaciones"],
+  ["Calendar & events", "Calendrier et événements", "日历与活动", "ਕੈਲੰਡਰ ਤੇ ਈਵੈਂਟ", "Calendario y eventos"],
+  ["Calendar, events, classroom, and report cards.", "Calendrier, événements, classe et bulletins.", "日历、活动、课堂和成绩单。", "ਕੈਲੰਡਰ, ਈਵੈਂਟ, ਕਲਾਸ ਅਤੇ ਰਿਪੋਰਟ ਕਾਰਡ।", "Calendario, eventos, salón y boletines."],
+  ["Dismissal plans and bus.", "Plans de sortie et autobus.", "放学安排与校车。", "ਛੁੱਟੀ ਯੋਜਨਾ ਅਤੇ ਬੱਸ।", "Planes de salida y autobús."],
+  ["Cafeteria and school store.", "Cafétéria et boutique scolaire.", "食堂与学校商店。", "ਕੈਫੇਟੇਰੀਆ ਅਤੇ ਸਕੂਲ ਸਟੋਰ।", "Cafetería y tienda escolar."],
+  ["Scan flyers, activities, events, and calendar.", "Scanner des affiches, activités, événements et calendrier.", "扫描传单、活动、赛事和日历。", "ਪਰਚੇ, ਗਤੀਵਿਧੀਆਂ, ਈਵੈਂਟ ਅਤੇ ਕੈਲੰਡਰ ਸਕੈਨ।", "Escanear volantes, actividades, eventos y calendario."],
+  ["Dismissal board and lunch list.", "Tableau de sortie et liste du dîner.", "放学看板与午餐名单。", "ਛੁੱਟੀ ਬੋਰਡ ਅਤੇ ਲੰਚ ਸੂਚੀ।", "Tablero de salida y lista del almuerzo."],
+  ["Buses, dismissal, hot lunch, and store.", "Autobus, sortie, dîner chaud et boutique.", "校车、放学、热午餐与商店。", "ਬੱਸਾਂ, ਛੁੱਟੀ, ਗਰਮ ਲੰਚ ਅਤੇ ਸਟੋਰ।", "Autobuses, salida, almuerzo caliente y tienda."],
+  ["School calendar and events.", "Calendrier et événements de l’école.", "学校日历与活动。", "ਸਕੂਲ ਕੈਲੰਡਰ ਤੇ ਈਵੈਂਟ।", "Calendario y eventos escolares."],
+  ["Week and year schedule", "Horaire de la semaine et de l’année", "周与年日程", "ਹਫ਼ਤਾ ਤੇ ਸਾਲ ਹੋਰਾਰੀ", "Horario semanal y anual"],
+  ["Sign-ups and going", "Inscriptions et participation", "报名与参加", "ਰਜਿਸਟਰ ਤੇ ਜਾਣਾ", "Inscripciones y asistencia"],
+  ["Class feed", "Fil de classe", "班级动态", "ਕਲਾਸ ਫੀਡ", "Feed del salón"],
+  ["Grades", "Notes", "成绩", "ਗ੍ਰੇਡ", "Notas"],
+  ["Pickup plan", "Plan de ramassage", "接送计划", "ਪਿਕਅੱਪ ਯੋਜਨਾ", "Plan de recogida"],
+  ["Route and walk", "Parcours et marche", "路线与步行", "ਰੂਟ ਤੇ ਤੁਰਨਾ", "Ruta y caminata"],
+  ["Order hot lunch", "Commander le dîner chaud", "预订热午餐", "ਗਰਮ ਲੰਚ ਆਰਡਰ", "Pedir almuerzo caliente"],
+  ["Spirit wear", "Vêtements d’esprit", "校园服饰", "ਸਪਿਰਿਟ ਪਹਿਰਾਵਾ", "Ropa de espíritu"],
+  ["Turn a flyer into a post", "Transformer une affiche en billet", "把传单变成帖子", "ਪਰਚੇ ਨੂੰ ਪੋਸਟ ਬਣਾਓ", "Convertir un volante en publicación"],
+  ["Dances, games, fundraisers", "Danses, matchs, collectes", "舞会、比赛、募捐", "ਡਾਂਸ, ਖੇਡਾਂ, ਫੰਡਰੇਜ਼ਰ", "Bailes, partidos, recaudaciones"],
+  ["Pickup changes", "Changements de ramassage", "接送变更", "ਪਿਕਅੱਪ ਬਦਲਾਅ", "Cambios de recogida"],
+  ["Who ordered today", "Qui a commandé aujourd’hui", "今日订餐名单", "ਅੱਜ ਕਿਸ ਨੇ ਆਰਡਰ ਕੀਤਾ", "Quién pidió hoy"],
+  ["Routes and changes", "Parcours et changements", "路线与变更", "ਰੂਟ ਤੇ ਬਦਲਾਅ", "Rutas y cambios"],
+  ["Live pickup board", "Tableau de ramassage en direct", "实时接送看板", "ਲਾਈਵ ਪਿਕਅੱਪ ਬੋਰਡ", "Tablero de recogida en vivo"],
+  ["Post this week", "Publier cette semaine", "发布本周菜单", "ਇਸ ਹਫ਼ਤੇ ਪੋਸਟ", "Publicar esta semana"],
+  ["Inventory and pickups", "Inventaire et retraits", "库存与取货", "ਇਨਵੈਂਟਰੀ ਤੇ ਪਿਕਅੱਪ", "Inventario y recogidas"],
   ["Home", "Accueil", "首页", "ਘਰ", "Inicio"],
   ["Read in", "Lire en", "阅读语言", "ਪੜ੍ਹੋ", "Leer en"],
   ["Teacher", "Enseignant", "老师", "ਅਧਿਆਪਕ", "Maestro"],
@@ -3529,6 +3668,15 @@ const ICONS = {
   alerts: "M12 22a2.4 2.4 0 0 0 2.4-2.4H9.6A2.4 2.4 0 0 0 12 22Zm7-5.2V11a7 7 0 1 0-14 0v5.8L3 18.6V20h18v-1.4l-2-1.8Z",
   config:
     "M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.07 7.07 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.59.24-1.13.55-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.71 8.84a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94L2.83 14.52a.5.5 0 0 0-.12.64l1.92 3.32c.12.22.39.3.6.22l2.39-.96c.5.39 1.04.7 1.63.94l.36 2.54c.05.24.26.42.5.42h3.84c.24 0 .45-.18.5-.42l.36-2.54c.59-.24 1.13-.55 1.63-.94l2.39.96c.22.08.48 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58ZM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2Z",
+  life: "M4.5 19.5V8.2L12 3.8l7.5 4.4v11.3h-5.2v-5.4H9.7v5.4H4.5Zm2.1-1.8h1.3v-5.4h8.2v5.4h1.3V9.1L12 5.7 6.6 9.1v8.6Z",
+  transit:
+    "M4.2 11.2 12 4.5l7.8 6.7v1.9l-1.6-1.4V19h-4.2v-4.6H9.999V19H5.8v-7.3L4.2 13.1v-1.9Zm3.4 1.2v4.8h1.6v-4.8H7.6Zm7.2 0v4.8h1.6v-4.8h-1.6Z",
+  buy: "M7.2 6.2h12.1l-1.2 8.4H8.1L7.2 6.2Zm-.9-2.2 1.1 1.6h11.5l.7-1.6H6.3ZM9 18.2a1.4 1.4 0 1 1 0 2.8 1.4 1.4 0 0 1 0-2.8Zm7.2 0a1.4 1.4 0 1 1 0 2.8 1.4 1.4 0 0 1 0-2.8Z",
+  publish:
+    "M5 4.5h9.2L19 9.3V19.5A1.5 1.5 0 0 1 17.5 21h-12A1.5 1.5 0 0 1 4 19.5v-13A1.5 1.5 0 0 1 5.5 5H5Zm8.2.8v3.6H17L13.2 5.3ZM8 12.2h8V14H8v-1.8Zm0 3.2h5.5V17H8v-1.6Z",
+  duty: "M8.2 3.5h7.6v2.2h3.5V20a1.5 1.5 0 0 1-1.5 1.5h-12A1.5 1.5 0 0 1 4.3 20V5.7h3.9V3.5Zm1.8 1.6v.6h4V5.1H10Zm-3.9 2.4v12.4h12V7.5H6.1Zm3.2 3.2 1.5 1.5 3.8-3.8 1.3 1.3-5.1 5.1-2.8-2.8 1.3-1.3Z",
+  ops: "M4.5 5.2h6.2v6.2H4.5V5.2Zm0 7.4h6.2v6.2H4.5v-6.2Zm8.8-7.4H19.5v6.2h-6.2V5.2Zm0 7.4H19.5v6.2h-6.2v-6.2ZM6.2 6.9v2.8h2.8V6.9H6.2Zm0 7.4v2.8h2.8v-2.8H6.2Zm8.8-7.4v2.8h2.8V6.9h-2.8Zm0 7.4v2.8h2.8v-2.8h-2.8Z",
+  cal: "M8 3.2h1.8V5h4.4V3.2H16V5h2.2A1.8 1.8 0 0 1 20 6.8V19a1.8 1.8 0 0 1-1.8 1.8H5.8A1.8 1.8 0 0 1 4 19V6.8A1.8 1.8 0 0 1 5.8 5H8V3.2ZM5.8 9.5V19h12.4V9.5H5.8Zm2.4 2.4 1.3 1.3 3.4-3.4 1.2 1.2-4.6 4.6-2.5-2.5 1.2-1.2Z",
 };
 
 function icon(name, size = 16) {
@@ -3629,12 +3777,12 @@ function paintChrome(active) {
     menuBtn.setAttribute("aria-expanded", String(menuOpen));
     menuBtn.setAttribute("aria-label", menuOpen ? tx("Close menu") : tx("Menu"));
   }
-  const nav = state.edition === "mvp" ? mvpNavByRole[state.role] : navByRole[state.role];
-  railNav.innerHTML = nav
-    .map(([id, label, href]) => {
-      const count = navBadgeCount(id);
-      const glyph = icon(id, 16);
-      return `<a class="rail-link ${id === active ? "is-active" : ""}" href="${href}" data-nav="${id}"><span class="rail-link-main">${glyph}<span>${tx(label)}</span></span>${badgeMarkup(count)}</a>`;
+  const activeId = railActiveId(active);
+  railNav.innerHTML = currentNavItems()
+    .map((item) => {
+      const count = navBadgeCount(item.id);
+      const glyph = icon(item.id, 16);
+      return `<a class="rail-link ${item.id === activeId ? "is-active" : ""}" href="${item.href}" data-nav="${item.id}"><span class="rail-link-main">${glyph}<span>${tx(item.label)}</span></span>${badgeMarkup(count)}</a>`;
     })
     .join("");
 }
@@ -3848,6 +3996,41 @@ function boardCrumb() {
   return { label: "Today", href: "#/" };
 }
 
+function hubView(hubId) {
+  const hub = findNavItem(hubId);
+  if (!hub?.children?.length) {
+    return state.role === "teacher" ? teacherHome() : state.role === "admin" ? adminHome() : parentHome();
+  }
+  paintChrome(hub.id);
+  setCrumbs([boardCrumb(), { label: hub.label, href: hub.href }]);
+  view.innerHTML = `
+    <div class="hero">
+      <div>
+        <h1>${tx(hub.label)}</h1>
+        <p class="lede">${tx(hub.lede || hub.label)}</p>
+      </div>
+    </div>
+    <section class="card panel hub-panel">
+      ${hub.children
+        .map((child) => {
+          const count = leafNavBadge(child.id);
+          return `
+        <a class="list-row hub-row" href="${child.href}">
+          <span class="hub-row-main">
+            ${icon(child.id, 18)}
+            <span class="title-block">
+              <strong>${tx(child.label)}</strong>
+              ${child.hint ? `<span class="kicker">${tx(child.hint)}</span>` : ""}
+            </span>
+          </span>
+          <span class="hub-row-meta">${badgeMarkup(count)}${pill("Open")}</span>
+        </a>`;
+        })
+        .join("")}
+    </section>
+  `;
+}
+
 function attendance() {
   paintChrome("attendance");
   setCrumbs([
@@ -3936,10 +4119,7 @@ function attendanceReport() {
 
 function reports() {
   paintChrome("reports");
-  setCrumbs([
-    { label: "Today", href: "#/" },
-    { label: "Report cards", href: "#/reports" },
-  ]);
+  setCrumbs(crumbsWithHub("reports", { label: "Report cards", href: "#/reports" }));
   view.innerHTML = `
     <div class="hero">
       <div>
@@ -4158,10 +4338,7 @@ function bindCalendarExport() {
 
 function calendar() {
   paintChrome("calendar");
-  setCrumbs([
-    boardCrumb(),
-    { label: "Calendar", href: "#/calendar" },
-  ]);
+  setCrumbs(crumbsWithHub("calendar", { label: "Calendar", href: "#/calendar" }));
   const who = state.role === "parent" ? child().short : "Cedar Hill";
   view.innerHTML = `
     <div class="hero">
@@ -4183,7 +4360,8 @@ function calendar() {
 }
 
 function lunchCrumbs(extra) {
-  return [boardCrumb(), { label: "Cafeteria", href: "#/lunch" }, ...(extra || [])];
+  const label = state.role === "teacher" ? "Lunch list" : state.role === "admin" ? "Hot lunch menu" : "Cafeteria";
+  return crumbsWithHub("lunch", { label, href: "#/lunch" }, extra || []);
 }
 
 function qtyControl(iso, item) {
@@ -4751,7 +4929,7 @@ function adminLunch() {
   const menu = selected ? lunchMenu(selected.iso) : [];
   const posted = selected && Object.prototype.hasOwnProperty.call(state.lunchMenuByIso, selected.iso);
   paintChrome("lunch");
-  setCrumbs([boardCrumb(), { label: "Hot lunch menu", href: "#/lunch" }]);
+  setCrumbs(crumbsWithHub("lunch", { label: "Hot lunch menu", href: "#/lunch" }));
   view.innerHTML = `
     ${notice()}
     <div class="hero">
@@ -4879,7 +5057,7 @@ function teacherLunchList() {
   const kids = roster.filter((s) => s.room === room.id);
   const buying = kids.filter((s) => lunchLinesForChild(selected.iso, s.id).length);
   paintChrome("lunch");
-  setCrumbs([boardCrumb(), { label: "Lunch list", href: "#/lunch" }]);
+  setCrumbs(crumbsWithHub("lunch", { label: "Lunch list", href: "#/lunch" }));
   view.innerHTML = `
     ${notice()}
     <div class="hero">
@@ -5018,7 +5196,7 @@ function parentDismiss() {
   const plan = todayDismiss(kid.id);
   const usual = usualDismiss(kid.id);
   paintChrome("dismiss");
-  setCrumbs([boardCrumb(), { label: "Dismissal", href: "#/dismiss" }]);
+  setCrumbs(crumbsWithHub("dismiss", { label: "Dismissal", href: "#/dismiss" }));
   view.innerHTML = `
     ${notice()}
     ${
@@ -5146,7 +5324,7 @@ function teacherDismiss() {
   const kids = roster.filter((s) => s.room === room.id);
   const changed = kids.filter((s) => todayDismiss(s.id).change);
   paintChrome("dismiss");
-  setCrumbs([boardCrumb(), { label: "Dismissal", href: "#/dismiss" }]);
+  setCrumbs(crumbsWithHub("dismiss", { label: "Dismissal", href: "#/dismiss" }));
   view.innerHTML = `
     ${notice()}
     <div class="hero">
@@ -5195,7 +5373,7 @@ function dutyDismiss() {
     });
   const waiting = kids.filter((s) => todayDismiss(s.id).status !== "released").length;
   paintChrome("dismiss");
-  setCrumbs([boardCrumb(), { label: "Dismissal", href: "#/dismiss" }]);
+  setCrumbs(crumbsWithHub("dismiss", { label: "Dismissal", href: "#/dismiss" }));
   const groups = (lane === "all" ? DISMISS_MODES : DISMISS_MODES.filter((m) => m.id === lane)).map((mode) => ({
     ...mode,
     students: kids.filter((s) => todayDismiss(s.id).mode === mode.id),
@@ -5268,10 +5446,7 @@ function dismissView() {
 function bus() {
   if (state.edition === "dream" && state.role === "parent") return parentDismiss();
   paintChrome("bus");
-  setCrumbs([
-    { label: "Today", href: "#/" },
-    { label: "Bus", href: "#/bus" },
-  ]);
+  setCrumbs(crumbsWithHub("bus", { label: state.role === "admin" ? "Buses" : "Bus", href: "#/bus" }));
   const kid = child();
   if (!ridesBus()) {
     view.innerHTML = `
@@ -5319,11 +5494,11 @@ function bus() {
 function classroom(id) {
   paintChrome("class");
   const activity = child().activities.find((a) => a.id === id) || child().activities[0];
-  setCrumbs([
-    { label: "Today", href: "#/" },
-    { label: "Classroom", href: "#/class" },
-    { label: activity.title, href: `#/class/${activity.id}` },
-  ]);
+  setCrumbs(
+    crumbsWithHub("class", { label: state.role === "teacher" ? "Activities" : "Classroom", href: "#/class" }, [
+      { label: activity.title, href: `#/class/${activity.id}` },
+    ])
+  );
   view.innerHTML = `
     <div class="hero">
       <div>
@@ -6096,10 +6271,7 @@ function runOcr(id) {
 
 function scanCapture() {
   paintChrome("scan");
-  setCrumbs([
-    { label: state.role === "teacher" ? "Class board" : "School board", href: "#/" },
-    { label: "Scan flyer", href: "#/scan" },
-  ]);
+  setCrumbs(crumbsWithHub("scan", { label: "Scan flyer", href: "#/scan" }));
   view.innerHTML = `
     <div class="hero">
       <div>
@@ -6148,11 +6320,7 @@ function scanCapture() {
 function scanReview() {
   const draft = state.scan || FLYERS.orchard;
   paintChrome("scan");
-  setCrumbs([
-    { label: state.role === "teacher" ? "Class board" : "School board", href: "#/" },
-    { label: "Scan flyer", href: "#/scan" },
-    { label: "Review", href: "#/scan/review" },
-  ]);
+  setCrumbs(crumbsWithHub("scan", { label: "Scan flyer", href: "#/scan" }, [{ label: "Review", href: "#/scan/review" }]));
   view.innerHTML = `
     <div class="hero">
       <div>
@@ -6809,7 +6977,7 @@ function eventsView(id) {
   }
   paintChrome("events");
   if (!item) {
-    setCrumbs([boardCrumb(), { label: "Events", href: "#/events" }]);
+    setCrumbs(crumbsWithHub("events", { label: "Events", href: "#/events" }));
     const canPost = state.role !== "parent";
     const shown = filteredEvents();
     view.innerHTML = `
@@ -6903,11 +7071,7 @@ function eventsView(id) {
     }
     return;
   }
-  setCrumbs([
-    boardCrumb(),
-    { label: "Events", href: "#/events" },
-    { label: item.title, href: `#/events/${item.id}` },
-  ]);
+  setCrumbs(crumbsWithHub("events", { label: "Events", href: "#/events" }, [{ label: item.title, href: `#/events/${item.id}` }]));
   const titleShown = state.showOriginal[item.id] ? item.title : tx(item.title);
   const bodyShown = state.showOriginal[item.id] ? item.body : tx(item.body);
   const formDoc = item.docId ? kidDocs().find((d) => d.id === item.docId) : null;
@@ -7419,7 +7583,7 @@ function adminStore() {
     return storeFrontView();
   }
   paintChrome("store");
-  setCrumbs([boardCrumb(), { label: "Store", href: "#/admin/store" }]);
+  setCrumbs(crumbsWithHub("store", { label: "Store", href: "#/admin/store" }));
   const waiting = waitingStorePickups();
   view.innerHTML = `
     ${notice()}
@@ -7566,6 +7730,10 @@ function render() {
     if (parts[0] === "bus") return bus();
     if (state.role === "parent") return mvpParentHome();
     return mvpStaffHome();
+  }
+
+  if (["life", "transit", "buy", "publish", "duty", "ops", "cal"].includes(parts[0])) {
+    return hubView(parts[0]);
   }
 
   if (state.role === "teacher") {

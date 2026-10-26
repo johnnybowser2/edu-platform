@@ -506,6 +506,36 @@ h2 + .list-row {
   background: rgba(30, 58, 95, 0.05);
 }
 
+.hub-panel .hub-row {
+  align-items: center;
+}
+
+.hub-row-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.hub-row-main .icon {
+  flex: 0 0 auto;
+  color: var(--muted, #64748b);
+}
+
+.hub-row-main .title-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.hub-row-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
 .list-row.att-row {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
