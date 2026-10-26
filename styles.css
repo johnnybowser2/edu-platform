@@ -783,7 +783,8 @@ label.btn {
   grid-auto-columns: 100%;
   width: 100%;
   will-change: transform;
-  transition: transform 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+  /* Slightly slower slide with a soft overshoot settle at the end. */
+  transition: transform 0.5s cubic-bezier(0.22, 1.28, 0.34, 1);
 }
 
 .lunch-week-track.is-sliding {

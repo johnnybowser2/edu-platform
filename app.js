@@ -4566,7 +4566,7 @@ function shiftLunchWeek(delta) {
     commit();
   };
   track.addEventListener("transitionend", finish);
-  setTimeout(finish, 420);
+  setTimeout(finish, 650);
 }
 
 function lunchDock() {
