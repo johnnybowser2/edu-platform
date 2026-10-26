@@ -4261,6 +4261,13 @@ function lunchTodayChipLabel() {
   return ({ en: "Today", fr: "Auj.", zh: "今天", pa: "ਅੱਜ", es: "Hoy" }[readLang()] || "Today");
 }
 
+let lunchWeekSlideDir = 0;
+let lunchWeekSliding = false;
+
+function preferReducedMotion() {
+  return window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+}
+
 function scrollLunchWeekChipIntoView(iso) {
   const scroller = view.querySelector(".lunch-days.is-bar");
   if (!scroller) return;
@@ -4279,6 +4286,29 @@ function scrollLunchWeekChipIntoView(iso) {
   else if (chipRight > scroller.scrollLeft + scroller.clientWidth - pad) {
     scroller.scrollLeft = Math.max(0, chipRight - scroller.clientWidth + pad);
   }
+}
+
+function playLunchWeekSlideIn(iso) {
+  const scroller = view.querySelector(".lunch-days.is-bar");
+  const dir = lunchWeekSlideDir;
+  lunchWeekSlideDir = 0;
+  if (!scroller || !dir || preferReducedMotion()) {
+    requestAnimationFrame(() => scrollLunchWeekChipIntoView(iso));
+    return;
+  }
+  scroller.classList.add(dir > 0 ? "is-enter-from-right" : "is-enter-from-left");
+  // Force layout, then ease into place.
+  void scroller.offsetWidth;
+  requestAnimationFrame(() => {
+    scroller.classList.add("is-enter-active");
+    scrollLunchWeekChipIntoView(iso);
+    const clear = () => {
+      scroller.classList.remove("is-enter-from-right", "is-enter-from-left", "is-enter-active");
+      scroller.removeEventListener("transitionend", clear);
+    };
+    scroller.addEventListener("transitionend", clear);
+    setTimeout(clear, 320);
+  });
 }
 
 function lunchWeekBar(selectedIso) {
@@ -4321,12 +4351,37 @@ function lunchWeekIndex() {
 }
 
 function shiftLunchWeek(delta) {
+  if (!delta || lunchWeekSliding) return;
   const weeks = lunchWeeks();
   const next = weeks[lunchWeekIndex() + delta];
   if (!next) return;
   const sameDow = next.days.find((day) => day.dow === lunchDateMeta(state.lunchDay).dow);
-  state.lunchDay = sameDow?.iso || next.days[0].iso;
-  lunch();
+  const nextIso = sameDow?.iso || next.days[0].iso;
+  const scroller = view.querySelector(".lunch-days.is-bar");
+  const go = () => {
+    lunchWeekSliding = false;
+    lunchWeekSlideDir = preferReducedMotion() ? 0 : delta;
+    state.lunchDay = nextIso;
+    lunch();
+  };
+  if (!scroller || preferReducedMotion()) {
+    go();
+    return;
+  }
+  lunchWeekSliding = true;
+  view.querySelectorAll("[data-lunch-week]").forEach((btn) => {
+    btn.disabled = true;
+  });
+  scroller.classList.add(delta > 0 ? "is-exit-to-left" : "is-exit-to-right");
+  let done = false;
+  const finish = () => {
+    if (done) return;
+    done = true;
+    scroller.removeEventListener("transitionend", finish);
+    go();
+  };
+  scroller.addEventListener("transitionend", finish);
+  setTimeout(finish, 280);
 }
 
 function lunchDock() {
@@ -4427,7 +4482,7 @@ function lunchMenuView() {
     btn.addEventListener("click", () => shiftLunchWeek(Number(btn.dataset.lunchWeek)));
   });
   bindLunchQty();
-  requestAnimationFrame(() => scrollLunchWeekChipIntoView(selected.iso));
+  playLunchWeekSlideIn(selected.iso);
 }
 
 function lunchCartView() {

@@ -739,12 +739,46 @@ label.btn {
   grid-template-columns: 36px minmax(0, 1fr) 36px;
   gap: 6px;
   align-items: stretch;
+  overflow: hidden;
 }
 
 .lunch-days.is-bar {
   align-items: stretch;
   flex-wrap: nowrap;
   min-width: 0;
+  will-change: transform, opacity;
+  transition: transform 0.26s ease, opacity 0.26s ease;
+}
+
+.lunch-days.is-bar.is-exit-to-left {
+  transform: translateX(-22%);
+  opacity: 0;
+}
+
+.lunch-days.is-bar.is-exit-to-right {
+  transform: translateX(22%);
+  opacity: 0;
+}
+
+.lunch-days.is-bar.is-enter-from-right {
+  transform: translateX(22%);
+  opacity: 0;
+}
+
+.lunch-days.is-bar.is-enter-from-left {
+  transform: translateX(-22%);
+  opacity: 0;
+}
+
+.lunch-days.is-bar.is-enter-active {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lunch-days.is-bar {
+    transition: none;
+  }
 }
 
 .lunch-week-nav {
