@@ -472,6 +472,12 @@ h2 {
   align-items: center;
 }
 
+.list-row:first-child,
+.widget-head + .list-row,
+h2 + .list-row {
+  border-top: 0;
+}
+
 .course-row,
 .list-row {
   grid-template-columns: 1fr auto auto;
