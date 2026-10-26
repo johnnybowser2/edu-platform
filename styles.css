@@ -480,7 +480,7 @@ h2 + .list-row {
 
 .course-row,
 .list-row {
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
 }
 
 .learner-row {
@@ -2173,6 +2173,7 @@ button.year-day {
       "crumbs crumbs";
     align-items: center;
     gap: 10px 12px;
+    margin-bottom: 20px;
   }
 
   .topbar-start {
@@ -2188,11 +2189,30 @@ button.year-day {
 
   .crumbs {
     grid-area: crumbs;
+    font-size: 13px;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
   }
 
   .topbar-end {
     grid-area: end;
     justify-self: end;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .lang-picker {
+    gap: 6px;
+    font-size: 12px;
+  }
+
+  .lang-picker span {
+    display: none;
+  }
+
+  .lang-picker select {
+    max-width: 42vw;
+    padding: 7px 8px;
   }
 
   .nav-scrim {
@@ -2229,14 +2249,74 @@ button.year-day {
   }
 
   .stage {
-    padding: 18px 16px 72px;
+    padding: 16px 14px 88px;
   }
 
   .topbar-meta {
     display: none;
   }
 
-  .metrics,
+  .hero {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+
+  .hero > .btn,
+  .hero > .actions {
+    width: 100%;
+    margin-top: 0;
+  }
+
+  .hero > .actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .hero > .actions .btn,
+  .hero > .btn {
+    min-width: 0;
+    width: 100%;
+  }
+
+  h1 {
+    font-size: clamp(26px, 7vw, 34px);
+  }
+
+  .lede {
+    max-width: none;
+    font-size: 14px;
+  }
+
+  .banner {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .banner .btn {
+    width: 100%;
+  }
+
+  .btn {
+    white-space: normal;
+    text-align: center;
+    line-height: 1.25;
+    min-height: 42px;
+    padding: 10px 12px;
+  }
+
+  .actions {
+    gap: 8px;
+  }
+
+  .actions .btn {
+    flex: 1 1 calc(50% - 4px);
+    min-width: min(100%, 140px);
+  }
+
   .grid-2,
   .grid-3,
   .detail-head,
@@ -2245,12 +2325,130 @@ button.year-day {
     grid-template-columns: 1fr;
   }
 
+  .metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .card.metric {
+    padding: 14px 14px 12px;
+  }
+
+  .metric-value {
+    font-size: 28px;
+  }
+
+  .list-row,
+  .course-row,
+  .dismiss-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px 10px;
+    align-items: start;
+  }
+
   .list-row.att-row {
     grid-template-columns: 1fr;
   }
 
+  .list-row .pill,
+  .list-row .actions {
+    justify-self: end;
+  }
+
+  .title-block {
+    min-width: 0;
+  }
+
+  .title-block strong,
+  .kicker {
+    overflow-wrap: anywhere;
+  }
+
+  .pill {
+    white-space: normal;
+    text-align: center;
+    line-height: 1.2;
+    max-width: 100%;
+  }
+
   .att-mark {
     justify-content: flex-start;
+  }
+
+  .widget-head {
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .widget-head a {
+    flex: 0 0 auto;
+    text-align: right;
+    font-size: 13px;
+  }
+
+  .ask-row {
+    grid-template-columns: 1fr;
+  }
+
+  .ask-row .btn {
+    width: 100%;
+  }
+
+  .ask-hints {
+    gap: 6px;
+  }
+
+  .ask-hints .chip,
+  .chip {
+    font-size: 12px;
+    padding: 7px 10px;
+    line-height: 1.25;
+    white-space: normal;
+  }
+
+  .ask-a {
+    font-size: 22px;
+  }
+
+  .event-filters {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    gap: 6px;
+    padding-bottom: 4px;
+    margin-right: -14px;
+    padding-right: 14px;
+  }
+
+  .event-filters button {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .stat-row {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .compose {
+    grid-template-columns: 1fr;
+  }
+
+  .compose .btn {
+    width: 100%;
+  }
+
+  .cal-export {
+    width: 100%;
+  }
+
+  .cal-export .btn,
+  .cal-export-wrap {
+    width: 100%;
+  }
+
+  .cal-export-wrap .btn {
+    width: 100%;
   }
 
   .year-cal {
@@ -2262,16 +2460,24 @@ button.year-day {
   }
 
   .year-nav .btn {
-    flex: 1;
+    flex: 1 1 calc(50% - 4px);
+    min-width: 0;
   }
 
   button.year-day {
     min-height: 44px;
   }
 
-  .lunch-dock {
+  .lunch-dock,
+  .store-dock {
     margin-right: 0;
     flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .lunch-dock .btn,
+  .store-dock .btn {
+    width: 100%;
   }
 
   .lunch-mains,
@@ -2283,11 +2489,12 @@ button.year-day {
 
   .lunch-days.is-bar {
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .lunch-row,
   .lunch-side-row {
-    grid-template-columns: 1fr auto;
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 
   .lunch-price {
@@ -2298,6 +2505,76 @@ button.year-day {
   .qty {
     grid-column: 1 / -1;
     justify-content: flex-end;
+  }
+
+  .pay-methods {
+    grid-template-columns: 1fr;
+  }
+
+  .edition-toggle {
+    right: 12px;
+    bottom: 12px;
+    max-width: calc(100vw - 24px);
+    padding-left: 8px;
+  }
+
+  .edition-kicker {
+    display: none;
+  }
+
+  .edition-toggle button {
+    padding: 8px 10px;
+  }
+}
+
+@media (max-width: 560px) {
+  .stage {
+    padding: 14px 12px 96px;
+  }
+
+  .card.panel {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .hero > .actions {
+    grid-template-columns: 1fr;
+  }
+
+  .actions .btn {
+    flex: 1 1 100%;
+  }
+
+  .metrics {
+    gap: 8px;
+  }
+
+  .metric-label {
+    font-size: 11px;
+  }
+
+  .metric-value {
+    font-size: 24px;
+  }
+
+  .list-row,
+  .course-row,
+  .dismiss-row {
+    grid-template-columns: 1fr;
+  }
+
+  .list-row .pill,
+  .list-row .actions,
+  .list-row .att-mark {
+    justify-self: start;
+  }
+
+  .list-row .actions {
+    width: 100%;
+  }
+
+  .list-row .actions .btn {
+    flex: 1 1 auto;
   }
 }
 
