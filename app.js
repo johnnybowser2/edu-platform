@@ -4261,6 +4261,26 @@ function lunchTodayChipLabel() {
   return ({ en: "Today", fr: "Auj.", zh: "今天", pa: "ਅੱਜ", es: "Hoy" }[readLang()] || "Today");
 }
 
+function scrollLunchWeekChipIntoView(iso) {
+  const scroller = view.querySelector(".lunch-days.is-bar");
+  if (!scroller) return;
+  const chip =
+    (iso && scroller.querySelector(`.day-chip[data-lunch-day="${iso}"]`)) ||
+    scroller.querySelector(".day-chip.is-today") ||
+    scroller.querySelector(".day-chip.is-on");
+  if (!chip) return;
+  const pad = 8;
+  const left = chip.offsetLeft - (scroller.clientWidth - chip.offsetWidth) / 2;
+  scroller.scrollLeft = Math.max(0, Math.min(left, scroller.scrollWidth - scroller.clientWidth));
+  // Keep the active chip fully visible if centering still clips an edge.
+  const chipLeft = chip.offsetLeft;
+  const chipRight = chipLeft + chip.offsetWidth;
+  if (chipLeft < scroller.scrollLeft + pad) scroller.scrollLeft = Math.max(0, chipLeft - pad);
+  else if (chipRight > scroller.scrollLeft + scroller.clientWidth - pad) {
+    scroller.scrollLeft = Math.max(0, chipRight - scroller.clientWidth + pad);
+  }
+}
+
 function lunchWeekBar(selectedIso) {
   const weeks = lunchWeeks();
   const weekAt = lunchWeekIndex();
@@ -4407,6 +4427,7 @@ function lunchMenuView() {
     btn.addEventListener("click", () => shiftLunchWeek(Number(btn.dataset.lunchWeek)));
   });
   bindLunchQty();
+  requestAnimationFrame(() => scrollLunchWeekChipIntoView(selected.iso));
 }
 
 function lunchCartView() {
