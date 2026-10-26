@@ -734,13 +734,20 @@ label.btn {
   gap: 8px;
 }
 
+.lunch-week-strip {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) 36px;
+  gap: 6px;
+  align-items: stretch;
+}
+
 .lunch-days.is-bar {
   align-items: stretch;
   flex-wrap: nowrap;
+  min-width: 0;
 }
 
 .lunch-week-nav {
-  flex: 0 0 36px;
   border-radius: 12px;
   border: 1px solid var(--line);
   background: var(--panel);
@@ -766,11 +773,38 @@ label.btn {
   text-align: center;
 }
 
+.day-chip .kicker,
+.day-chip .lunch-mark {
+  display: block;
+  width: 100%;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.day-chip-today {
+  display: block;
+  margin-top: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--sage);
+}
+
+.day-chip.is-on .day-chip-today {
+  color: #cfe0d4;
+}
+
 .day-chip strong {
   display: block;
   font-family: var(--font-display);
   font-size: 22px;
   line-height: 1;
+  margin: 4px 0 2px;
 }
 
 .day-chip.is-on {
@@ -2487,9 +2521,50 @@ button.year-day {
     grid-template-columns: 1fr;
   }
 
+  .lunch-week-strip {
+    grid-template-columns: 32px minmax(0, 1fr) 32px;
+    gap: 4px;
+  }
+
   .lunch-days.is-bar {
+    gap: 5px;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding: 1px 1px 2px;
+  }
+
+  .lunch-days.is-bar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .lunch-days.is-bar .day-chip {
+    flex: 1 0 3.85rem;
+    min-width: 3.85rem;
+    padding: 7px 4px 9px;
+    box-sizing: border-box;
+  }
+
+  .day-chip .kicker,
+  .day-chip .lunch-mark {
+    font-size: 10px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .day-chip .lunch-mark {
+    min-height: 1.2em;
+  }
+
+  .day-chip-today {
+    font-size: 8px;
+    letter-spacing: 0.04em;
+  }
+
+  .day-chip strong {
+    font-size: 17px;
+    margin: 3px 0 3px;
   }
 
   .lunch-row,

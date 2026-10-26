@@ -4257,6 +4257,10 @@ function lunchDayMark(iso) {
   return "packed";
 }
 
+function lunchTodayChipLabel() {
+  return ({ en: "Today", fr: "Auj.", zh: "今天", pa: "ਅੱਜ", es: "Hoy" }[readLang()] || "Today");
+}
+
 function lunchWeekBar(selectedIso) {
   const weeks = lunchWeeks();
   const weekAt = lunchWeekIndex();
@@ -4268,21 +4272,23 @@ function lunchWeekBar(selectedIso) {
         <h2>${week.title}</h2>
         <span class="kicker">${tx("Through Nov 6")}</span>
       </div>
-      <div class="lunch-days is-bar">
+      <div class="lunch-week-strip">
         <button type="button" class="lunch-week-nav" data-lunch-week="-1" ${weekAt <= 0 ? "disabled" : ""} aria-label="${tx("Previous week")}">‹</button>
-        ${lunchWeekdayRow(week.week)
-          .map((day) => {
-            const mark = day.open ? lunchDayMark(day.iso) : "";
-            const label = !day.open ? "—" : mark === "ordered" ? tx("Ordered") : mark === "bag" ? tx("In bag") : tx("Packed");
-            const on = day.iso === selectedIso;
-            return `
-          <button type="button" class="day-chip ${on ? "is-on" : ""} ${day.today ? "is-today" : ""} ${day.open && mark !== "packed" ? "has-order" : ""} ${day.open ? "" : "is-off"}" data-lunch-day="${day.iso}" ${day.open ? "" : "disabled"}>
-            <span class="kicker">${day.today ? tx("Today") : tx(day.dow)}</span>
-            <strong>${day.day}</strong>
-            <span class="lunch-mark">${label}</span>
-          </button>`;
-          })
-          .join("")}
+        <div class="lunch-days is-bar">
+          ${lunchWeekdayRow(week.week)
+            .map((day) => {
+              const mark = day.open ? lunchDayMark(day.iso) : "";
+              const label = !day.open ? "—" : mark === "ordered" ? tx("Ordered") : mark === "bag" ? tx("In bag") : tx("Packed");
+              const on = day.iso === selectedIso;
+              return `
+            <button type="button" class="day-chip ${on ? "is-on" : ""} ${day.today ? "is-today" : ""} ${day.open && mark !== "packed" ? "has-order" : ""} ${day.open ? "" : "is-off"}" data-lunch-day="${day.iso}" ${day.today ? 'aria-current="date"' : ""} ${day.open ? "" : "disabled"}>
+              <span class="kicker">${tx(day.dow)}${day.today ? `<span class="day-chip-today">${lunchTodayChipLabel()}</span>` : ""}</span>
+              <strong>${day.day}</strong>
+              <span class="lunch-mark">${label}</span>
+            </button>`;
+            })
+            .join("")}
+        </div>
         <button type="button" class="lunch-week-nav" data-lunch-week="1" ${weekAt >= weeks.length - 1 ? "disabled" : ""} aria-label="${tx("Next week")}">›</button>
       </div>
     </div>`;
