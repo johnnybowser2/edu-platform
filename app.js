@@ -7909,7 +7909,11 @@ document.getElementById("rail")?.addEventListener("click", (e) => {
       collapseRailHub(group);
       return;
     }
+    const hubId = group?.dataset.hub;
+    const reopenHere = hubId && railUserCollapsedHubId === hubId;
     railUserCollapsedHubId = null;
+    // Same-hash re-clicks do not fire hashchange, so expand immediately.
+    if (reopenHere) paintChrome(lastRailActive);
   }
   if (e.target.closest("a, [data-role], [data-child]")) setNavOpen(false);
 });
