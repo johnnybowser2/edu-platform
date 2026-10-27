@@ -1189,12 +1189,18 @@ function isoDay(y, m, d) {
 }
 
 function monthWeekdays(y, m) {
+  // School year grid is Mon–Fri only — weekends never have class.
   const firstDow = new Date(y, m, 1).getDay();
-  const lead = firstDow === 0 ? 6 : firstDow - 1;
+  const monBased = firstDow === 0 ? 6 : firstDow - 1;
+  const lead = monBased < 5 ? monBased : 0;
   const last = new Date(y, m + 1, 0).getDate();
   const cells = Array(lead).fill(null);
-  for (let d = 1; d <= last; d += 1) cells.push(d);
-  while (cells.length % 7) cells.push(null);
+  for (let d = 1; d <= last; d += 1) {
+    const dow = new Date(y, m, d).getDay();
+    if (dow === 0 || dow === 6) continue;
+    cells.push(d);
+  }
+  while (cells.length % 5) cells.push(null);
   return cells;
 }
 
@@ -1372,18 +1378,16 @@ function yearCalendarHtml() {
           <button type="button" class="btn ghost" id="cal-next" ${nextOff ? "disabled" : ""}>${tx("Next month")}</button>
         </div>
         <div class="year-grid is-month" role="grid" aria-label="${tx(month.name)} ${month.y}">
-          ${["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => `<span class="year-dow">${tx(d)}</span>`).join("")}
+          ${["Mon", "Tue", "Wed", "Thu", "Fri"].map((d) => `<span class="year-dow">${tx(d)}</span>`).join("")}
           ${cells
             .map((d) => {
               if (!d) return `<span class="year-day is-empty"></span>`;
               const iso = isoDay(month.y, month.m, d);
               const mark = SCHOOL_YEAR_MARKS[iso] || "";
               const label = YEAR_LEGEND.find((row) => row[0] === mark);
-              const dt = new Date(month.y, month.m, d);
-              const weekend = dt.getDay() === 0 || dt.getDay() === 6 ? " is-weekend" : "";
               const today = iso === CAL_TODAY ? " is-today" : "";
               const title = label ? tx(label[1]) : tx(month.name) + " " + d;
-              return `<button type="button" class="year-day ${mark}${weekend}${today}" data-cal-iso="${iso}" title="${title}">
+              return `<button type="button" class="year-day ${mark}${today}" data-cal-iso="${iso}" title="${title}">
                 <span>${d}</span>
                 ${calDayHasItems(iso) ? `<span class="year-dot" aria-hidden="true"></span>` : ""}
               </button>`;
