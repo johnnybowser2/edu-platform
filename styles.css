@@ -171,20 +171,10 @@ button,
   opacity: 0.9;
 }
 
-.rail-link .icon {
-  flex: 0 0 auto;
-  opacity: 0.7;
-}
-
 .rail-link:hover,
 .rail-link.is-active {
   background: rgba(255, 255, 255, 0.07);
   color: #fff;
-}
-
-.rail-link:hover .icon,
-.rail-link.is-active .icon {
-  opacity: 1;
 }
 
 .rail-group.is-open > .rail-link.has-kids {
@@ -209,11 +199,6 @@ button,
 
 .rail-sublink .rail-link-main {
   gap: 8px;
-}
-
-.rail-sublink .icon {
-  width: 15px;
-  height: 15px;
 }
 
 .rail-foot {
