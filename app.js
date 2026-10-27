@@ -888,6 +888,8 @@ function railActiveId(active) {
   return hub ? hub.id : active;
 }
 
+let railOpenHubId = null;
+
 function leafNavBadge(id) {
   const reminders = unreadAlerts().filter((alert) => alert.section === id || (id === "calendar" && alert.section === "schedule")).length;
   if (id === "alerts") return unreadAlerts().length;
@@ -3777,29 +3779,55 @@ function paintChrome(active) {
     menuBtn.setAttribute("aria-expanded", String(menuOpen));
     menuBtn.setAttribute("aria-label", menuOpen ? tx("Close menu") : tx("Menu"));
   }
+  const openHub = currentNavItems().find(
+    (item) => item.children?.length && (item.id === active || item.children.some((child) => child.id === active))
+  );
+  const nextOpenId = openHub?.id || null;
+  const needsOpenAnim = Boolean(nextOpenId && nextOpenId !== railOpenHubId && !preferReducedMotion());
+
   railNav.innerHTML = currentNavItems()
     .map((item) => {
       const hasKids = Boolean(item.children?.length);
-      const open = hasKids && (item.id === active || item.children.some((child) => child.id === active));
+      const wantOpen = hasKids && item.id === nextOpenId;
+      // Start closed when we need an open animation, then flip to is-open on the next frame.
+      const open = wantOpen && !needsOpenAnim;
       const hubOn = item.id === active;
       // When expanded, child links carry their own badges; keep the hub rollup only when closed.
-      const count = open ? 0 : navBadgeCount(item.id);
-      const chevron = hasKids
-        ? `<span class="rail-chevron" aria-hidden="true">${open ? "▾" : "▸"}</span>`
-        : "";
+      const count = wantOpen ? 0 : navBadgeCount(item.id);
+      const chevron = hasKids ? `<span class="rail-chevron" aria-hidden="true"></span>` : "";
       const top = `<a class="rail-link ${hubOn ? "is-active" : ""} ${open ? "is-expanded" : ""} ${hasKids ? "has-kids" : ""}" href="${item.href}" data-nav="${item.id}" ${hasKids ? `aria-expanded="${open}"` : ""}><span class="rail-link-main"><span>${tx(item.label)}</span></span><span class="rail-link-end">${badgeMarkup(count)}${chevron}</span></a>`;
-      if (!open) {
+      if (!hasKids) {
         return `<div class="rail-group">${top}</div>`;
       }
       const subs = item.children
         .map((child) => {
           const childCount = leafNavBadge(child.id);
-          return `<a class="rail-link rail-sublink ${child.id === active ? "is-active" : ""}" href="${child.href}" data-nav="${child.id}"><span class="rail-link-main"><span>${tx(child.label)}</span></span>${badgeMarkup(childCount)}</a>`;
+          return `<a class="rail-link rail-sublink ${child.id === active ? "is-active" : ""}" href="${child.href}" data-nav="${child.id}" tabindex="${open || (wantOpen && needsOpenAnim) ? "0" : "-1"}"><span class="rail-link-main"><span>${tx(child.label)}</span></span>${badgeMarkup(childCount)}</a>`;
         })
         .join("");
-      return `<div class="rail-group is-open">${top}<div class="rail-subnav" role="group" aria-label="${tx(item.label)}">${subs}</div></div>`;
+      return `<div class="rail-group ${open ? "is-open" : ""}" data-hub="${item.id}">${top}<div class="rail-subnav" role="group" aria-label="${tx(item.label)}" ${open ? "" : 'aria-hidden="true" inert'}><div class="rail-subnav-inner">${subs}</div></div></div>`;
     })
     .join("");
+
+  if (needsOpenAnim) {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const group = railNav.querySelector(`[data-hub="${nextOpenId}"]`);
+        if (!group) return;
+        group.classList.add("is-open");
+        const hubLink = group.querySelector(".rail-link.has-kids");
+        hubLink?.classList.add("is-expanded");
+        hubLink?.setAttribute("aria-expanded", "true");
+        const sub = group.querySelector(".rail-subnav");
+        if (sub) {
+          sub.removeAttribute("aria-hidden");
+          sub.removeAttribute("inert");
+        }
+        group.querySelectorAll(".rail-sublink").forEach((link) => link.setAttribute("tabindex", "0"));
+      });
+    });
+  }
+  railOpenHubId = nextOpenId;
 }
 
 function reminderBanner() {
