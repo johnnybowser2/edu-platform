@@ -3817,6 +3817,7 @@ function paintChrome(active) {
     menuBtn.setAttribute("aria-expanded", String(menuOpen));
     menuBtn.setAttribute("aria-label", menuOpen ? tx("Close menu") : tx("Menu"));
   }
+  const prevActive = lastRailActive;
   lastRailActive = active;
   const routeHub = currentNavItems().find(
     (item) => item.children?.length && (item.id === active || item.children.some((child) => child.id === active))
@@ -3826,13 +3827,21 @@ function paintChrome(active) {
   if (railUserCollapsedHubId && routeHubId !== railUserCollapsedHubId) {
     railUserCollapsedHubId = null;
   }
-  // Forced open (tap hub while on Today) clears when the user enters another hub's child.
-  if (railUserForcedOpenId && routeHubId && routeHubId !== railUserForcedOpenId) {
+  // Forced open wins over the route hub so mobile can browse other submenus while still on a leaf.
+  // Drop it once the route owns that hub, or after navigating to a leaf under a different hub.
+  if (railUserForcedOpenId && routeHubId === railUserForcedOpenId) {
+    railUserForcedOpenId = null;
+  } else if (
+    railUserForcedOpenId &&
+    prevActive !== active &&
+    routeHubId &&
+    routeHubId !== railUserForcedOpenId
+  ) {
     railUserForcedOpenId = null;
   }
   let nextOpenId = null;
-  if (routeHubId && routeHubId !== railUserCollapsedHubId) nextOpenId = routeHubId;
-  else if (railUserForcedOpenId && railUserForcedOpenId !== railUserCollapsedHubId) nextOpenId = railUserForcedOpenId;
+  if (railUserForcedOpenId && railUserForcedOpenId !== railUserCollapsedHubId) nextOpenId = railUserForcedOpenId;
+  else if (routeHubId && routeHubId !== railUserCollapsedHubId) nextOpenId = routeHubId;
   const needsOpenAnim = Boolean(nextOpenId && nextOpenId !== railOpenHubId && !preferReducedMotion());
 
   railNav.innerHTML = currentNavItems()
