@@ -3784,19 +3784,17 @@ function paintChrome(active) {
       const hubOn = item.id === active;
       // When expanded, child links carry their own badges; keep the hub rollup only when closed.
       const count = open ? 0 : navBadgeCount(item.id);
-      const glyph = icon(item.id, 16);
       const chevron = hasKids
         ? `<span class="rail-chevron" aria-hidden="true">${open ? "▾" : "▸"}</span>`
         : "";
-      const top = `<a class="rail-link ${hubOn ? "is-active" : ""} ${open ? "is-expanded" : ""} ${hasKids ? "has-kids" : ""}" href="${item.href}" data-nav="${item.id}" ${hasKids ? `aria-expanded="${open}"` : ""}><span class="rail-link-main">${glyph}<span>${tx(item.label)}</span></span><span class="rail-link-end">${badgeMarkup(count)}${chevron}</span></a>`;
+      const top = `<a class="rail-link ${hubOn ? "is-active" : ""} ${open ? "is-expanded" : ""} ${hasKids ? "has-kids" : ""}" href="${item.href}" data-nav="${item.id}" ${hasKids ? `aria-expanded="${open}"` : ""}><span class="rail-link-main"><span>${tx(item.label)}</span></span><span class="rail-link-end">${badgeMarkup(count)}${chevron}</span></a>`;
       if (!open) {
         return `<div class="rail-group">${top}</div>`;
       }
       const subs = item.children
         .map((child) => {
           const childCount = leafNavBadge(child.id);
-          const childGlyph = icon(child.id, 15);
-          return `<a class="rail-link rail-sublink ${child.id === active ? "is-active" : ""}" href="${child.href}" data-nav="${child.id}"><span class="rail-link-main">${childGlyph}<span>${tx(child.label)}</span></span>${badgeMarkup(childCount)}</a>`;
+          return `<a class="rail-link rail-sublink ${child.id === active ? "is-active" : ""}" href="${child.href}" data-nav="${child.id}"><span class="rail-link-main"><span>${tx(child.label)}</span></span>${badgeMarkup(childCount)}</a>`;
         })
         .join("");
       return `<div class="rail-group is-open">${top}<div class="rail-subnav" role="group" aria-label="${tx(item.label)}">${subs}</div></div>`;
