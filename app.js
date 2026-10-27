@@ -889,6 +889,48 @@ function railActiveId(active) {
 }
 
 let railOpenHubId = null;
+let railUserCollapsedHubId = null;
+let lastRailActive = "home";
+let railCollapseTimer = 0;
+
+function collapseRailHub(group) {
+  const hubId = group?.dataset?.hub;
+  if (!hubId) return;
+  railUserCollapsedHubId = hubId;
+  railOpenHubId = null;
+  const hubLink = group.querySelector(".rail-link.has-kids");
+  const sub = group.querySelector(".rail-subnav");
+  group.classList.remove("is-open");
+  hubLink?.classList.remove("is-expanded");
+  hubLink?.setAttribute("aria-expanded", "false");
+  group.querySelectorAll(".rail-sublink").forEach((link) => link.setAttribute("tabindex", "-1"));
+
+  const finish = () => {
+    if (railUserCollapsedHubId !== hubId) return;
+    if (sub) {
+      sub.setAttribute("aria-hidden", "true");
+      sub.setAttribute("inert", "");
+    }
+    paintChrome(lastRailActive);
+  };
+
+  if (preferReducedMotion() || !sub) {
+    finish();
+    return;
+  }
+
+  window.clearTimeout(railCollapseTimer);
+  let done = false;
+  const once = (event) => {
+    if (event && event.target !== sub) return;
+    if (done) return;
+    done = true;
+    sub.removeEventListener("transitionend", once);
+    finish();
+  };
+  sub.addEventListener("transitionend", once);
+  railCollapseTimer = window.setTimeout(once, 380);
+}
 
 function leafNavBadge(id) {
   const reminders = unreadAlerts().filter((alert) => alert.section === id || (id === "calendar" && alert.section === "schedule")).length;
@@ -3779,10 +3821,16 @@ function paintChrome(active) {
     menuBtn.setAttribute("aria-expanded", String(menuOpen));
     menuBtn.setAttribute("aria-label", menuOpen ? tx("Close menu") : tx("Menu"));
   }
-  const openHub = currentNavItems().find(
+  lastRailActive = active;
+  const routeHub = currentNavItems().find(
     (item) => item.children?.length && (item.id === active || item.children.some((child) => child.id === active))
   );
-  const nextOpenId = openHub?.id || null;
+  const routeHubId = routeHub?.id || null;
+  // Leave a manually collapsed hub until the user opens it again or moves to another section.
+  if (railUserCollapsedHubId && routeHubId !== railUserCollapsedHubId) {
+    railUserCollapsedHubId = null;
+  }
+  const nextOpenId = routeHubId && routeHubId !== railUserCollapsedHubId ? routeHubId : null;
   const needsOpenAnim = Boolean(nextOpenId && nextOpenId !== railOpenHubId && !preferReducedMotion());
 
   railNav.innerHTML = currentNavItems()
@@ -7853,6 +7901,16 @@ document.getElementById("menu-btn")?.addEventListener("click", () => {
 });
 document.getElementById("nav-scrim")?.addEventListener("click", () => setNavOpen(false));
 document.getElementById("rail")?.addEventListener("click", (e) => {
+  const hubLink = e.target.closest("#rail-nav a.rail-link.has-kids");
+  if (hubLink) {
+    const group = hubLink.closest(".rail-group");
+    if (group?.classList.contains("is-open")) {
+      e.preventDefault();
+      collapseRailHub(group);
+      return;
+    }
+    railUserCollapsedHubId = null;
+  }
   if (e.target.closest("a, [data-role], [data-child]")) setNavOpen(false);
 });
 document.addEventListener("keydown", (e) => {
