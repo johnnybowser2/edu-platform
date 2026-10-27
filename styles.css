@@ -1627,8 +1627,16 @@ label.btn {
 }
 
 .year-grid.is-month {
-  grid-template-columns: repeat(7, 1fr);
-  gap: 6px;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+
+.year-grid.is-month .year-dow {
+  font-size: 11px;
+}
+
+.year-grid.is-month button.year-day {
+  min-height: 64px;
 }
 
 .year-dow {
