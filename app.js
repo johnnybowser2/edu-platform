@@ -890,13 +890,17 @@ function railActiveId(active) {
 
 let railOpenHubId = null;
 let railUserCollapsedHubId = null;
+let railUserForcedOpenId = null;
 let lastRailActive = "home";
 let railCollapseTimer = 0;
+
+const DREAM_HUB_PATHS = new Set(["life", "transit", "buy", "publish", "duty", "ops", "cal"]);
 
 function collapseRailHub(group) {
   const hubId = group?.dataset?.hub;
   if (!hubId) return;
   railUserCollapsedHubId = hubId;
+  railUserForcedOpenId = null;
   railOpenHubId = null;
   const hubLink = group.querySelector(".rail-link.has-kids");
   const sub = group.querySelector(".rail-subnav");
@@ -967,14 +971,9 @@ function navBadgeCount(id) {
   return leafNavBadge(id);
 }
 
-function hubCrumb(leafId) {
-  const hub = hubForLeaf(leafId);
-  return hub ? { label: hub.label, href: hub.href } : null;
-}
-
-function crumbsWithHub(leafId, leafCrumb, extras = []) {
-  const hub = hubCrumb(leafId);
-  return [boardCrumb(), ...(hub ? [hub] : []), leafCrumb, ...extras];
+function crumbsWithHub(_leafId, leafCrumb, extras = []) {
+  // Hub landing pages are gone — crumbs go straight to the destination.
+  return [boardCrumb(), leafCrumb, ...extras];
 }
 
 function badgeMarkup(count) {
@@ -2386,8 +2385,7 @@ const navByRole = {
     {
       id: "life",
       label: "School life",
-      href: "#/life",
-      lede: "Calendar, events, classroom, and report cards.",
+      href: "#",
       children: [
         { id: "calendar", label: "Calendar", href: "#/calendar", hint: "Week and year schedule" },
         { id: "events", label: "Events", href: "#/events", hint: "Sign-ups and going" },
@@ -2398,8 +2396,7 @@ const navByRole = {
     {
       id: "transit",
       label: "Coming & going",
-      href: "#/transit",
-      lede: "Dismissal plans and bus.",
+      href: "#",
       children: [
         { id: "dismiss", label: "Dismissal", href: "#/dismiss", hint: "Pickup plan" },
         { id: "bus", label: "Bus", href: "#/bus", hint: "Route and walk" },
@@ -2408,8 +2405,7 @@ const navByRole = {
     {
       id: "buy",
       label: "Buy",
-      href: "#/buy",
-      lede: "Cafeteria and school store.",
+      href: "#",
       children: [
         { id: "lunch", label: "Cafeteria", href: "#/lunch", hint: "Order hot lunch" },
         { id: "store", label: "Store", href: "#/store", hint: "Spirit wear" },
@@ -2423,8 +2419,7 @@ const navByRole = {
     {
       id: "publish",
       label: "Publish",
-      href: "#/publish",
-      lede: "Scan flyers, activities, events, and calendar.",
+      href: "#",
       children: [
         { id: "scan", label: "Scan flyer", href: "#/scan", hint: "Turn a flyer into a post" },
         { id: "class", label: "Activities", href: "#/class", hint: "Class feed" },
@@ -2435,8 +2430,7 @@ const navByRole = {
     {
       id: "duty",
       label: "Duty",
-      href: "#/duty",
-      lede: "Dismissal board and lunch list.",
+      href: "#",
       children: [
         { id: "dismiss", label: "Dismissal", href: "#/dismiss", hint: "Pickup changes" },
         { id: "lunch", label: "Lunch list", href: "#/lunch", hint: "Who ordered today" },
@@ -2451,8 +2445,7 @@ const navByRole = {
     {
       id: "ops",
       label: "Operations",
-      href: "#/ops",
-      lede: "Buses, dismissal, hot lunch, and store.",
+      href: "#",
       children: [
         { id: "bus", label: "Buses", href: "#/bus", hint: "Routes and changes" },
         { id: "dismiss", label: "Dismissal", href: "#/dismiss", hint: "Live pickup board" },
@@ -2463,8 +2456,7 @@ const navByRole = {
     {
       id: "cal",
       label: "Calendar & events",
-      href: "#/cal",
-      lede: "School calendar and events.",
+      href: "#",
       children: [
         { id: "calendar", label: "Calendar", href: "#/calendar", hint: "Week and year schedule" },
         { id: "events", label: "Events", href: "#/events", hint: "Dances, games, fundraisers" },
@@ -3834,7 +3826,13 @@ function paintChrome(active) {
   if (railUserCollapsedHubId && routeHubId !== railUserCollapsedHubId) {
     railUserCollapsedHubId = null;
   }
-  const nextOpenId = routeHubId && routeHubId !== railUserCollapsedHubId ? routeHubId : null;
+  // Forced open (tap hub while on Today) clears when the user enters another hub's child.
+  if (railUserForcedOpenId && routeHubId && routeHubId !== railUserForcedOpenId) {
+    railUserForcedOpenId = null;
+  }
+  let nextOpenId = null;
+  if (routeHubId && routeHubId !== railUserCollapsedHubId) nextOpenId = routeHubId;
+  else if (railUserForcedOpenId && railUserForcedOpenId !== railUserCollapsedHubId) nextOpenId = railUserForcedOpenId;
   const needsOpenAnim = Boolean(nextOpenId && nextOpenId !== railOpenHubId && !preferReducedMotion());
 
   railNav.innerHTML = currentNavItems()
@@ -3843,11 +3841,11 @@ function paintChrome(active) {
       const wantOpen = hasKids && item.id === nextOpenId;
       // Start closed when we need an open animation, then flip to is-open on the next frame.
       const open = wantOpen && !needsOpenAnim;
-      const hubOn = item.id === active;
+      const hubOn = !hasKids && item.id === active;
       // When expanded, child links carry their own badges; keep the hub rollup only when closed.
       const count = wantOpen ? 0 : navBadgeCount(item.id);
       const chevron = hasKids ? `<span class="rail-chevron" aria-hidden="true"></span>` : "";
-      const top = `<a class="rail-link ${hubOn ? "is-active" : ""} ${open ? "is-expanded" : ""} ${hasKids ? "has-kids" : ""}" href="${item.href}" data-nav="${item.id}" ${hasKids ? `aria-expanded="${open}"` : ""}><span class="rail-link-main"><span>${tx(item.label)}</span></span><span class="rail-link-end">${badgeMarkup(count)}${chevron}</span></a>`;
+      const top = `<a class="rail-link ${hubOn ? "is-active" : ""} ${open ? "is-expanded" : ""} ${hasKids ? "has-kids" : ""}" href="${item.href}" data-nav="${item.id}" ${hasKids ? `role="button" aria-expanded="${open}"` : ""}><span class="rail-link-main"><span>${tx(item.label)}</span></span><span class="rail-link-end">${badgeMarkup(count)}${chevron}</span></a>`;
       if (!hasKids) {
         return `<div class="rail-group">${top}</div>`;
       }
@@ -4089,41 +4087,6 @@ function boardCrumb() {
   if (state.role === "teacher") return { label: "My class", href: "#/" };
   if (state.role === "admin") return { label: "School", href: "#/" };
   return { label: "Today", href: "#/" };
-}
-
-function hubView(hubId) {
-  const hub = findNavItem(hubId);
-  if (!hub?.children?.length) {
-    return state.role === "teacher" ? teacherHome() : state.role === "admin" ? adminHome() : parentHome();
-  }
-  paintChrome(hub.id);
-  setCrumbs([boardCrumb(), { label: hub.label, href: hub.href }]);
-  view.innerHTML = `
-    <div class="hero">
-      <div>
-        <h1>${tx(hub.label)}</h1>
-        <p class="lede">${tx(hub.lede || hub.label)}</p>
-      </div>
-    </div>
-    <section class="card panel hub-panel">
-      ${hub.children
-        .map((child) => {
-          const count = leafNavBadge(child.id);
-          return `
-        <a class="list-row hub-row" href="${child.href}">
-          <span class="hub-row-main">
-            ${icon(child.id, 18)}
-            <span class="title-block">
-              <strong>${tx(child.label)}</strong>
-              ${child.hint ? `<span class="kicker">${tx(child.hint)}</span>` : ""}
-            </span>
-          </span>
-          <span class="hub-row-meta">${badgeMarkup(count)}${pill("Open")}</span>
-        </a>`;
-        })
-        .join("")}
-    </section>
-  `;
 }
 
 function attendance() {
@@ -7834,8 +7797,14 @@ function render() {
     return mvpStaffHome();
   }
 
-  if (["life", "transit", "buy", "publish", "duty", "ops", "cal"].includes(parts[0])) {
-    return hubView(parts[0]);
+  // Old hub landing hashes — expand that hub in the rail and land on Today/home.
+  if (DREAM_HUB_PATHS.has(parts[0])) {
+    railUserForcedOpenId = parts[0];
+    railUserCollapsedHubId = null;
+    history.replaceState(null, "", `${location.pathname}${location.search}#/`);
+    if (state.role === "teacher") return teacherHome();
+    if (state.role === "admin") return adminHome();
+    return parentHome();
   }
 
   if (state.role === "teacher") {
@@ -7885,6 +7854,9 @@ document.querySelectorAll("[data-role]").forEach((btn) => {
   btn.addEventListener("click", () => {
     state.role = btn.dataset.role;
     state.notice = "";
+    railUserForcedOpenId = null;
+    railUserCollapsedHubId = null;
+    railOpenHubId = null;
     location.hash = "#/";
     render();
   });
@@ -7895,6 +7867,9 @@ document.querySelectorAll("[data-edition]").forEach((btn) => {
     state.edition = btn.dataset.edition;
     localStorage.setItem("harborEdition", state.edition);
     state.notice = "";
+    railUserForcedOpenId = null;
+    railUserCollapsedHubId = null;
+    railOpenHubId = null;
     location.hash = "#/";
     render();
   });
@@ -7907,17 +7882,18 @@ document.getElementById("nav-scrim")?.addEventListener("click", () => setNavOpen
 document.getElementById("rail")?.addEventListener("click", (e) => {
   const hubLink = e.target.closest("#rail-nav a.rail-link.has-kids");
   if (hubLink) {
+    e.preventDefault();
     const group = hubLink.closest(".rail-group");
-    if (group?.classList.contains("is-open")) {
-      e.preventDefault();
-      collapseRailHub(group);
-      return;
-    }
     const hubId = group?.dataset.hub;
-    const reopenHere = hubId && railUserCollapsedHubId === hubId;
-    railUserCollapsedHubId = null;
-    // Same-hash re-clicks do not fire hashchange, so expand immediately.
-    if (reopenHere) paintChrome(lastRailActive);
+    if (group?.classList.contains("is-open")) {
+      collapseRailHub(group);
+    } else if (hubId) {
+      railUserCollapsedHubId = null;
+      railUserForcedOpenId = hubId;
+      paintChrome(lastRailActive);
+    }
+    // Keep the mobile drawer open until a real destination (submenu item) is chosen.
+    return;
   }
   if (e.target.closest("a, [data-role], [data-child]")) setNavOpen(false);
 });
