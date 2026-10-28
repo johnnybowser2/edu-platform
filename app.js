@@ -2232,7 +2232,14 @@ const state = {
   busChange: "Route 7 running 12 minutes late this morning. Pickup still Oak & 3rd.",
   draft: "",
   notice: "",
-  edition: localStorage.getItem("harborEdition") === "dream" ? "dream" : "mvp",
+  edition: (() => {
+    const fromQuery = new URLSearchParams(location.search).get("edition");
+    if (fromQuery === "dream" || fromQuery === "mvp") {
+      localStorage.setItem("harborEdition", fromQuery);
+      return fromQuery;
+    }
+    return localStorage.getItem("harborEdition") === "dream" ? "dream" : "mvp";
+  })(),
   parentLang: ["fr", "en", "zh", "pa", "es"].includes(localStorage.getItem("harborLang"))
     ? localStorage.getItem("harborLang")
     : "fr",
@@ -8661,10 +8668,14 @@ function render() {
   if (parts[0] === "scan") return scanView(parts[1]);
   if (parts[0] === "store" || (parts[0] === "admin" && parts[1] === "store")) return storeRoute(parts);
   if (parts[0] === "fundraise") {
-    if (state.edition === "mvp") {
-      state.notice = tx("Online Loto 500 tickets live in Dream. Switch the Temp toggle to try the flow.");
-      return eventsView();
+    // Fundraise / Loto 500 is a Dream surface — deep links should land there, not bounce to MVP Events.
+    if (state.edition !== "dream") {
+      state.edition = "dream";
+      localStorage.setItem("harborEdition", "dream");
+      state.notice = tx("Opened Fundraise in Dream (Temp toggle → Dream).");
     }
+    railUserForcedOpenId = state.role === "admin" ? "ops" : "buy";
+    railUserCollapsedHubId = null;
     return fundraiseRoute(parts);
   }
 
