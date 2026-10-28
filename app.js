@@ -4134,6 +4134,21 @@ function icon(name, size = 16) {
   return `<svg class="icon" viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true"><path fill="currentColor" d="${path}"/></svg>`;
 }
 
+function payMark(method, size = 14) {
+  if (method === "apple") {
+    return `<svg class="pay-mark" viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true"><path fill="currentColor" d="M16.7 12.1c0-2.1 1.7-3.1 1.8-3.2-1-1.5-2.6-1.7-3.1-1.7-1.3-.1-2.6.8-3.2.8s-1.7-.8-2.9-.7c-1.5.1-2.8.9-3.6 2.2-1.5 2.7-.4 6.6 1.1 8.8.7 1.1 1.6 2.2 2.7 2.2 1.1 0 1.5-.7 2.9-.7s1.7.7 2.9.7 2-1.1 2.7-2.1c.8-1.2 1.2-2.4 1.2-2.4s-2.3-.9-2.3-3.4zm-2.1-6.1c.6-.7 1-1.8.9-2.8-1 .1-2.1.6-2.8 1.4-.6.7-1.2 1.8-1 2.8 1.1.1 2.2-.5 2.9-1.4z"/></svg>`;
+  }
+  if (method === "google") {
+    return `<svg class="pay-mark" viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true"><path fill="currentColor" d="M21.35 11.1h-9.2v2.9h5.3c-.2 1.3-1.5 3.7-5.3 3.7-3.2 0-5.8-2.6-5.8-5.8s2.6-5.8 5.8-5.8c1.8 0 3 .8 3.7 1.4l2.5-2.4C16.9 3.7 14.7 2.7 12.15 2.7 7 2.7 2.85 6.9 2.85 12s4.15 9.3 9.3 9.3c5.4 0 8.95-3.8 8.95-9.1 0-.6-.1-1.1-.15-1.1z"/></svg>`;
+  }
+  return "";
+}
+
+function payChoiceLabel(method, label) {
+  const mark = payMark(method);
+  return mark ? `${mark}<span>${tx(label)}</span>` : tx(label);
+}
+
 function homeHref() {
   return "#/";
 }
@@ -5278,8 +5293,8 @@ function lunchPayView() {
     <section class="card panel" style="padding-bottom:18px">
       <h2>${tx("Payment method")}</h2>
       <div class="pay-methods">
-        <button type="button" class="pay-choice ${method === "apple" ? "is-on" : ""}" data-pay="apple">${tx("Apple Pay")}</button>
-        <button type="button" class="pay-choice ${method === "google" ? "is-on" : ""}" data-pay="google">${tx("Google Pay")}</button>
+        <button type="button" class="pay-choice ${method === "apple" ? "is-on" : ""}" data-pay="apple">${payChoiceLabel("apple", "Apple Pay")}</button>
+        <button type="button" class="pay-choice ${method === "google" ? "is-on" : ""}" data-pay="google">${payChoiceLabel("google", "Google Pay")}</button>
         <button type="button" class="pay-choice ${method === "card" ? "is-on" : ""}" data-pay="card">${tx("Credit card")}</button>
         <button type="button" class="pay-choice ${method === "account" ? "is-on" : ""}" data-pay="account">${tx("Family account")}</button>
       </div>
@@ -5298,7 +5313,7 @@ function lunchPayView() {
             ? `<p class="lede" style="margin:12px 0">${txf("Charge {amount} to the family meal account. Balance after this order: {balance}.", { amount: money(cartTotal()), balance: money(child().mealBalance - cartTotal()) })}</p>
                <button class="btn" type="button" id="pay-now">${tx("Charge account")}</button>`
             : `<p class="lede" style="margin:12px 0">${tx("Opens the wallet on a phone. In this demo it confirms without leaving Harbor.")}</p>
-               <button class="btn pay-wallet ${method === "apple" ? "apple" : "google"}" type="button" id="pay-now">${method === "apple" ? tx("Pay with Apple Pay") : tx("Pay with Google Pay")}</button>`
+               <button class="btn pay-wallet ${method === "apple" ? "apple" : "google"}" type="button" id="pay-now">${payMark(method, 16)}${method === "apple" ? tx("Pay with Apple Pay") : tx("Pay with Google Pay")}</button>`
       }
     </section>
   `;
@@ -7993,8 +8008,8 @@ function storePayView() {
     <section class="card panel" style="padding-bottom:18px">
       <h2>${tx("Payment method")}</h2>
       <div class="pay-methods">
-        <button type="button" class="pay-choice ${method === "apple" ? "is-on" : ""}" data-pay="apple">${tx("Apple Pay")}</button>
-        <button type="button" class="pay-choice ${method === "google" ? "is-on" : ""}" data-pay="google">${tx("Google Pay")}</button>
+        <button type="button" class="pay-choice ${method === "apple" ? "is-on" : ""}" data-pay="apple">${payChoiceLabel("apple", "Apple Pay")}</button>
+        <button type="button" class="pay-choice ${method === "google" ? "is-on" : ""}" data-pay="google">${payChoiceLabel("google", "Google Pay")}</button>
         <button type="button" class="pay-choice ${method === "card" ? "is-on" : ""}" data-pay="card">${tx("Credit card")}</button>
         <button type="button" class="pay-choice ${method === "pickup" ? "is-on" : ""}" data-pay="pickup">${tx("Pay at pickup")}</button>
       </div>
@@ -8013,7 +8028,7 @@ function storePayView() {
             ? `<p class="lede" style="margin:12px 0">${tx("Pay cash or card at the office window. We’ll hold the bag under your name.")}</p>
                <button class="btn" type="button" id="pay-now">${tx("Reserve for pickup")}</button>`
             : `<p class="lede" style="margin:12px 0">${tx("Opens the wallet on a phone. In this demo it confirms without leaving Harbor.")}</p>
-               <button class="btn pay-wallet ${method === "apple" ? "apple" : "google"}" type="button" id="pay-now">${method === "apple" ? tx("Pay with Apple Pay") : tx("Pay with Google Pay")}</button>`
+               <button class="btn pay-wallet ${method === "apple" ? "apple" : "google"}" type="button" id="pay-now">${payMark(method, 16)}${method === "apple" ? tx("Pay with Apple Pay") : tx("Pay with Google Pay")}</button>`
       }
     </section>
   `;
@@ -8816,8 +8831,8 @@ function fundraisePayView(id) {
       </div>
       <h2 style="margin-top:16px">${tx("Payment method")}</h2>
       <div class="pay-methods">
-        <button type="button" class="pay-choice ${method === "apple" ? "is-on" : ""}" data-fund-pay="apple">${tx("Apple Pay")}</button>
-        <button type="button" class="pay-choice ${method === "google" ? "is-on" : ""}" data-fund-pay="google">${tx("Google Pay")}</button>
+        <button type="button" class="pay-choice ${method === "apple" ? "is-on" : ""}" data-fund-pay="apple">${payChoiceLabel("apple", "Apple Pay")}</button>
+        <button type="button" class="pay-choice ${method === "google" ? "is-on" : ""}" data-fund-pay="google">${payChoiceLabel("google", "Google Pay")}</button>
         <button type="button" class="pay-choice ${method === "card" ? "is-on" : ""}" data-fund-pay="card">${tx("Credit card")}</button>
         <button type="button" class="pay-choice ${method === "dropoff" ? "is-on" : ""}" data-fund-pay="dropoff">${tx("Cash / cheque drop-off")}</button>
       </div>
@@ -8836,7 +8851,7 @@ function fundraisePayView(id) {
             ? `<p class="lede" style="margin:12px 0">${tx(campaign.dropOffNote)}</p>
                <button class="btn" type="button" id="fund-pay-now">${tx("Confirm cash / cheque drop-off")}</button>`
             : `<p class="lede" style="margin:12px 0">${tx("Opens the wallet on a phone. In this demo it confirms without leaving Harbor.")}</p>
-               <button class="btn pay-wallet ${method === "apple" ? "apple" : "google"}" type="button" id="fund-pay-now">${method === "apple" ? tx("Pay with Apple Pay") : tx("Pay with Google Pay")}</button>`
+               <button class="btn pay-wallet ${method === "apple" ? "apple" : "google"}" type="button" id="fund-pay-now">${payMark(method, 16)}${method === "apple" ? tx("Pay with Apple Pay") : tx("Pay with Google Pay")}</button>`
       }
       <div class="actions" style="margin-top:12px">
         <a class="btn ghost" href="${backHref}">${tx("Back")}</a>
