@@ -754,6 +754,35 @@ function kidComms() {
   return state.role === "parent" ? kidItems(state.comms) : state.comms;
 }
 
+function commSource(item) {
+  return item.source === "teacher" ? "teacher" : "office";
+}
+
+function filteredComms() {
+  const source = state.inboxFilter || "all";
+  const items = kidComms();
+  return source === "all" ? items : items.filter((item) => commSource(item) === source);
+}
+
+function inboxFilterBar() {
+  const on = state.inboxFilter || "all";
+  return `
+    <div class="event-filters" role="tablist" aria-label="${tx("Inbox")}">
+      <button type="button" data-inbox-source="all" class="${on === "all" ? "is-on" : ""}">${tx("All")}</button>
+      <button type="button" data-inbox-source="teacher" class="${on === "teacher" ? "is-on" : ""}">${tx("Teacher")}</button>
+      <button type="button" data-inbox-source="office" class="${on === "office" ? "is-on" : ""}">${tx("Office")}</button>
+    </div>`;
+}
+
+function bindInboxFilters() {
+  view.querySelectorAll("[data-inbox-source]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.inboxFilter = btn.dataset.inboxSource;
+      mvpInbox();
+    });
+  });
+}
+
 function kidSchedule() {
   return state.role === "parent" ? kidItems(state.scheduleItems) : state.scheduleItems;
 }
@@ -1012,6 +1041,163 @@ function pushAlert(alert) {
   });
 }
 
+const REMINDER_SECTIONS = [
+  ["schedule", "Schedule"],
+  ["class", "Classroom"],
+  ["attendance", "Attendance"],
+  ["bus", "Bus"],
+  ["dismiss", "Dismissal"],
+  ["events", "Events"],
+  ["docs", "Documents"],
+];
+
+function reminderHref(section) {
+  if (section === "schedule") return "#/schedule";
+  if (section === "class") return "#/class";
+  if (section === "attendance") return "#/attendance";
+  if (section === "bus") return "#/bus";
+  if (section === "dismiss") return "#/dismiss";
+  if (section === "events") return "#/events";
+  if (section === "docs") return "#/docs";
+  return "#/";
+}
+
+function reminderTargets() {
+  if (state.role === "teacher") {
+    const kids = roster.filter((s) => s.room === "Room 12");
+    return {
+      defaultValue: "class",
+      groups: [
+        { label: "Class", options: [["class", "Room 12 · every family"]] },
+        { label: "Student", options: kids.map((s) => [s.id, `${s.name} · ${s.grade}`]) },
+      ],
+    };
+  }
+  const grades = [...new Set(roster.map((s) => s.grade))];
+  const rooms = [...new Set(roster.map((s) => s.room))];
+  return {
+    defaultValue: "all",
+    groups: [
+      { label: "School", options: [["all", "All families"]] },
+      { label: "Grade", options: grades.map((g) => [`grade:${g}`, g]) },
+      { label: "Classroom", options: rooms.map((r) => [`room:${r}`, r]) },
+      { label: "Student", options: roster.map((s) => [s.id, `${s.name} · ${s.grade}`]) },
+    ],
+  };
+}
+
+function reminderForFromTarget(value) {
+  if (value === "all") return "all";
+  if (value === "class") return roster.filter((s) => s.room === "Room 12").map((s) => s.id);
+  if (value.startsWith("grade:")) return roster.filter((s) => s.grade === value.slice(6)).map((s) => s.id);
+  if (value.startsWith("room:")) return roster.filter((s) => s.room === value.slice(5)).map((s) => s.id);
+  return value;
+}
+
+function reminderTargetLabel(value) {
+  if (value === "all") return "all families";
+  if (value === "class") return "Room 12";
+  if (value.startsWith("grade:")) return value.slice(6);
+  if (value.startsWith("room:")) return value.slice(5);
+  return roster.find((s) => s.id === value)?.name || "families";
+}
+
+function sendReminder({ title, body, target, section }) {
+  const who = reminderForFromTarget(target);
+  const source = state.role === "teacher" ? "teacher" : "admin";
+  const from = state.role === "teacher" ? "Ms. Ellison" : "Front office";
+  const href = reminderHref(section);
+  pushAlert({
+    kind: "reminder",
+    audience: "parent",
+    source,
+    from,
+    for: who,
+    section,
+    href,
+    title,
+    body,
+  });
+  pushAlert({
+    kind: "reminder",
+    audience: state.role,
+    source,
+    from,
+    section,
+    href,
+    title,
+    body: `Sent to ${reminderTargetLabel(target)}. ${body}`,
+  });
+}
+
+function reminderComposer() {
+  const targets = reminderTargets();
+  const isTeacher = state.role === "teacher";
+  return `
+    <section class="card panel" style="padding-bottom:18px">
+      <h2>Send a reminder</h2>
+      <p class="lede" style="margin-bottom:12px">${
+        isTeacher
+          ? "Room 12 families see it tonight on Today and in Notifications. Existing reminders stay on the board."
+          : "The office can ping every family, a grade, a room, or one child. Existing reminders stay on the board."
+      }</p>
+      <form id="reminder-form">
+        <div class="field">
+          <label for="reminder-to">Send to</label>
+          <select id="reminder-to">
+            ${targets.groups
+              .map(
+                (group) => `
+              <optgroup label="${group.label}">
+                ${group.options
+                  .map(
+                    ([value, label]) =>
+                      `<option value="${value}" ${value === targets.defaultValue ? "selected" : ""}>${label}</option>`
+                  )
+                  .join("")}
+              </optgroup>`
+              )
+              .join("")}
+          </select>
+        </div>
+        <div class="field">
+          <label for="reminder-section">About</label>
+          <select id="reminder-section">
+            ${REMINDER_SECTIONS.map(([id, label]) => `<option value="${id}">${label}</option>`).join("")}
+          </select>
+        </div>
+        <div class="field">
+          <label for="reminder-title">Title</label>
+          <input id="reminder-title" required placeholder="${isTeacher ? "Library books go back tomorrow" : "Picture day Friday"}" />
+        </div>
+        <div class="field">
+          <label for="reminder-body">What to remember</label>
+          <textarea id="reminder-body" rows="3" required placeholder="${
+            isTeacher ? "Pack the two books tonight so they are in the backpack before the bus." : "Portraits in the gym at 9:00. Spirit-day green."
+          }"></textarea>
+        </div>
+        <button class="btn" type="submit">Send reminder</button>
+      </form>
+    </section>`;
+}
+
+function bindReminderComposer(done) {
+  document.getElementById("reminder-form")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const title = document.getElementById("reminder-title").value.trim();
+    const body = document.getElementById("reminder-body").value.trim();
+    if (!title || !body) return;
+    sendReminder({
+      title,
+      body,
+      target: document.getElementById("reminder-to").value,
+      section: document.getElementById("reminder-section").value,
+    });
+    state.notice = `Reminder sent to ${reminderTargetLabel(document.getElementById("reminder-to").value)}. Families see it on Today.`;
+    done();
+  });
+}
+
 function ridesBus() {
   return /route/i.test(child().bus);
 }
@@ -1237,6 +1423,21 @@ function calDayHasItems(iso) {
   return Boolean(SCHOOL_YEAR_MARKS[iso] || calDayEvents(iso).length || calDaySchedule(iso).length || calDayAttend(iso));
 }
 
+function kidBandKind(kid) {
+  const band = (kid?.band || "").toLowerCase();
+  if (band === "middle school" || band === "secondary") return "secondary";
+  if (band === "primary" || band === "elementary") return "primary";
+  return "";
+}
+
+function isStudentOffDay(iso, kid) {
+  const mark = SCHOOL_YEAR_MARKS[iso];
+  if (mark === "closed" || mark === "students") return true;
+  if (!kid) return false;
+  const kind = kidBandKind(kid);
+  return (mark === "primary" && kind === "primary") || (mark === "secondary" && kind === "secondary");
+}
+
 function closeCalDay() {
   state.calDay = "";
   document.removeEventListener("keydown", onCalModalKey);
@@ -1376,7 +1577,7 @@ function yearCalendarHtml() {
           </label>
           <button type="button" class="btn ghost" id="cal-next" ${nextOff ? "disabled" : ""}>${tx("Next month")}</button>
         </div>
-        <div class="year-grid is-month" role="grid" aria-label="${tx(month.name)} ${month.y}">
+        <div class="year-grid" role="grid" aria-label="${tx(month.name)} ${month.y}">
           ${["Mon", "Tue", "Wed", "Thu", "Fri"].map((d) => `<span class="year-dow">${tx(d)}</span>`).join("")}
           ${cells
             .map((d) => {
@@ -1385,10 +1586,13 @@ function yearCalendarHtml() {
               const mark = SCHOOL_YEAR_MARKS[iso] || "";
               const label = YEAR_LEGEND.find((row) => row[0] === mark);
               const today = iso === CAL_TODAY ? " is-today" : "";
-              const title = label ? tx(label[1]) : tx(month.name) + " " + d;
-              return `<button type="button" class="year-day ${mark}${today}" data-cal-iso="${iso}" title="${title}">
-                <span>${d}</span>
-                ${calDayHasItems(iso) ? `<span class="year-dot" aria-hidden="true"></span>` : ""}
+              const off = Boolean(kid && isStudentOffDay(iso, kid));
+              const title = off ? tx("No classes") : label ? tx(label[1]) : tx(month.name) + " " + d;
+              const aria = off ? `${d}, ${tx("No classes")}` : String(d);
+              return `<button type="button" class="year-day ${mark}${off ? " is-off" : ""}${today}" data-cal-iso="${iso}" title="${title}" aria-label="${aria}">
+                <span class="year-num">${d}</span>
+                ${off ? `<span class="year-note">${tx("No classes")}</span>` : ""}
+                ${!off && calDayHasItems(iso) ? `<span class="year-dot" aria-hidden="true"></span>` : ""}
               </button>`;
             })
             .join("")}
@@ -1747,6 +1951,7 @@ const state = {
     },
   ],
   lunchDay: LUNCH_TODAY,
+  lunchOpen: {},
   lunchPay: "card",
   lunchCart: {},
   lunchMenuByIso: {},
@@ -1815,6 +2020,7 @@ const state = {
     },
   ],
   eventFilter: "all",
+  inboxFilter: "all",
   schoolEvents: [
     {
       id: "e1",
@@ -2791,6 +2997,7 @@ const BOOK = {
   ["Holiday for all students", "Congé pour tous les élèves", "全体学生放假", "ਸਾਰੇ ਵਿਦਿਆਰਥੀਆਂ ਲਈ ਛੁੱਟੀ", "Vacaciones para todos los estudiantes"],
   ["Holiday for primary only", "Congé pour le primaire seulement", "仅小学放假", "ਸਿਰਫ ਪ੍ਰਾਇਮਰੀ ਲਈ ਛੁੱਟੀ", "Vacaciones solo de primaria"],
   ["Holiday for secondary only", "Congé pour le secondaire seulement", "仅中学放假", "ਸਿਰਫ ਸੈਕੰਡਰੀ ਲਈ ਛੁੱਟੀ", "Vacaciones solo de secundaria"],
+  ["No classes", "Pas de classe", "不上课", "ਕਲਾਸ ਨਹੀਂ", "Sin clases"],
   ["Friday timetable", "Horaire du vendredi", "周五课表", "ਸ਼ੁੱਕਰਵਾਰ ਟਾਈਮਟੇਬਲ", "Horario de viernes"],
   ["September", "Septembre", "九月", "ਸਤੰਬਰ", "Septiembre"],
   ["October", "Octobre", "十月", "ਅਕਤੂਬਰ", "Octubre"],
@@ -3040,6 +3247,9 @@ const BOOK = {
   ["Add as many as you need. Days through Nov 6 sit beside the menu — packed lunch stays the default.", "Ajoutez autant que vous voulez. Les jours jusqu’au 6 nov. sont à côté du menu — le lunch maison reste le défaut.", "需要几份加几份。11月6日前的日期在菜单旁 — 默认仍是带饭。", "ਜਿੰਨੀਆਂ ਚਾਹੋ ਜੋੜੋ। 6 ਨਵੰਬਰ ਤੱਕ ਦੇ ਦਿਨ ਮੀਨੂ ਕੋਲ ਹਨ — ਘਰ ਦਾ ਲੰਚ ਡਿਫਾਲਟ।", "Agrega las que necesites. Los días hasta el 6 nov. están junto al menú — el lunch de casa sigue por defecto."],
   ["Add as many as you need. Change week under the menu. Packed lunch stays the default.", "Ajoutez autant que vous voulez. Changez de semaine sous le menu. Le lunch maison reste le défaut.", "需要几份加几份。在菜单下切换周次。默认仍是带饭。", "ਜਿੰਨੀਆਂ ਚਾਹੋ ਜੋੜੋ। ਮੀਨੂ ਹੇਠਾਂ ਹਫ਼ਤਾ ਬਦਲੋ। ਘਰ ਦਾ ਲੰਚ ਡਿਫਾਲਟ।", "Agrega las que necesites. Cambia de semana bajo el menú. El lunch de casa sigue por defecto."],
   ["In bag", "Au panier", "已加入", "ਬੈਗ ਵਿਚ", "En la bolsa"],
+  ["in bag", "au panier", "已加入", "ਬੈਗ ਵਿਚ", "en la bolsa"],
+  ["items", "articles", "项", "ਆਈਟਮ", "artículos"],
+  ["Add-on", "Extra", "加项", "ਵਾਧੂ", "Extra"],
   ["Ordered", "Commandé", "已点", "ਆਰਡਰ", "Pedido"],
   ["Through Nov 6", "Jusqu’au 6 nov.", "至11月6日", "6 ਨਵੰਬਰ ਤੱਕ", "Hasta el 6 nov."],
   ["Packed", "Maison", "带饭", "ਘਰ", "Casa"],
@@ -3966,12 +4176,13 @@ function alertsView() {
             ? txf("Reminders and new papers for {name}. Library books, early dismissals, and anything that just landed in Documents.", {
                 name: child().short,
               })
-            : "What still needs a tap from the office or the classroom."
+            : "Send a reminder families will see tonight. The seeded examples stay; this is how new ones get on the board."
         }</p>
       </div>
       ${unreadAlerts().length ? `<button class="btn ghost" type="button" id="alerts-clear">${tx("Mark all read")}</button>` : ""}
     </div>
-    <div class="doc-stack">
+    ${isParentRole() ? "" : reminderComposer()}
+    <div class="doc-stack" style="${isParentRole() ? "" : "margin-top:16px"}">
       ${alertGroup("Reminders", reminders)}
       ${alertGroup("Notifications", notices)}
     </div>
@@ -3983,6 +4194,7 @@ function alertsView() {
     alertsView();
   });
   bindAlertRows();
+  if (!isParentRole()) bindReminderComposer(() => alertsView());
 }
 
 function notice() {
@@ -4467,6 +4679,38 @@ function lunchAddOns(iso) {
   return lunchMenu(iso).filter((item) => item.cat !== "main");
 }
 
+function lunchItemHint(item) {
+  if (item.cat === "main") return /milk/i.test(item.name) ? "Includes milk" : "Hot lunch";
+  if (item.cat === "sandwich") return "Sandwich";
+  if (item.cat === "salad") return "Salad";
+  if (item.cat === "drink") return "Beverage";
+  if (item.cat === "dessert") return "Dessert";
+  return "Add-on";
+}
+
+function lunchGroupCount(iso, cat) {
+  return lunchAddOns(iso)
+    .filter((item) => item.cat === cat)
+    .reduce((sum, item) => sum + cartQty(iso, item.id), 0);
+}
+
+function lunchGroupOpen(cat, iso) {
+  if (Object.prototype.hasOwnProperty.call(state.lunchOpen, cat)) return state.lunchOpen[cat];
+  return lunchGroupCount(iso, cat) > 0;
+}
+
+function lunchMainCard(iso, item, on) {
+  return `
+    <div class="lunch-main ${on ? "is-on" : ""}">
+      <div class="title-block">
+        <strong>${tx(item.name)}</strong>
+        <span class="kicker">${tx(lunchItemHint(item))}</span>
+      </div>
+      <b>${money(item.price)}</b>
+      ${qtyControl(iso, item)}
+    </div>`;
+}
+
 const LUNCH_ADDON_GROUPS = [
   ["sandwich", "Sandwiches"],
   ["salad", "Salad"],
@@ -4584,8 +4828,7 @@ function shiftLunchWeek(delta) {
   const weeks = lunchWeeks();
   const next = weeks[lunchWeekIndex() + delta];
   if (!next) return;
-  const sameDow = next.days.find((day) => day.dow === lunchDateMeta(state.lunchDay).dow);
-  const nextIso = sameDow?.iso || next.days[0].iso;
+  const nextIso = next.days[0].iso;
   const commit = () => {
     lunchWeekSliding = false;
     state.lunchDay = nextIso;
@@ -4651,7 +4894,11 @@ function lunchDock() {
         <strong>${dayTotal ? names : tx("Packed lunch")}</strong>
         <span class="kicker">${dayTotal ? money(dayTotal) : tx("Nothing charged for this day")} · ${child().short}</span>
       </div>
-      ${count ? `<a class="btn" href="#/lunch/cart">${tx("Check out")} · ${money(cartTotal())}</a>` : ""}
+      ${
+        count
+          ? `<a class="btn lunch-go" href="#/lunch/cart">${tx("Check out")} · ${money(cartTotal())}</a>`
+          : `<span class="btn lunch-go is-wait">${tx("Check out")}</span>`
+      }
     </div>`;
 }
 
@@ -4684,40 +4931,23 @@ function lunchMenuView() {
       </header>
       <p class="lunch-section">${tx("Today’s main")} · ${tx("Pick one")}</p>
       <div class="lunch-mains">
-        ${mains
-          .map((item) => {
-            const on = pickedMain === item.id;
-            return `
-          <div class="lunch-main ${on ? "is-on" : ""}">
-            <div class="title-block">
-              <strong>${tx(item.name)}</strong>
-              <span class="kicker">${/milk/i.test(item.name) ? tx("Includes milk") : tx("Hot lunch")}</span>
-            </div>
-            <b>${money(item.price)}</b>
-            ${qtyControl(selected.iso, item)}
-          </div>`;
-          })
-          .join("")}
+        ${mains.map((item) => lunchMainCard(selected.iso, item, pickedMain === item.id)).join("")}
       </div>
       ${LUNCH_ADDON_GROUPS.map(([cat, title]) => {
         const items = addOns.filter((item) => item.cat === cat);
         if (!items.length) return "";
+        const open = lunchGroupOpen(cat, selected.iso);
+        const picked = lunchGroupCount(selected.iso, cat);
         return `
-      <p class="lunch-section">${tx(title)}</p>
-      <div class="lunch-side-list">
-        ${items
-          .map((item) => {
-            const qty = cartQty(selected.iso, item.id);
-            return `
-          <div class="lunch-side-row ${qty ? "is-on" : ""}">
-            <div class="title-block">
-              <strong>${tx(item.name)}</strong>
-            </div>
-            <span class="lunch-price">${money(item.price)}</span>
-            ${qtyControl(selected.iso, item)}
-          </div>`;
-          })
-          .join("")}
+      <button type="button" class="lunch-acc ${open ? "is-open" : ""}" data-lunch-acc="${cat}" aria-expanded="${open}">
+        <span>
+          ${tx(title)}
+          <span class="kicker">${picked ? `${picked} ${tx("in bag")}` : `${items.length} ${tx("items")}`}</span>
+        </span>
+        <span class="lunch-acc-chev" aria-hidden="true"></span>
+      </button>
+      <div class="lunch-mains ${open ? "" : "is-shut"}" ${open ? "" : "hidden"}>
+        ${items.map((item) => lunchMainCard(selected.iso, item, cartQty(selected.iso, item.id) > 0)).join("")}
       </div>`;
       }).join("")}
       ${lunchWeekBar(selected.iso)}
@@ -4732,6 +4962,20 @@ function lunchMenuView() {
   });
   view.querySelectorAll("[data-lunch-week]").forEach((btn) => {
     btn.addEventListener("click", () => shiftLunchWeek(Number(btn.dataset.lunchWeek)));
+  });
+  view.querySelectorAll("[data-lunch-acc]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const cat = btn.dataset.lunchAcc;
+      const next = !lunchGroupOpen(cat, selected.iso);
+      state.lunchOpen[cat] = next;
+      btn.classList.toggle("is-open", next);
+      btn.setAttribute("aria-expanded", String(next));
+      const panel = btn.nextElementSibling;
+      if (panel) {
+        panel.hidden = !next;
+        panel.classList.toggle("is-shut", !next);
+      }
+    });
   });
   bindLunchQty();
   requestAnimationFrame(() => scrollLunchWeekChipIntoView(selected.iso));
@@ -5697,6 +5941,7 @@ function teacherHome() {
     <div class="actions" style="margin-bottom:22px">
       ${scanFlyerBtn()}
       <a class="btn ghost" href="#/teach/attendance">Take attendance</a>
+      <a class="btn ghost" href="#/alerts">Send a reminder</a>
     </div>
     <section class="metrics">
       <article class="card metric"><div class="metric-label">Present</div><div class="metric-value">24</div><div class="metric-hint">2 late · 1 absent</div></article>
@@ -6090,6 +6335,7 @@ function adminHome() {
     </div>
     <div class="actions" style="margin-bottom:22px">
       ${scanFlyerBtn()}
+      <a class="btn ghost" href="#/alerts">Send a reminder</a>
     </div>
     <section class="metrics">
       <a class="card metric" href="#/admin/attendance/trends"><div class="metric-label">Attendance</div><div class="metric-value">${schoolAttendMix(trendSummaries()).rate}%</div><div class="metric-hint">${tx("Present since September")} · ${tx("Trends")}</div></a>
@@ -6754,7 +7000,9 @@ function mvpStaffHome() {
       </section>
       ${widgetComms()}
     </div>
+    <div style="margin-top:16px">${reminderComposer()}</div>
   `;
+  bindReminderComposer(() => mvpStaffHome());
   document.getElementById("post-form").addEventListener("submit", (e) => {
     e.preventDefault();
     const title = document.getElementById("post-title").value.trim();
@@ -6844,6 +7092,7 @@ function mvpInbox(id) {
       boardCrumb(),
       { label: "Inbox", href: "#/inbox" },
     ]);
+    const shown = filteredComms();
     view.innerHTML = `
       <div class="hero">
         <div>
@@ -6851,8 +7100,20 @@ function mvpInbox(id) {
           <p class="lede">${state.role === "parent" ? txf("Announcements arrive in {lang}. Replies go back in English.", { lang: LANGS[state.parentLang].native }) : "You write English. Each family reads their language."}</p>
         </div>
       </div>
-      <section class="card panel">${kidComms().map(commRow).join("")}</section>
+      ${inboxFilterBar()}
+      <section class="card panel">
+        ${
+          shown.length
+            ? shown.map(commRow).join("")
+            : `<p class="doc-empty">${
+                state.role === "parent"
+                  ? txf("Nothing in this pile for {name}.", { name: child().short })
+                  : tx("Nothing in this pile.")
+              }</p>`
+        }
+      </section>
     `;
+    bindInboxFilters();
     return;
   }
   item.unread = false;
