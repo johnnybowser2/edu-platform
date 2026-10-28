@@ -1474,6 +1474,9 @@ label.btn {
 }
 
 .pay-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 8px 12px;
   border-radius: 999px;
   border: 1px solid var(--line);
@@ -1488,10 +1491,22 @@ label.btn {
   color: var(--on-dark);
 }
 
+.pay-mark {
+  flex-shrink: 0;
+  display: block;
+}
+
 .card-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
+}
+
+.pay-wallet {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
 .pay-wallet.apple {
@@ -3008,4 +3023,132 @@ button.year-day {
 
 .scan-hint {
   margin: 12px 0 0;
+}
+
+.fund-panel .fund-meter {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--paper-2);
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.fund-panel .fund-meter > span {
+  display: block;
+  height: 100%;
+  background: var(--sage);
+  border-radius: inherit;
+}
+
+.fund-meter-label {
+  margin: 0 0 14px;
+}
+
+.fund-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.fund-fact {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--paper-2);
+}
+
+.fund-fact strong {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.fund-goals {
+  margin: 8px 0 0;
+  padding-left: 1.15em;
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.fund-organize {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.fund-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 14px 0;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.fund-check input {
+  margin-top: 3px;
+}
+
+.fund-dest-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(30, 58, 95, 0.08);
+  border: 1px solid var(--line);
+}
+
+.fund-dest-banner strong {
+  font-size: 16px;
+}
+
+.fund-secondary {
+  margin: 14px 0 0;
+  font-size: 13px;
+}
+
+.fund-secondary a {
+  color: var(--ink-soft);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.fund-order-row {
+  margin: 14px 0;
+  padding: 12px 14px 4px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--paper-2);
+}
+
+.fund-order-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.fund-order-row-head .btn.ghost {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.fund-bank-row {
+  align-items: flex-start;
+}
+
+.fund-bank-row .actions {
+  flex-shrink: 0;
+  padding-top: 4px;
+}
+
+@media (max-width: 720px) {
+  .fund-facts {
+    grid-template-columns: 1fr;
+  }
 }
