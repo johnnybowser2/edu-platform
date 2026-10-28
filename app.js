@@ -754,6 +754,35 @@ function kidComms() {
   return state.role === "parent" ? kidItems(state.comms) : state.comms;
 }
 
+function commSource(item) {
+  return item.source === "teacher" ? "teacher" : "office";
+}
+
+function filteredComms() {
+  const source = state.inboxFilter || "all";
+  const items = kidComms();
+  return source === "all" ? items : items.filter((item) => commSource(item) === source);
+}
+
+function inboxFilterBar() {
+  const on = state.inboxFilter || "all";
+  return `
+    <div class="event-filters" role="tablist" aria-label="${tx("Inbox")}">
+      <button type="button" data-inbox-source="all" class="${on === "all" ? "is-on" : ""}">${tx("All")}</button>
+      <button type="button" data-inbox-source="teacher" class="${on === "teacher" ? "is-on" : ""}">${tx("Teacher")}</button>
+      <button type="button" data-inbox-source="office" class="${on === "office" ? "is-on" : ""}">${tx("Office")}</button>
+    </div>`;
+}
+
+function bindInboxFilters() {
+  view.querySelectorAll("[data-inbox-source]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.inboxFilter = btn.dataset.inboxSource;
+      mvpInbox();
+    });
+  });
+}
+
 function kidSchedule() {
   return state.role === "parent" ? kidItems(state.scheduleItems) : state.scheduleItems;
 }
@@ -1250,11 +1279,16 @@ function isoDay(y, m, d) {
 
 function monthWeekdays(y, m) {
   const firstDow = new Date(y, m, 1).getDay();
-  const lead = firstDow === 0 ? 6 : firstDow - 1;
+  const mondayIndex = firstDow === 0 ? 6 : firstDow - 1;
+  const lead = Math.min(mondayIndex, 5);
   const last = new Date(y, m + 1, 0).getDate();
   const cells = Array(lead).fill(null);
-  for (let d = 1; d <= last; d += 1) cells.push(d);
-  while (cells.length % 7) cells.push(null);
+  for (let d = 1; d <= last; d += 1) {
+    const dow = new Date(y, m, d).getDay();
+    if (dow === 0 || dow === 6) continue;
+    cells.push(d);
+  }
+  while (cells.length % 5) cells.push(null);
   return cells;
 }
 
@@ -1290,6 +1324,21 @@ function calDayAttend(iso) {
 
 function calDayHasItems(iso) {
   return Boolean(SCHOOL_YEAR_MARKS[iso] || calDayEvents(iso).length || calDaySchedule(iso).length || calDayAttend(iso));
+}
+
+function kidBandKind(kid) {
+  const band = (kid?.band || "").toLowerCase();
+  if (band === "middle school" || band === "secondary") return "secondary";
+  if (band === "primary" || band === "elementary") return "primary";
+  return "";
+}
+
+function isStudentOffDay(iso, kid) {
+  const mark = SCHOOL_YEAR_MARKS[iso];
+  if (mark === "closed" || mark === "students") return true;
+  if (!kid) return false;
+  const kind = kidBandKind(kid);
+  return (mark === "primary" && kind === "primary") || (mark === "secondary" && kind === "secondary");
 }
 
 function closeCalDay() {
@@ -1431,21 +1480,22 @@ function yearCalendarHtml() {
           </label>
           <button type="button" class="btn ghost" id="cal-next" ${nextOff ? "disabled" : ""}>${tx("Next month")}</button>
         </div>
-        <div class="year-grid is-month" role="grid" aria-label="${tx(month.name)} ${month.y}">
-          ${["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => `<span class="year-dow">${tx(d)}</span>`).join("")}
+        <div class="year-grid" role="grid" aria-label="${tx(month.name)} ${month.y}">
+          ${["Mon", "Tue", "Wed", "Thu", "Fri"].map((d) => `<span class="year-dow">${tx(d)}</span>`).join("")}
           ${cells
             .map((d) => {
               if (!d) return `<span class="year-day is-empty"></span>`;
               const iso = isoDay(month.y, month.m, d);
               const mark = SCHOOL_YEAR_MARKS[iso] || "";
               const label = YEAR_LEGEND.find((row) => row[0] === mark);
-              const dt = new Date(month.y, month.m, d);
-              const weekend = dt.getDay() === 0 || dt.getDay() === 6 ? " is-weekend" : "";
               const today = iso === CAL_TODAY ? " is-today" : "";
-              const title = label ? tx(label[1]) : tx(month.name) + " " + d;
-              return `<button type="button" class="year-day ${mark}${weekend}${today}" data-cal-iso="${iso}" title="${title}">
-                <span>${d}</span>
-                ${calDayHasItems(iso) ? `<span class="year-dot" aria-hidden="true"></span>` : ""}
+              const off = Boolean(kid && isStudentOffDay(iso, kid));
+              const title = off ? tx("No classes") : label ? tx(label[1]) : tx(month.name) + " " + d;
+              const aria = off ? `${d}, ${tx("No classes")}` : String(d);
+              return `<button type="button" class="year-day ${mark}${off ? " is-off" : ""}${today}" data-cal-iso="${iso}" title="${title}" aria-label="${aria}">
+                <span class="year-num">${d}</span>
+                ${off ? `<span class="year-note">${tx("No classes")}</span>` : ""}
+                ${!off && calDayHasItems(iso) ? `<span class="year-dot" aria-hidden="true"></span>` : ""}
               </button>`;
             })
             .join("")}
@@ -1873,6 +1923,7 @@ const state = {
     },
   ],
   eventFilter: "all",
+  inboxFilter: "all",
   schoolEvents: [
     {
       id: "e1",
@@ -2770,6 +2821,7 @@ const BOOK = {
   ["Holiday for all students", "Congé pour tous les élèves", "全体学生放假", "ਸਾਰੇ ਵਿਦਿਆਰਥੀਆਂ ਲਈ ਛੁੱਟੀ", "Vacaciones para todos los estudiantes"],
   ["Holiday for primary only", "Congé pour le primaire seulement", "仅小学放假", "ਸਿਰਫ ਪ੍ਰਾਇਮਰੀ ਲਈ ਛੁੱਟੀ", "Vacaciones solo de primaria"],
   ["Holiday for secondary only", "Congé pour le secondaire seulement", "仅中学放假", "ਸਿਰਫ ਸੈਕੰਡਰੀ ਲਈ ਛੁੱਟੀ", "Vacaciones solo de secundaria"],
+  ["No classes", "Pas de classe", "不上课", "ਕਲਾਸ ਨਹੀਂ", "Sin clases"],
   ["Friday timetable", "Horaire du vendredi", "周五课表", "ਸ਼ੁੱਕਰਵਾਰ ਟਾਈਮਟੇਬਲ", "Horario de viernes"],
   ["September", "Septembre", "九月", "ਸਤੰਬਰ", "Septiembre"],
   ["October", "Octobre", "十月", "ਅਕਤੂਬਰ", "Octubre"],
@@ -6682,6 +6734,7 @@ function mvpInbox(id) {
       boardCrumb(),
       { label: "Inbox", href: "#/inbox" },
     ]);
+    const shown = filteredComms();
     view.innerHTML = `
       <div class="hero">
         <div>
@@ -6689,8 +6742,20 @@ function mvpInbox(id) {
           <p class="lede">${state.role === "parent" ? txf("Announcements arrive in {lang}. Replies go back in English.", { lang: LANGS[state.parentLang].native }) : "You write English. Each family reads their language."}</p>
         </div>
       </div>
-      <section class="card panel">${kidComms().map(commRow).join("")}</section>
+      ${inboxFilterBar()}
+      <section class="card panel">
+        ${
+          shown.length
+            ? shown.map(commRow).join("")
+            : `<p class="doc-empty">${
+                state.role === "parent"
+                  ? txf("Nothing in this pile for {name}.", { name: child().short })
+                  : tx("Nothing in this pile.")
+              }</p>`
+        }
+      </section>
     `;
+    bindInboxFilters();
     return;
   }
   item.unread = false;
