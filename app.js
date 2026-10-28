@@ -1699,10 +1699,54 @@ function money(n) {
   return `$${Number(n).toFixed(2)}`;
 }
 
-const FUND_PAY_DESTINATIONS = [
-  { id: "committee", label: "Parents' Committee", hint: "Parents' Committee collects for school investment" },
-  { id: "school", label: "Cedar Hill School", hint: "Paid directly to the school" },
-];
+function defaultFundBankAccounts() {
+  return [
+    {
+      id: "committee",
+      label: "Parents' Committee",
+      hint: "General Parents' Committee account for school investment",
+      bankName: "Scotiabank",
+      accountName: "Cedar Hill Parents' Committee",
+      transit: "12345",
+      institution: "002",
+      accountNumber: "•••• 4412",
+      purpose: "Committee operating / fundraisers",
+    },
+    {
+      id: "school",
+      label: "Cedar Hill School",
+      hint: "School board operating account",
+      bankName: "RBC",
+      accountName: "Cedar Hill K–8",
+      transit: "67890",
+      institution: "003",
+      accountNumber: "•••• 2201",
+      purpose: "School acquisitions",
+    },
+    {
+      id: "playground",
+      label: "Playground fund",
+      hint: "Restricted account for playground improvement",
+      bankName: "Scotiabank",
+      accountName: "Cedar Hill Playground Fund",
+      transit: "12345",
+      institution: "002",
+      accountNumber: "•••• 8830",
+      purpose: "Playground acquisitions",
+    },
+    {
+      id: "abbey",
+      label: "Abbey-Backyard project",
+      hint: "Outdoor classroom / experiential learning fund",
+      bankName: "Scotiabank",
+      accountName: "Abbey-Backyard Project",
+      transit: "12345",
+      institution: "002",
+      accountNumber: "•••• 1194",
+      purpose: "Abbey-Backyard acquisitions",
+    },
+  ];
+}
 
 function defaultFundCampaigns() {
   return [
@@ -1710,7 +1754,7 @@ function defaultFundCampaigns() {
       id: "loto500",
       title: "Loto 500",
       organizer: "Parents' Committee",
-      // Organizer setting: who receives submitted order sheets / drop-off money for this campaign.
+      // Organizer setting: bank account id money / sheets are directed to.
       payDestination: "committee",
       season: "2026–2027",
       ticketPrice: 20,
@@ -1722,16 +1766,14 @@ function defaultFundCampaigns() {
       drawNote: "Each draw is filmed and posted on the school's Facebook page that day. A Parents' Committee member calls the winner.",
       studentPerk: "Student prize draws too — families who sell more tickets have a better chance.",
       license: "1527544 56 005",
-      // Real campaign: digitize the paper bon de commande; cash/cheque still drops at the office.
-      onlinePayments: false,
       dropOffNote:
-        "Participants pay with cash or a cheque to the school in a Ziplock-style bag and bring it to the office in the morning. Online card payments are not offered for this campaign.",
+        "You can pay online here, or drop off cash or a cheque in a Ziplock-style bag at the office in the morning.",
       goals: [
         "Playground improvement",
         "Abbey-Backyard outdoor classroom / experiential learning",
         "Classroom projects and school equipment not covered by school budgets",
       ],
-      body: "Parents' Committee order form for Loto 500 — digitize the paper bon de commande. $20 per ticket, 500-ticket cap, 19+ only. Enter each participant online, then submit the sheet and drop off cash or cheques at the office.",
+      body: "Parents' Committee order form for Loto 500 — digitize the paper bon de commande. $20 per ticket, 500-ticket cap, 19+ only. Enter each participant online, then pay online or drop off cash or cheques at the office.",
       eventId: "e9",
       unread: true,
     },
@@ -1742,9 +1784,22 @@ function fundCampaign(id) {
   return state.fundCampaigns.find((c) => c.id === id);
 }
 
+function fundBankAccounts() {
+  return state.fundBankAccounts || [];
+}
+
+function fundBankAccount(id) {
+  return fundBankAccounts().find((a) => a.id === id);
+}
+
 function fundPayDestination(campaign) {
-  const id = campaign?.payDestination || "committee";
-  return FUND_PAY_DESTINATIONS.find((d) => d.id === id) || FUND_PAY_DESTINATIONS[0];
+  const id = campaign?.payDestination || fundBankAccounts()[0]?.id || "committee";
+  return fundBankAccount(id) || fundBankAccounts()[0] || { id, label: id, hint: "" };
+}
+
+function fundAccountLabel(account) {
+  if (!account) return "";
+  return account.label || account.accountName || account.id;
 }
 
 function fundTicketsLeft(campaign) {
@@ -2107,10 +2162,12 @@ const state = {
     },
   ],
   fundCampaigns: defaultFundCampaigns(),
+  fundBankAccounts: defaultFundBankAccounts(),
   fundOrders: [],
   fundDraft: null,
   fundBuyDraft: null,
-  fundPay: "dropoff",
+  fundPendingPay: null,
+  fundPay: "card",
   fundReceipt: "",
   eventFilter: "all",
   inboxFilter: "all",
@@ -2618,7 +2675,7 @@ const state = {
       section: "fundraise",
       ref: "loto500",
       title: "Loto 500 order form",
-      body: "Parents' Committee Loto 500 is open — enter ticket orders online ($20, 500-cap), then drop off cash or cheques at the office.",
+      body: "Parents' Committee Loto 500 is open — enter ticket orders online ($20, 500-cap), then pay online or drop off cash or cheques.",
       when: "Today 8:05",
       href: "#/fundraise/loto500",
       unread: true,
@@ -2787,6 +2844,7 @@ const navByRole = {
         { id: "lunch", label: "Hot lunch menu", href: "#/lunch", hint: "Post this week" },
         { id: "store", label: "Store", href: "#/admin/store", hint: "Inventory and pickups" },
         { id: "fundraise", label: "Fundraise", href: "#/fundraise", hint: "Campaigns and ticket sales" },
+        { id: "banking", label: "Banking", href: "#/fundraise/banking", hint: "Accounts for fund destinations" },
       ],
     },
     {
@@ -3896,7 +3954,7 @@ function askIndex() {
       href: "#/fundraise/loto500",
       source: "Fundraise · Parents' Committee",
       fr: "Loto 500 — billets 20 $, plafond de 500, tirages du 3 nov. au 1er déc. Achetez en Collecte ou déposez à l’école.",
-      en: "Loto 500 — $20 tickets, 500-ticket cap. Enter the order form in Fundraise, then drop off cash or cheques at school.",
+      en: "Loto 500 — $20 tickets, 500-ticket cap. Enter the order form in Fundraise, then pay online or drop off cash or cheques.",
       zh: "Loto 500 — 每张20美元，限售500张，11月3日至12月1日开奖。在募捐里购买或到校提交。",
       pa: "Loto 500 — $20 ਟਿਕਟ, 500 ਸੀਮਾ, 3 ਨਵੰਬਰ–1 ਦਸੰਬਰ ਡਰਾ। ਫੰਡਰੇਜ਼ ਵਿਚ ਖਰੀਦੋ ਜਾਂ ਸਕੂਲ ਛੱਡੋ।",
       es: "Loto 500 — boletos $20, tope 500, sorteos del 3 nov al 1 dic. Compre en Recaudación o deje en la escuela.",
@@ -8233,8 +8291,13 @@ function fundraiseListView() {
     <div class="hero">
       <div>
         <h1>${tx("Fundraise")}</h1>
-        <p class="lede">${tx("Collect ticket orders for school campaigns — digitize the paper order form, then drop off cash or cheques at the office.")}</p>
+        <p class="lede">${tx("Collect ticket orders for school campaigns — digitize the paper order form, then pay online or drop off cash or cheques.")}</p>
       </div>
+      ${
+        state.role === "admin"
+          ? `<a class="btn ghost" href="#/fundraise/banking">${tx("Banking accounts")}</a>`
+          : ""
+      }
     </div>
     <section class="card panel">
       ${
@@ -8250,7 +8313,7 @@ function fundraiseListView() {
                 <strong>${tx(c.title)}</strong>
                 <span class="kicker">${money(c.ticketPrice)} ${tx("per ticket")} · ${left} ${tx("left of")} ${c.ticketCap}</span>
               </div>
-              ${pill(dest.label)}
+              ${pill(fundAccountLabel(dest))}
               ${c.unread ? pill("New", "risk") : left === 0 ? pill("Sold out", "amber") : ""}
             </a>`;
               })
@@ -8264,14 +8327,14 @@ function fundraiseListView() {
         <div class="widget-head"><h2>${tx("Your submitted forms")}</h2><span class="kicker">${orders.length}</span></div>
         ${orders
           .map((order) => {
-            const dest = FUND_PAY_DESTINATIONS.find((d) => d.id === order.payDestination) || FUND_PAY_DESTINATIONS[0];
+            const dest = fundBankAccount(order.payDestination) || fundPayDestination({ payDestination: order.payDestination });
             const qty = order.rows?.length || order.qty || 0;
             return `
           <a class="list-row" href="#/fundraise/${order.campaignId}/receipt">
             <div class="title-block">
               <span class="kicker">${tx(order.campaignTitle)} · ${order.paidAt}</span>
               <strong>${qty} ${tx("tickets")} · ${money(order.total)}</strong>
-              <span class="kicker">${order.kind === "self-buy" ? tx("Self purchase") : tx("Order form")} · ${tx("To")} ${tx(dest.label)}</span>
+              <span class="kicker">${order.kind === "self-buy" ? tx("Self purchase") : tx("Order form")} · ${tx("To")} ${tx(fundAccountLabel(dest))} · ${storePayLabel(order.method, order.last4)}</span>
             </div>
             ${pill(order.kind === "self-buy" ? tx("Secondary") : tx("Submitted"))}
           </a>`;
@@ -8330,16 +8393,19 @@ function fundraiseCampaignView(id) {
         canOrganize
           ? `<div class="fund-organize">
               <h2>${tx("Organizer setting")}</h2>
-              <p class="lede">${tx("Choose who receives submitted order forms and drop-off money for this campaign.")}</p>
+              <p class="lede">${tx("Choose which banking account receives online payments and drop-offs for this campaign.")}</p>
               <div class="pay-methods" role="group" aria-label="${tx("Payment destination")}">
-                ${FUND_PAY_DESTINATIONS.map(
-                  (d) => `
+                ${fundBankAccounts()
+                  .map(
+                    (d) => `
                   <button type="button" class="pay-choice ${campaign.payDestination === d.id ? "is-on" : ""}" data-fund-dest="${d.id}">${tx(d.label)}</button>`
-                ).join("")}
+                  )
+                  .join("")}
               </div>
-              <p class="kicker">${tx(dest.hint)}</p>
+              <p class="kicker">${tx(dest.hint || "")}${dest.bankName ? ` · ${dest.bankName} ${dest.accountNumber || ""}` : ""}</p>
+              <p class="fund-secondary"><a href="#/fundraise/banking">${tx("Manage banking accounts")}</a></p>
             </div>`
-          : `<p class="kicker" style="margin-top:12px">${tx("Submitted forms and drop-offs go to")} ${tx(dest.label)}. ${tx(dest.hint)}.</p>`
+          : `<p class="kicker" style="margin-top:12px">${tx("Payments go to")} ${tx(fundAccountLabel(dest))}. ${tx(dest.hint || "")}</p>`
       }
       <div class="actions" style="margin-top:16px">
         ${
@@ -8361,7 +8427,7 @@ function fundraiseCampaignView(id) {
   view.querySelectorAll("[data-fund-dest]").forEach((btn) => {
     btn.addEventListener("click", () => {
       campaign.payDestination = btn.dataset.fundDest;
-      state.notice = txf("Destination set to {name}.", { name: tx(fundPayDestination(campaign).label) });
+      state.notice = txf("Destination set to {name}.", { name: tx(fundAccountLabel(fundPayDestination(campaign))) });
       fundraiseCampaignView(campaign.id);
     });
   });
@@ -8421,7 +8487,7 @@ function fundraiseOrdersView(id) {
       </div>
       <div class="stat-row">
         <div><div class="num">${draft.rows.length}</div><div class="kicker">${tx("Tickets on this sheet")}</div></div>
-        <div><div class="num">${money(total)}</div><div class="kicker">${tx("Cash / cheque due")}</div></div>
+        <div><div class="num">${money(total)}</div><div class="kicker">${tx("Amount due")}</div></div>
       </div>
     </div>
     <section class="card panel" style="padding-bottom:18px">
@@ -8449,12 +8515,12 @@ function fundraiseOrdersView(id) {
           <button type="button" class="btn ghost" id="fund-add-row" ${draft.rows.length >= left ? "disabled" : ""}>${tx("Add ticket row")}</button>
         </div>
         <div class="fund-dest-banner" style="margin-top:16px">
-          <span class="kicker">${tx("After you submit")}</span>
-          <strong>${tx("Upload sheet to")} ${tx(dest.label)}</strong>
+          <span class="kicker">${tx("Next step")}</span>
+          <strong>${tx("Pay online or drop off")} · ${tx(fundAccountLabel(dest))}</strong>
           <span class="kicker">${tx(campaign.dropOffNote)}</span>
         </div>
         <div class="actions" style="margin-top:16px">
-          <button class="btn" type="submit">${tx("Submit order form")} · ${draft.rows.length} ${tx("tickets")}</button>
+          <button class="btn" type="submit">${tx("Continue to pay")} · ${draft.rows.length} ${tx("tickets")}</button>
           <a class="btn ghost" href="#/fundraise/${campaign.id}">${tx("Back")}</a>
         </div>
       </form>
@@ -8514,13 +8580,26 @@ function fundraiseOrdersView(id) {
       fundraiseOrdersView(campaign.id);
       return;
     }
-    completeFundSheet(campaign, draft);
+    state.fundPendingPay = {
+      kind: "sheet",
+      campaignId: campaign.id,
+      sellerName: draft.sellerName,
+      rows: draft.rows.map((row) => ({ ...row })),
+    };
+    state.notice = "";
+    location.hash = `#/fundraise/${campaign.id}/pay`;
+    render();
   });
 }
 
-function completeFundSheet(campaign, draft) {
-  const rows = draft.rows.map((row) => ({ ...row }));
-  if (rows.length > fundTicketsLeft(campaign)) {
+function completeFundPending(campaign, method, last4) {
+  const pending = state.fundPendingPay;
+  if (!pending || pending.campaignId !== campaign.id) {
+    location.hash = `#/fundraise/${campaign.id}/orders`;
+    return fundraiseOrdersView(campaign.id);
+  }
+  const rows = (pending.rows || []).map((row) => ({ ...row }));
+  if (!rows.length || rows.length > fundTicketsLeft(campaign)) {
     state.notice = tx("Not enough tickets left.");
     fundraiseOrdersView(campaign.id);
     return;
@@ -8529,22 +8608,25 @@ function completeFundSheet(campaign, draft) {
   const dest = fundPayDestination(campaign);
   const order = {
     id: "fo" + Date.now(),
-    kind: "sheet",
+    kind: pending.kind || "sheet",
     campaignId: campaign.id,
     campaignTitle: campaign.title,
-    sellerName: draft.sellerName,
+    sellerName: pending.sellerName || people[state.role].name,
     sellerRole: state.role,
     family: state.role === "parent" ? "bowser" : "",
     rows,
     qty: rows.length,
     ticketPrice: campaign.ticketPrice,
     total: rows.length * campaign.ticketPrice,
-    method: "dropoff",
+    method,
+    last4: last4 || "",
     payDestination: dest.id,
     paidAt: "Just now",
   };
   state.fundOrders.unshift(order);
   state.fundDraft = null;
+  state.fundBuyDraft = null;
+  state.fundPendingPay = null;
   state.fundReceipt = order.id;
   state.notice = "";
   location.hash = `#/fundraise/${campaign.id}/receipt`;
@@ -8582,7 +8664,7 @@ function fundraiseBuyView(id) {
         <p class="lede">${tx("Secondary path — for someone buying through you. Most families should use the order form instead.")}</p>
       </div>
       <div class="stat-row">
-        <div><div class="num">${money(campaign.ticketPrice * draft.qty)}</div><div class="kicker">${tx("Cash / cheque due")}</div></div>
+        <div><div class="num">${money(campaign.ticketPrice * draft.qty)}</div><div class="kicker">${tx("Amount due")}</div></div>
       </div>
     </div>
     <section class="card panel" style="padding-bottom:18px">
@@ -8619,12 +8701,12 @@ function fundraiseBuyView(id) {
             : ""
         }
         <div class="fund-dest-banner" style="margin-top:12px">
-          <span class="kicker">${tx("Payment")}</span>
-          <strong>${tx("Cash or cheque drop-off")} · ${tx(dest.label)}</strong>
+          <span class="kicker">${tx("Next step")}</span>
+          <strong>${tx("Pay online or drop off")} · ${tx(fundAccountLabel(dest))}</strong>
           <span class="kicker">${tx(campaign.dropOffNote)}</span>
         </div>
         <div class="actions" style="margin-top:16px">
-          <button class="btn" type="submit">${tx("Record purchase")} · ${money(campaign.ticketPrice * draft.qty)}</button>
+          <button class="btn" type="submit">${tx("Continue to pay")} · ${money(campaign.ticketPrice * draft.qty)}</button>
           <a class="btn ghost" href="#/fundraise/${campaign.id}/orders">${tx("Use full order form")}</a>
         </div>
       </form>
@@ -8668,30 +8750,118 @@ function fundraiseBuyView(id) {
       return;
     }
     const rows = Array.from({ length: draft.qty }, () => ({ buyerName, studentClass, phone }));
-    campaign.ticketsSold += rows.length;
-    const order = {
-      id: "fo" + Date.now(),
+    state.fundPendingPay = {
       kind: "self-buy",
       campaignId: campaign.id,
-      campaignTitle: campaign.title,
       sellerName: people[state.role].name,
-      sellerRole: state.role,
-      family: state.role === "parent" ? "bowser" : "",
       rows,
-      qty: rows.length,
-      ticketPrice: campaign.ticketPrice,
-      total: rows.length * campaign.ticketPrice,
-      method: "dropoff",
-      payDestination: fundPayDestination(campaign).id,
-      paidAt: "Just now",
     };
-    state.fundOrders.unshift(order);
-    state.fundBuyDraft = null;
-    state.fundReceipt = order.id;
     state.notice = "";
-    location.hash = `#/fundraise/${campaign.id}/receipt`;
+    location.hash = `#/fundraise/${campaign.id}/pay`;
     render();
   });
+}
+
+function fundraisePayView(id) {
+  const campaign = fundCampaign(id);
+  const pending = state.fundPendingPay;
+  if (!campaign || !pending || pending.campaignId !== campaign.id || !pending.rows?.length) {
+    location.hash = `#/fundraise/${id || "loto500"}/orders`;
+    return fundraiseOrdersView(id || "loto500");
+  }
+  if (pending.rows.length > fundTicketsLeft(campaign)) {
+    state.notice = tx("Not enough tickets left.");
+    location.hash = `#/fundraise/${campaign.id}/orders`;
+    return fundraiseOrdersView(campaign.id);
+  }
+  const dest = fundPayDestination(campaign);
+  const total = pending.rows.length * campaign.ticketPrice;
+  const method = state.fundPay || "card";
+  const backHref =
+    pending.kind === "self-buy" ? `#/fundraise/${campaign.id}/buy` : `#/fundraise/${campaign.id}/orders`;
+  paintChrome("fundraise");
+  setCrumbs(
+    fundCrumbs([
+      { label: campaign.title, href: `#/fundraise/${campaign.id}` },
+      {
+        label: pending.kind === "self-buy" ? "Single purchase" : "Order form",
+        href: backHref,
+      },
+      { label: "Pay", href: `#/fundraise/${campaign.id}/pay` },
+    ])
+  );
+  view.innerHTML = `
+    ${notice()}
+    <div class="hero">
+      <div>
+        <h1>${tx("Pay")}</h1>
+        <p class="lede">${txf("Demo checkout — Harbor does not charge a real card. Online pay and drop-off both credit {dest}.", { dest: tx(fundAccountLabel(dest)) })}</p>
+      </div>
+      <div class="stat-row">
+        <div><div class="num">${money(total)}</div><div class="kicker">${pending.rows.length} ${tx("tickets")}</div></div>
+      </div>
+    </div>
+    <section class="card panel" style="padding-bottom:18px">
+      <div class="fund-dest-banner">
+        <span class="kicker">${tx("Payment destination")}</span>
+        <strong>${tx(fundAccountLabel(dest))}</strong>
+        <span class="kicker">${[dest.bankName, dest.accountNumber, dest.hint].filter(Boolean).map((x) => tx(x)).join(" · ")}</span>
+      </div>
+      <div class="lunch-row" style="margin-top:8px">
+        <div class="title-block">
+          <strong>${tx(campaign.title)}</strong>
+          <span class="kicker">${pending.sellerName} · ${pending.rows.map((r) => r.buyerName).join(", ")}</span>
+        </div>
+        <span class="lunch-price">${money(total)}</span>
+      </div>
+      <h2 style="margin-top:16px">${tx("Payment method")}</h2>
+      <div class="pay-methods">
+        <button type="button" class="pay-choice ${method === "apple" ? "is-on" : ""}" data-fund-pay="apple">${tx("Apple Pay")}</button>
+        <button type="button" class="pay-choice ${method === "google" ? "is-on" : ""}" data-fund-pay="google">${tx("Google Pay")}</button>
+        <button type="button" class="pay-choice ${method === "card" ? "is-on" : ""}" data-fund-pay="card">${tx("Credit card")}</button>
+        <button type="button" class="pay-choice ${method === "dropoff" ? "is-on" : ""}" data-fund-pay="dropoff">${tx("Cash / cheque drop-off")}</button>
+      </div>
+      ${
+        method === "card"
+          ? `<form id="fund-card-form" class="card-form">
+              <div class="field"><label for="fund-card-name">${tx("Name on card")}</label><input id="fund-card-name" autocomplete="cc-name" value="${pending.sellerName || people[state.role].name}" required /></div>
+              <div class="field"><label for="fund-card-number">${tx("Card number")}</label><input id="fund-card-number" inputmode="numeric" autocomplete="cc-number" placeholder="4242 4242 4242 4242" required /></div>
+              <div class="card-grid">
+                <div class="field"><label for="fund-card-exp">${tx("Expiry")}</label><input id="fund-card-exp" placeholder="MM/YY" autocomplete="cc-exp" required /></div>
+                <div class="field"><label for="fund-card-cvc">${tx("CVC")}</label><input id="fund-card-cvc" inputmode="numeric" autocomplete="cc-csc" placeholder="123" required /></div>
+              </div>
+              <button class="btn" type="submit">${tx("Pay")} ${money(total)} ${tx("to")} ${tx(fundAccountLabel(dest))}</button>
+            </form>`
+          : method === "dropoff"
+            ? `<p class="lede" style="margin:12px 0">${tx(campaign.dropOffNote)}</p>
+               <button class="btn" type="button" id="fund-pay-now">${tx("Confirm cash / cheque drop-off")}</button>`
+            : `<p class="lede" style="margin:12px 0">${tx("Opens the wallet on a phone. In this demo it confirms without leaving Harbor.")}</p>
+               <button class="btn pay-wallet ${method === "apple" ? "apple" : "google"}" type="button" id="fund-pay-now">${method === "apple" ? tx("Pay with Apple Pay") : tx("Pay with Google Pay")}</button>`
+      }
+      <div class="actions" style="margin-top:12px">
+        <a class="btn ghost" href="${backHref}">${tx("Back")}</a>
+      </div>
+    </section>
+  `;
+  view.querySelectorAll("[data-fund-pay]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.fundPay = btn.dataset.fundPay;
+      fundraisePayView(campaign.id);
+    });
+  });
+  document.getElementById("fund-card-form")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const number = (document.getElementById("fund-card-number").value || "").replace(/\D/g, "");
+    const exp = (document.getElementById("fund-card-exp").value || "").trim();
+    const cvc = (document.getElementById("fund-card-cvc").value || "").replace(/\D/g, "");
+    if (number.length < 13 || number.length > 19 || !/^\d{2}\/\d{2}$/.test(exp) || cvc.length < 3) {
+      state.notice = tx("Check the card number, expiry, and CVC. Demo cards like 4242 4242 4242 4242 work.");
+      fundraisePayView(campaign.id);
+      return;
+    }
+    completeFundPending(campaign, "card", number.slice(-4));
+  });
+  document.getElementById("fund-pay-now")?.addEventListener("click", () => completeFundPending(campaign, method));
 }
 
 function fundraiseReceiptView(id) {
@@ -8704,21 +8874,22 @@ function fundraiseReceiptView(id) {
     location.hash = id ? `#/fundraise/${id}` : "#/fundraise";
     return id ? fundraiseCampaignView(id) : fundraiseListView();
   }
-  const dest = FUND_PAY_DESTINATIONS.find((d) => d.id === order.payDestination) || FUND_PAY_DESTINATIONS[0];
+  const dest = fundBankAccount(order.payDestination) || fundPayDestination({ payDestination: order.payDestination });
   const rows = order.rows || [];
+  const paidOnline = order.method && order.method !== "dropoff";
   paintChrome("fundraise");
   setCrumbs(
     fundCrumbs([
       { label: order.campaignTitle, href: `#/fundraise/${order.campaignId}` },
-      { label: "Submitted", href: `#/fundraise/${order.campaignId}/receipt` },
+      { label: "Receipt", href: `#/fundraise/${order.campaignId}/receipt` },
     ])
   );
   view.innerHTML = `
     ${notice()}
     <div class="hero">
       <div>
-        <h1>${order.kind === "self-buy" ? tx("Purchase recorded.") : tx("Order form submitted.")}</h1>
-        <p class="lede">${txf("Sent to {dest}. Bring cash or cheques to the office in a Ziplock bag.", { dest: tx(dest.label) })}</p>
+        <h1>${paidOnline ? tx("Payment received.") : tx("Order recorded — drop off cash or cheque.")}</h1>
+        <p class="lede">${txf("{pay} · {dest}", { pay: storePayLabel(order.method, order.last4), dest: tx(fundAccountLabel(dest)) })}</p>
       </div>
       <div class="stat-row">
         <div><div class="num">${money(order.total)}</div><div class="kicker">${order.paidAt}</div></div>
@@ -8754,18 +8925,144 @@ function fundraiseReceiptView(id) {
   `;
 }
 
+function fundraiseBankingView() {
+  if (state.role !== "admin") {
+    state.notice = tx("Only the office can manage fundraising bank accounts.");
+    location.hash = "#/fundraise";
+    return fundraiseListView();
+  }
+  paintChrome("banking");
+  setCrumbs([
+    boardCrumb(),
+    { label: "Fundraise", href: "#/fundraise" },
+    { label: "Banking", href: "#/fundraise/banking" },
+  ]);
+  const accounts = fundBankAccounts();
+  view.innerHTML = `
+    ${notice()}
+    <div class="hero">
+      <div>
+        <h1>${tx("Fundraising bank accounts")}</h1>
+        <p class="lede">${tx("Set up accounts for where campaign money goes — committee, school, or project funds. Campaigns pick one as their destination.")}</p>
+      </div>
+      <a class="btn ghost" href="#/fundraise">${tx("Campaigns")}</a>
+    </div>
+    <section class="card panel">
+      ${
+        accounts.length
+          ? accounts
+              .map(
+                (a) => `
+        <div class="list-row fund-bank-row">
+          <div class="title-block">
+            <span class="kicker">${tx(a.purpose || a.hint || "")}</span>
+            <strong>${tx(a.label)}</strong>
+            <span class="kicker">${[a.bankName, a.accountName, a.accountNumber].filter(Boolean).join(" · ")}</span>
+            <span class="kicker">${tx("Transit")} ${a.transit || "—"} · ${tx("Institution")} ${a.institution || "—"}</span>
+          </div>
+          <div class="actions">
+            <button type="button" class="btn ghost" data-edit-bank="${a.id}">${tx("Edit")}</button>
+            <button type="button" class="btn ghost" data-remove-bank="${a.id}">${tx("Remove")}</button>
+          </div>
+        </div>`
+              )
+              .join("")
+          : `<p class="doc-empty">${tx("No bank accounts yet. Add one for a campaign destination.")}</p>`
+      }
+    </section>
+    <section class="card panel" style="margin-top:16px;padding-bottom:18px">
+      <h2 id="fund-bank-form-title">${tx("Add bank account")}</h2>
+      <form id="fund-bank-form">
+        <input type="hidden" id="fund-bank-id" value="" />
+        <div class="field"><label for="fund-bank-label">${tx("Display name")}</label><input id="fund-bank-label" required placeholder="${tx("Parents' Committee")}" /></div>
+        <div class="field"><label for="fund-bank-purpose">${tx("Purpose / acquisition")}</label><input id="fund-bank-purpose" placeholder="${tx("Playground acquisitions")}" /></div>
+        <div class="field"><label for="fund-bank-hint">${tx("Family-facing hint")}</label><input id="fund-bank-hint" placeholder="${tx("Collects for school investment")}" /></div>
+        <div class="field"><label for="fund-bank-name">${tx("Bank")}</label><input id="fund-bank-name" placeholder="Scotiabank" /></div>
+        <div class="field"><label for="fund-bank-account-name">${tx("Account name")}</label><input id="fund-bank-account-name" /></div>
+        <div class="card-grid">
+          <div class="field"><label for="fund-bank-transit">${tx("Transit")}</label><input id="fund-bank-transit" inputmode="numeric" /></div>
+          <div class="field"><label for="fund-bank-institution">${tx("Institution")}</label><input id="fund-bank-institution" inputmode="numeric" /></div>
+        </div>
+        <div class="field"><label for="fund-bank-number">${tx("Account number")}</label><input id="fund-bank-number" placeholder="•••• 4412" /></div>
+        <div class="actions">
+          <button class="btn" type="submit" id="fund-bank-save">${tx("Save account")}</button>
+          <button class="btn ghost" type="button" id="fund-bank-reset" hidden>${tx("Cancel edit")}</button>
+        </div>
+      </form>
+    </section>
+  `;
+
+  const fillForm = (account) => {
+    document.getElementById("fund-bank-id").value = account?.id || "";
+    document.getElementById("fund-bank-label").value = account?.label || "";
+    document.getElementById("fund-bank-purpose").value = account?.purpose || "";
+    document.getElementById("fund-bank-hint").value = account?.hint || "";
+    document.getElementById("fund-bank-name").value = account?.bankName || "";
+    document.getElementById("fund-bank-account-name").value = account?.accountName || "";
+    document.getElementById("fund-bank-transit").value = account?.transit || "";
+    document.getElementById("fund-bank-institution").value = account?.institution || "";
+    document.getElementById("fund-bank-number").value = account?.accountNumber || "";
+    document.getElementById("fund-bank-form-title").textContent = account ? tx("Edit bank account") : tx("Add bank account");
+    document.getElementById("fund-bank-reset").hidden = !account;
+  };
+
+  view.querySelectorAll("[data-edit-bank]").forEach((btn) => {
+    btn.addEventListener("click", () => fillForm(fundBankAccount(btn.dataset.editBank)));
+  });
+  view.querySelectorAll("[data-remove-bank]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.removeBank;
+      if (fundBankAccounts().length <= 1) {
+        state.notice = tx("Keep at least one destination account.");
+        fundraiseBankingView();
+        return;
+      }
+      state.fundBankAccounts = fundBankAccounts().filter((a) => a.id !== id);
+      state.fundCampaigns.forEach((c) => {
+        if (c.payDestination === id) c.payDestination = state.fundBankAccounts[0].id;
+      });
+      state.notice = tx("Bank account removed.");
+      fundraiseBankingView();
+    });
+  });
+  document.getElementById("fund-bank-reset")?.addEventListener("click", () => fillForm(null));
+  document.getElementById("fund-bank-form")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const existingId = document.getElementById("fund-bank-id").value;
+    const label = (document.getElementById("fund-bank-label").value || "").trim();
+    if (!label) {
+      state.notice = tx("Add a display name for the account.");
+      fundraiseBankingView();
+      return;
+    }
+    const payload = {
+      id: existingId || `bank${Date.now()}`,
+      label,
+      purpose: (document.getElementById("fund-bank-purpose").value || "").trim(),
+      hint: (document.getElementById("fund-bank-hint").value || "").trim(),
+      bankName: (document.getElementById("fund-bank-name").value || "").trim(),
+      accountName: (document.getElementById("fund-bank-account-name").value || "").trim(),
+      transit: (document.getElementById("fund-bank-transit").value || "").trim(),
+      institution: (document.getElementById("fund-bank-institution").value || "").trim(),
+      accountNumber: (document.getElementById("fund-bank-number").value || "").trim(),
+    };
+    const idx = state.fundBankAccounts.findIndex((a) => a.id === payload.id);
+    if (idx >= 0) state.fundBankAccounts[idx] = payload;
+    else state.fundBankAccounts.push(payload);
+    state.notice = existingId ? tx("Bank account updated.") : tx("Bank account added.");
+    fundraiseBankingView();
+  });
+}
+
 function fundraiseRoute(parts) {
   const id = parts[1];
   const step = parts[2];
+  if (id === "banking") return fundraiseBankingView();
   if (!id) return fundraiseListView();
   if (step === "orders") return fundraiseOrdersView(id);
   if (step === "buy") return fundraiseBuyView(id);
+  if (step === "pay") return fundraisePayView(id);
   if (step === "receipt" || step === "submitted") return fundraiseReceiptView(id);
-  // Legacy pay deep links from the old checkout flow → order form.
-  if (step === "pay") {
-    location.hash = `#/fundraise/${id}/orders`;
-    return fundraiseOrdersView(id);
-  }
   return fundraiseCampaignView(id);
 }
 

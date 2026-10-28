@@ -3123,6 +3123,15 @@ button.year-day {
   font-size: 12px;
 }
 
+.fund-bank-row {
+  align-items: flex-start;
+}
+
+.fund-bank-row .actions {
+  flex-shrink: 0;
+  padding-top: 4px;
+}
+
 @media (max-width: 720px) {
   .fund-facts {
     grid-template-columns: 1fr;
