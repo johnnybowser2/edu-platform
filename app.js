@@ -975,6 +975,10 @@ function leafNavBadge(id) {
     if (state.role === "admin") return waitingStorePickups().length;
     return storeCartCount();
   }
+  if (id === "fundraise") {
+    const open = state.fundCampaigns?.filter((c) => fundTicketsLeft(c) > 0 && c.unread).length || 0;
+    return open || (state.fundDraft?.qty ? 1 : 0);
+  }
   if (id === "lunch") {
     if (state.role === "parent") return cartCount();
     if (state.role === "teacher") {
@@ -1059,6 +1063,7 @@ function reminderHref(section) {
   if (section === "dismiss") return "#/dismiss";
   if (section === "events") return "#/events";
   if (section === "docs") return "#/docs";
+  if (section === "fundraise") return "#/fundraise";
   return "#/";
 }
 
@@ -1693,6 +1698,71 @@ function money(n) {
   return `$${Number(n).toFixed(2)}`;
 }
 
+const FUND_PAY_DESTINATIONS = [
+  { id: "committee", label: "Parents' Committee", hint: "Parents' Committee collects for school investment" },
+  { id: "school", label: "Cedar Hill School", hint: "Paid directly to the school" },
+];
+
+function defaultFundCampaigns() {
+  return [
+    {
+      id: "loto500",
+      title: "Loto 500",
+      organizer: "Parents' Committee",
+      // Organizer setting: who receives online payments for this campaign.
+      payDestination: "committee",
+      season: "2026–2027",
+      ticketPrice: 20,
+      ticketCap: 500,
+      ticketsSold: 142,
+      ageMin: 19,
+      sellBy: "Buy or sell until Nov 3",
+      draws: "5 weekly draws · Nov 3–Dec 1 · $500 each week",
+      drawNote: "Each draw is filmed and posted on the school's Facebook page that day. A Parents' Committee member calls the winner.",
+      studentPerk: "Every ticket can carry a student name for top-seller prizes and weekly gift-card draws.",
+      goals: [
+        "Playground improvement",
+        "Abbey-Backyard outdoor classroom / experiential learning",
+        "Classroom projects and school equipment not covered by school budgets",
+      ],
+      body: "First fundraiser of 2026–2027. Tickets are $20 each with a hard cap of 500. You must be 19 or older to buy. Cash and paper tickets can still be dropped off at school — or buy online here and send money to the campaign destination.",
+      eventId: "e9",
+      unread: true,
+    },
+  ];
+}
+
+function fundCampaign(id) {
+  return state.fundCampaigns.find((c) => c.id === id);
+}
+
+function fundPayDestination(campaign) {
+  const id = campaign?.payDestination || "committee";
+  return FUND_PAY_DESTINATIONS.find((d) => d.id === id) || FUND_PAY_DESTINATIONS[0];
+}
+
+function fundTicketsLeft(campaign) {
+  if (!campaign) return 0;
+  return Math.max(0, (campaign.ticketCap || 0) - (campaign.ticketsSold || 0));
+}
+
+function fundDraftTotal(draft, campaign) {
+  const qty = Math.max(0, Number(draft?.qty) || 0);
+  return qty * (campaign?.ticketPrice || 0);
+}
+
+function myFundOrders() {
+  if (state.role === "admin") return state.fundOrders;
+  if (state.role === "parent") {
+    return state.fundOrders.filter((order) => order.buyerRole === "parent" && order.family === "bowser");
+  }
+  return state.fundOrders.filter((order) => order.buyerRole === state.role && order.buyer === people[state.role].name);
+}
+
+function fundCrumbs(extra) {
+  return crumbsWithHub("fundraise", { label: "Fundraise", href: "#/fundraise" }, extra || []);
+}
+
 function storeProduct(id) {
   return state.storeCatalog.find((item) => item.id === id);
 }
@@ -1817,6 +1887,7 @@ function storePayLabel(method, last4) {
   if (method === "apple") return tx("Apple Pay");
   if (method === "google") return tx("Google Pay");
   if (method === "pickup") return tx("Pay at pickup");
+  if (method === "dropoff") return tx("Cash drop-off");
   if (last4) return `${tx("Card")} · ${last4}`;
   return tx("Credit card");
 }
@@ -2019,6 +2090,11 @@ const state = {
       lines: [{ productId: "hoodie", name: "Harbor hoodie", color: "Forest", size: "AM", qty: 1, price: 42 }],
     },
   ],
+  fundCampaigns: defaultFundCampaigns(),
+  fundOrders: [],
+  fundDraft: null,
+  fundPay: "card",
+  fundReceipt: "",
   eventFilter: "all",
   inboxFilter: "all",
   schoolEvents: [
@@ -2106,6 +2182,21 @@ const state = {
       going: false,
       lang: "en",
       body: "Home basketball opener. Student section in the east bleachers. Doors at 3:40. Walkers stay until a parent arrives.",
+    },
+    {
+      id: "e9",
+      kind: "fundraiser",
+      source: "admin",
+      for: "all",
+      title: "Loto 500",
+      when: "Tickets until Nov 3 · draws Nov 3–Dec 1",
+      where: "Parents' Committee",
+      who: "K–8 families · 19+",
+      unread: true,
+      going: false,
+      lang: "en",
+      campaignId: "loto500",
+      body: "First fundraiser of 2026–2027. $20 tickets, 500-ticket cap, weekly $500 draws. Buy online in Fundraise or drop off cash and paper tickets at school.",
     },
     {
       id: "e7",
@@ -2496,6 +2587,19 @@ const state = {
       unread: true,
     },
     {
+      id: "a18",
+      audience: "parent",
+      kind: "reminder",
+      for: "all",
+      section: "fundraise",
+      ref: "loto500",
+      title: "Loto 500 tickets",
+      body: "Parents' Committee Loto 500 is open — $20 tickets, 500-ticket cap, draws Nov 3–Dec 1. Buy online or drop off at school.",
+      when: "Today 8:05",
+      href: "#/fundraise/loto500",
+      unread: true,
+    },
+    {
       id: "a16",
       audience: "parent",
       kind: "reminder",
@@ -2615,6 +2719,7 @@ const navByRole = {
       children: [
         { id: "lunch", label: "Cafeteria", href: "#/lunch", hint: "Order hot lunch" },
         { id: "store", label: "Store", href: "#/store", hint: "Spirit wear" },
+        { id: "fundraise", label: "Fundraise", href: "#/fundraise", hint: "Loto 500 and campaigns" },
       ],
     },
   ],
@@ -2657,6 +2762,7 @@ const navByRole = {
         { id: "dismiss", label: "Dismissal", href: "#/dismiss", hint: "Live pickup board" },
         { id: "lunch", label: "Hot lunch menu", href: "#/lunch", hint: "Post this week" },
         { id: "store", label: "Store", href: "#/admin/store", hint: "Inventory and pickups" },
+        { id: "fundraise", label: "Fundraise", href: "#/fundraise", hint: "Campaigns and ticket sales" },
       ],
     },
     {
@@ -3759,6 +3865,17 @@ function askIndex() {
       zh: "家委会披萨套装12美元。在文件里订购，周五3:30食堂领取。活动列表里也有。",
       pa: "PTO ਪੀਜ਼ਾ ਕਿੱਟਾਂ $12। ਦਸਤਾਵੇਜ਼ ਤੋਂ ਆਰਡਰ, ਸ਼ੁੱਕਰਵਾਰ 3:30 ਕੈਫੇਟੇਰੀਆ। ਈਵੈਂਟ ਵਿਚ ਵੀ।",
       es: "Los kits de pizza del PTO cuestan $12. Pídalos en Documentos, recogida viernes 3:30 en la cafetería. También están en Eventos.",
+    },
+    {
+      id: "loto",
+      keys: ["loto", "loto 500", "lottery", "ticket", "fundraise", "parents committee", "abbey", "playground", "500"],
+      href: "#/fundraise/loto500",
+      source: "Fundraise · Parents' Committee",
+      fr: "Loto 500 — billets 20 $, plafond de 500, tirages du 3 nov. au 1er déc. Achetez en Collecte ou déposez à l’école.",
+      en: "Loto 500 — $20 tickets, 500-ticket cap, draws Nov 3–Dec 1. Buy in Fundraise or drop off at school.",
+      zh: "Loto 500 — 每张20美元，限售500张，11月3日至12月1日开奖。在募捐里购买或到校提交。",
+      pa: "Loto 500 — $20 ਟਿਕਟ, 500 ਸੀਮਾ, 3 ਨਵੰਬਰ–1 ਦਸੰਬਰ ਡਰਾ। ਫੰਡਰੇਜ਼ ਵਿਚ ਖਰੀਦੋ ਜਾਂ ਸਕੂਲ ਛੱਡੋ।",
+      es: "Loto 500 — boletos $20, tope 500, sorteos del 3 nov al 1 dic. Compre en Recaudación o deje en la escuela.",
     },
   ];
   if (state.edition === "mvp") {
@@ -6795,8 +6912,9 @@ function docRow(item) {
 }
 
 function eventRow(item) {
+  const href = item.campaignId ? `#/fundraise/${item.campaignId}` : `#/events/${item.id}`;
   return `
-    <a class="list-row ${item.unread ? "is-new" : ""}" href="#/events/${item.id}">
+    <a class="list-row ${item.unread ? "is-new" : ""}" href="${href}">
       <div class="title-block">
         <span class="kicker">${tx(eventKindMeta(item.kind).title)} · ${tx(item.when)} · ${tx(item.where)}</span>
         <strong>${tx(item.title)}</strong>
@@ -7406,6 +7524,10 @@ function eventsView(id) {
     }
     return;
   }
+  if (item.campaignId && state.edition === "dream") {
+    location.hash = `#/fundraise/${item.campaignId}`;
+    return fundraiseCampaignView(item.campaignId);
+  }
   setCrumbs(crumbsWithHub("events", { label: "Events", href: "#/events" }, [{ label: item.title, href: `#/events/${item.id}` }]));
   const titleShown = state.showOriginal[item.id] ? item.title : tx(item.title);
   const bodyShown = state.showOriginal[item.id] ? item.body : tx(item.body);
@@ -7430,6 +7552,11 @@ function eventsView(id) {
       ${
         formDoc
           ? `<div class="actions" style="padding-top:8px"><a class="btn" href="#/docs/${formDoc.id}">${tx("Open the form")}</a></div>`
+          : ""
+      }
+      ${
+        item.campaignId
+          ? `<div class="actions" style="padding-top:8px"><a class="btn" href="#/fundraise/${item.campaignId}">${tx("Open campaign")}</a></div>`
           : ""
       }
     </article>
@@ -8021,6 +8148,489 @@ function storeRoute(parts) {
   return storeFrontView();
 }
 
+function ensureFundDraft(campaign) {
+  const left = fundTicketsLeft(campaign);
+  const kids = state.role === "parent" ? students.filter((s) => ["maya", "noah", "samira"].includes(s.id)) : [];
+  const defaultName = kids[0]?.short || child().short || "";
+  if (!state.fundDraft || state.fundDraft.campaignId !== campaign.id) {
+    state.fundDraft = {
+      campaignId: campaign.id,
+      buyer: people[state.role].name,
+      ageOk: false,
+      qty: Math.min(1, left),
+      studentNames: [defaultName],
+    };
+  }
+  const qty = Math.min(Math.max(1, Number(state.fundDraft.qty) || 1), Math.max(1, left));
+  state.fundDraft.qty = left ? qty : 0;
+  const names = Array.isArray(state.fundDraft.studentNames) ? state.fundDraft.studentNames.slice(0, qty) : [];
+  while (names.length < qty) names.push(defaultName);
+  state.fundDraft.studentNames = names;
+  return state.fundDraft;
+}
+
+function fundraiseListView() {
+  paintChrome("fundraise");
+  setCrumbs(fundCrumbs());
+  const campaigns = state.fundCampaigns;
+  const orders = myFundOrders();
+  view.innerHTML = `
+    ${notice()}
+    <div class="hero">
+      <div>
+        <h1>${tx("Fundraise")}</h1>
+        <p class="lede">${tx("School campaigns you can support online. Cash and paper tickets can still be dropped off at school.")}</p>
+      </div>
+    </div>
+    <section class="card panel">
+      ${
+        campaigns.length
+          ? campaigns
+              .map((c) => {
+                const left = fundTicketsLeft(c);
+                const dest = fundPayDestination(c);
+                return `
+            <a class="list-row ${c.unread ? "is-new" : ""}" href="#/fundraise/${c.id}">
+              <div class="title-block">
+                <span class="kicker">${tx(c.organizer)} · ${tx(c.season || "")}</span>
+                <strong>${tx(c.title)}</strong>
+                <span class="kicker">${money(c.ticketPrice)} ${tx("per ticket")} · ${left} ${tx("left of")} ${c.ticketCap}</span>
+              </div>
+              ${pill(dest.label)}
+              ${c.unread ? pill("New", "risk") : left === 0 ? pill("Sold out", "amber") : ""}
+            </a>`;
+              })
+              .join("")
+          : `<p class="doc-empty">${tx("No open campaigns right now.")}</p>`
+      }
+    </section>
+    ${
+      orders.length
+        ? `<section class="card panel" style="margin-top:16px">
+        <div class="widget-head"><h2>${tx("Your ticket orders")}</h2><span class="kicker">${orders.length}</span></div>
+        ${orders
+          .map((order) => {
+            const dest = FUND_PAY_DESTINATIONS.find((d) => d.id === order.payDestination) || FUND_PAY_DESTINATIONS[0];
+            return `
+          <a class="list-row" href="#/fundraise/${order.campaignId}/receipt">
+            <div class="title-block">
+              <span class="kicker">${tx(order.campaignTitle)} · ${order.paidAt}</span>
+              <strong>${order.qty} ${tx("tickets")} · ${money(order.total)}</strong>
+              <span class="kicker">${tx("Sent to")} ${tx(dest.label)}</span>
+            </div>
+            ${pill(storePayLabel(order.method, order.last4))}
+          </a>`;
+          })
+          .join("")}
+      </section>`
+        : ""
+    }
+  `;
+}
+
+function fundraiseCampaignView(id) {
+  const campaign = fundCampaign(id);
+  if (!campaign) {
+    location.hash = "#/fundraise";
+    return fundraiseListView();
+  }
+  campaign.unread = false;
+  markAlertsFor(campaign.id);
+  paintChrome("fundraise");
+  setCrumbs(fundCrumbs([{ label: campaign.title, href: `#/fundraise/${campaign.id}` }]));
+  const left = fundTicketsLeft(campaign);
+  const dest = fundPayDestination(campaign);
+  const soldPct = Math.min(100, Math.round(((campaign.ticketsSold || 0) / campaign.ticketCap) * 100));
+  const canOrganize = state.role === "admin";
+  view.innerHTML = `
+    ${notice()}
+    <div class="hero">
+      <div>
+        <h1>${tx(campaign.title)}</h1>
+        <p class="lede">${tx(campaign.body)}</p>
+      </div>
+      <div class="stat-row">
+        <div><div class="num">${money(campaign.ticketPrice)}</div><div class="kicker">${tx("Per ticket")}</div></div>
+        <div><div class="num">${left}</div><div class="kicker">${tx("Tickets left")}</div></div>
+      </div>
+    </div>
+    <section class="card panel fund-panel">
+      <div class="fund-meter" aria-hidden="true"><span style="width:${soldPct}%"></span></div>
+      <p class="kicker fund-meter-label">${campaign.ticketsSold} ${tx("sold")} · ${campaign.ticketCap} ${tx("cap")} · ${tx("Must be")} ${campaign.ageMin}+</p>
+      <div class="fund-facts">
+        <div class="fund-fact"><span class="kicker">${tx("Organizer")}</span><strong>${tx(campaign.organizer)}</strong></div>
+        <div class="fund-fact"><span class="kicker">${tx("Sales window")}</span><strong>${tx(campaign.sellBy)}</strong></div>
+        <div class="fund-fact"><span class="kicker">${tx("Draws")}</span><strong>${tx(campaign.draws)}</strong></div>
+        <div class="fund-fact"><span class="kicker">${tx("Payment goes to")}</span><strong>${tx(dest.label)}</strong></div>
+      </div>
+      <p class="lede" style="margin-top:12px">${tx(campaign.drawNote)}</p>
+      <p class="lede">${tx(campaign.studentPerk)}</p>
+      <h2 style="margin-top:18px">${tx("Where the money goes")}</h2>
+      <ul class="fund-goals">
+        ${campaign.goals.map((g) => `<li>${tx(g)}</li>`).join("")}
+      </ul>
+      ${
+        canOrganize
+          ? `<div class="fund-organize">
+              <h2>${tx("Organizer setting")}</h2>
+              <p class="lede">${tx("Choose who receives online payments for this campaign. Families see this at checkout.")}</p>
+              <div class="pay-methods" role="group" aria-label="${tx("Payment destination")}">
+                ${FUND_PAY_DESTINATIONS.map(
+                  (d) => `
+                  <button type="button" class="pay-choice ${campaign.payDestination === d.id ? "is-on" : ""}" data-fund-dest="${d.id}">${tx(d.label)}</button>`
+                ).join("")}
+              </div>
+              <p class="kicker">${tx(dest.hint)}</p>
+            </div>`
+          : `<p class="kicker" style="margin-top:12px">${tx("Online payments go to")} ${tx(dest.label)}. ${tx(dest.hint)}.</p>`
+      }
+      <div class="actions" style="margin-top:16px">
+        ${
+          left
+            ? `<a class="btn" href="#/fundraise/${campaign.id}/buy">${tx("Buy tickets")}</a>`
+            : `<button class="btn" type="button" disabled>${tx("Sold out")}</button>`
+        }
+        <a class="btn ghost" href="#/fundraise">${tx("All campaigns")}</a>
+      </div>
+      <p class="kicker" style="margin-top:12px">${tx("Prefer cash? Drop off money and paper tickets at the school office — still counts toward the 500.")}</p>
+    </section>
+  `;
+  view.querySelectorAll("[data-fund-dest]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      campaign.payDestination = btn.dataset.fundDest;
+      state.notice = txf("Payment destination set to {name}.", { name: tx(fundPayDestination(campaign).label) });
+      fundraiseCampaignView(campaign.id);
+    });
+  });
+}
+
+function fundraiseBuyView(id) {
+  const campaign = fundCampaign(id);
+  if (!campaign) {
+    location.hash = "#/fundraise";
+    return fundraiseListView();
+  }
+  const left = fundTicketsLeft(campaign);
+  if (!left) {
+    state.notice = tx("This campaign is sold out.");
+    location.hash = `#/fundraise/${campaign.id}`;
+    return fundraiseCampaignView(campaign.id);
+  }
+  const draft = ensureFundDraft(campaign);
+  const kids = state.role === "parent" ? students.filter((s) => ["maya", "noah", "samira"].includes(s.id)) : [];
+  paintChrome("fundraise");
+  setCrumbs(
+    fundCrumbs([
+      { label: campaign.title, href: `#/fundraise/${campaign.id}` },
+      { label: "Buy tickets", href: `#/fundraise/${campaign.id}/buy` },
+    ])
+  );
+  view.innerHTML = `
+    ${notice()}
+    <div class="hero">
+      <div>
+        <h1>${tx("Buy tickets")}</h1>
+        <p class="lede">${tx(campaign.title)} · ${money(campaign.ticketPrice)} ${tx("each")} · ${left} ${tx("remaining")}</p>
+      </div>
+      <div class="stat-row">
+        <div><div class="num">${money(fundDraftTotal(draft, campaign))}</div><div class="kicker">${tx("Due")}</div></div>
+      </div>
+    </div>
+    <section class="card panel" style="padding-bottom:18px">
+      <form id="fund-buy-form">
+        <div class="field">
+          <label for="fund-buyer">${tx("Buyer name")}</label>
+          <input id="fund-buyer" name="buyer" value="${draft.buyer || ""}" required autocomplete="name" />
+        </div>
+        <label class="fund-check">
+          <input type="checkbox" id="fund-age" ${draft.ageOk ? "checked" : ""} />
+          <span>${txf("I confirm I am {age} or older and can buy Loto tickets.", { age: String(campaign.ageMin) })}</span>
+        </label>
+        <div class="field">
+          <label for="fund-qty">${tx("Number of tickets")}</label>
+          <div class="qty" style="justify-content:flex-start">
+            <button type="button" class="qty-btn" id="fund-qty-minus" ${draft.qty <= 1 ? "disabled" : ""}>−</button>
+            <span class="qty-n" id="fund-qty-label">${draft.qty}</span>
+            <button type="button" class="qty-btn add" id="fund-qty-plus" ${draft.qty >= left ? "disabled" : ""}>+</button>
+          </div>
+          <input type="hidden" id="fund-qty" value="${draft.qty}" />
+          <p class="kicker" style="margin-top:8px">${tx("Hard cap")} ${campaign.ticketCap} · ${left} ${tx("left")}</p>
+        </div>
+        <div id="fund-names">
+          ${draft.studentNames
+            .map(
+              (name, i) => `
+            <div class="field">
+              <label for="fund-student-${i}">${txf("Student name on ticket {n}", { n: String(i + 1) })}</label>
+              <input id="fund-student-${i}" class="fund-student" value="${name || ""}" list="fund-student-suggestions" placeholder="${tx("Student first name")}" required />
+            </div>`
+            )
+            .join("")}
+        </div>
+        ${
+          kids.length
+            ? `<datalist id="fund-student-suggestions">${kids.map((s) => `<option value="${s.short}"></option>`).join("")}</datalist>
+               <p class="kicker">${tx("Names feed top-seller prizes and weekly student gift-card draws.")}</p>`
+            : `<p class="kicker">${tx("Names feed top-seller prizes and weekly student gift-card draws.")}</p>`
+        }
+        <div class="actions" style="margin-top:8px">
+          <button class="btn" type="submit">${tx("Continue to pay")} · ${money(fundDraftTotal(draft, campaign))}</button>
+          <a class="btn ghost" href="#/fundraise/${campaign.id}">${tx("Back")}</a>
+        </div>
+      </form>
+    </section>
+  `;
+
+  const readDraftFields = () => {
+    draft.buyer = (document.getElementById("fund-buyer")?.value || draft.buyer || "").trim();
+    draft.ageOk = Boolean(document.getElementById("fund-age")?.checked);
+    const liveNames = [...view.querySelectorAll(".fund-student")].map((input) => input.value || "");
+    if (liveNames.length) draft.studentNames = liveNames;
+  };
+  const syncQty = (next) => {
+    readDraftFields();
+    const qty = Math.min(left, Math.max(1, next));
+    draft.qty = qty;
+    const names = draft.studentNames.slice(0, qty);
+    const fallback = kids[0]?.short || child().short || "";
+    while (names.length < qty) names.push(fallback);
+    draft.studentNames = names;
+    fundraiseBuyView(campaign.id);
+  };
+  document.getElementById("fund-age")?.addEventListener("change", (e) => {
+    draft.ageOk = e.target.checked;
+  });
+  document.getElementById("fund-buyer")?.addEventListener("change", (e) => {
+    draft.buyer = e.target.value;
+  });
+  document.getElementById("fund-qty-minus")?.addEventListener("click", () => syncQty(draft.qty - 1));
+  document.getElementById("fund-qty-plus")?.addEventListener("click", () => syncQty(draft.qty + 1));
+  document.getElementById("fund-buy-form")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const buyer = (document.getElementById("fund-buyer").value || "").trim();
+    const ageOk = document.getElementById("fund-age").checked;
+    const names = [...view.querySelectorAll(".fund-student")].map((input) => (input.value || "").trim());
+    if (!buyer) {
+      state.notice = tx("Add the buyer’s name.");
+      fundraiseBuyView(campaign.id);
+      return;
+    }
+    if (!ageOk) {
+      state.notice = txf("You must confirm you are {age} or older.", { age: String(campaign.ageMin) });
+      fundraiseBuyView(campaign.id);
+      return;
+    }
+    if (names.some((n) => !n) || names.length !== draft.qty) {
+      state.notice = tx("Every ticket needs a student name.");
+      fundraiseBuyView(campaign.id);
+      return;
+    }
+    if (draft.qty > fundTicketsLeft(campaign)) {
+      state.notice = tx("Not enough tickets left.");
+      fundraiseBuyView(campaign.id);
+      return;
+    }
+    draft.buyer = buyer;
+    draft.ageOk = true;
+    draft.studentNames = names;
+    state.notice = "";
+    location.hash = `#/fundraise/${campaign.id}/pay`;
+    render();
+  });
+}
+
+function fundraisePayView(id) {
+  const campaign = fundCampaign(id);
+  const draft = state.fundDraft;
+  if (!campaign || !draft || draft.campaignId !== campaign.id || !draft.ageOk || !draft.qty) {
+    location.hash = `#/fundraise/${id || "loto500"}/buy`;
+    return fundraiseBuyView(id || "loto500");
+  }
+  if (draft.qty > fundTicketsLeft(campaign)) {
+    state.notice = tx("Not enough tickets left.");
+    location.hash = `#/fundraise/${campaign.id}/buy`;
+    return fundraiseBuyView(campaign.id);
+  }
+  const dest = fundPayDestination(campaign);
+  const total = fundDraftTotal(draft, campaign);
+  const method = state.fundPay || "card";
+  paintChrome("fundraise");
+  setCrumbs(
+    fundCrumbs([
+      { label: campaign.title, href: `#/fundraise/${campaign.id}` },
+      { label: "Buy tickets", href: `#/fundraise/${campaign.id}/buy` },
+      { label: "Pay", href: `#/fundraise/${campaign.id}/pay` },
+    ])
+  );
+  view.innerHTML = `
+    ${notice()}
+    <div class="hero">
+      <div>
+        <h1>${tx("Send money")}</h1>
+        <p class="lede">${txf("Demo checkout — Harbor does not charge a real card. Funds are marked as sent to {dest} for school investment.", { dest: tx(dest.label) })}</p>
+      </div>
+      <div class="stat-row">
+        <div><div class="num">${money(total)}</div><div class="kicker">${draft.qty} ${tx("tickets")}</div></div>
+      </div>
+    </div>
+    <section class="card panel" style="padding-bottom:18px">
+      <div class="fund-dest-banner">
+        <span class="kicker">${tx("Payment destination")}</span>
+        <strong>${tx(dest.label)}</strong>
+        <span class="kicker">${tx(dest.hint)}</span>
+      </div>
+      <div class="lunch-row" style="margin-top:8px">
+        <div class="title-block">
+          <strong>${tx(campaign.title)}</strong>
+          <span class="kicker">${draft.buyer} · ${draft.studentNames.join(", ")}</span>
+        </div>
+        <span class="lunch-price">${money(total)}</span>
+      </div>
+      <h2 style="margin-top:16px">${tx("Payment method")}</h2>
+      <div class="pay-methods">
+        <button type="button" class="pay-choice ${method === "apple" ? "is-on" : ""}" data-fund-pay="apple">${tx("Apple Pay")}</button>
+        <button type="button" class="pay-choice ${method === "google" ? "is-on" : ""}" data-fund-pay="google">${tx("Google Pay")}</button>
+        <button type="button" class="pay-choice ${method === "card" ? "is-on" : ""}" data-fund-pay="card">${tx("Credit card")}</button>
+        <button type="button" class="pay-choice ${method === "dropoff" ? "is-on" : ""}" data-fund-pay="dropoff">${tx("Cash drop-off")}</button>
+      </div>
+      ${
+        method === "card"
+          ? `<form id="fund-card-form" class="card-form">
+              <div class="field"><label for="fund-card-name">${tx("Name on card")}</label><input id="fund-card-name" autocomplete="cc-name" value="${draft.buyer}" required /></div>
+              <div class="field"><label for="fund-card-number">${tx("Card number")}</label><input id="fund-card-number" inputmode="numeric" autocomplete="cc-number" placeholder="4242 4242 4242 4242" required /></div>
+              <div class="card-grid">
+                <div class="field"><label for="fund-card-exp">${tx("Expiry")}</label><input id="fund-card-exp" placeholder="MM/YY" autocomplete="cc-exp" required /></div>
+                <div class="field"><label for="fund-card-cvc">${tx("CVC")}</label><input id="fund-card-cvc" inputmode="numeric" autocomplete="cc-csc" placeholder="123" required /></div>
+              </div>
+              <button class="btn" type="submit">${tx("Send")} ${money(total)} ${tx("to")} ${tx(dest.label)}</button>
+            </form>`
+          : method === "dropoff"
+            ? `<p class="lede" style="margin:12px 0">${tx("Reserve these tickets and bring cash to the school office. Inventory holds when you confirm.")}</p>
+               <button class="btn" type="button" id="fund-pay-now">${tx("Reserve for cash drop-off")}</button>`
+            : `<p class="lede" style="margin:12px 0">${tx("Opens the wallet on a phone. In this demo it confirms without leaving Harbor.")}</p>
+               <button class="btn pay-wallet ${method === "apple" ? "apple" : "google"}" type="button" id="fund-pay-now">${method === "apple" ? tx("Pay with Apple Pay") : tx("Pay with Google Pay")}</button>`
+      }
+      <div class="actions" style="margin-top:12px">
+        <a class="btn ghost" href="#/fundraise/${campaign.id}/buy">${tx("Back")}</a>
+      </div>
+    </section>
+  `;
+  view.querySelectorAll("[data-fund-pay]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.fundPay = btn.dataset.fundPay;
+      fundraisePayView(campaign.id);
+    });
+  });
+  document.getElementById("fund-card-form")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const number = (document.getElementById("fund-card-number").value || "").replace(/\D/g, "");
+    const exp = (document.getElementById("fund-card-exp").value || "").trim();
+    const cvc = (document.getElementById("fund-card-cvc").value || "").replace(/\D/g, "");
+    if (number.length < 13 || number.length > 19 || !/^\d{2}\/\d{2}$/.test(exp) || cvc.length < 3) {
+      state.notice = tx("Check the card number, expiry, and CVC. Demo cards like 4242 4242 4242 4242 work.");
+      fundraisePayView(campaign.id);
+      return;
+    }
+    completeFundPay(campaign, "card", number.slice(-4));
+  });
+  document.getElementById("fund-pay-now")?.addEventListener("click", () => completeFundPay(campaign, method));
+}
+
+function completeFundPay(campaign, method, last4) {
+  const draft = state.fundDraft;
+  if (!draft || draft.campaignId !== campaign.id) {
+    fundraiseBuyView(campaign.id);
+    return;
+  }
+  if (draft.qty > fundTicketsLeft(campaign)) {
+    state.notice = tx("Not enough tickets left.");
+    fundraiseBuyView(campaign.id);
+    return;
+  }
+  campaign.ticketsSold += draft.qty;
+  const dest = fundPayDestination(campaign);
+  const order = {
+    id: "fo" + Date.now(),
+    campaignId: campaign.id,
+    campaignTitle: campaign.title,
+    buyer: draft.buyer,
+    buyerRole: state.role,
+    family: state.role === "parent" ? "bowser" : "",
+    qty: draft.qty,
+    studentNames: draft.studentNames.slice(),
+    ticketPrice: campaign.ticketPrice,
+    total: fundDraftTotal(draft, campaign),
+    method,
+    last4: last4 || "",
+    payDestination: dest.id,
+    paidAt: "Just now",
+  };
+  state.fundOrders.unshift(order);
+  state.fundDraft = null;
+  state.fundReceipt = order.id;
+  state.notice = "";
+  location.hash = `#/fundraise/${campaign.id}/receipt`;
+  render();
+}
+
+function fundraiseReceiptView(id) {
+  const campaign = fundCampaign(id);
+  const order =
+    state.fundOrders.find((row) => row.id === state.fundReceipt && (!id || row.campaignId === id)) ||
+    myFundOrders().find((row) => row.campaignId === id) ||
+    myFundOrders()[0];
+  if (!order) {
+    location.hash = id ? `#/fundraise/${id}` : "#/fundraise";
+    return id ? fundraiseCampaignView(id) : fundraiseListView();
+  }
+  const dest = FUND_PAY_DESTINATIONS.find((d) => d.id === order.payDestination) || FUND_PAY_DESTINATIONS[0];
+  paintChrome("fundraise");
+  setCrumbs(
+    fundCrumbs([
+      { label: order.campaignTitle, href: `#/fundraise/${order.campaignId}` },
+      { label: "Receipt", href: `#/fundraise/${order.campaignId}/receipt` },
+    ])
+  );
+  view.innerHTML = `
+    ${notice()}
+    <div class="hero">
+      <div>
+        <h1>${order.method === "dropoff" ? tx("Tickets held for cash drop-off.") : tx("Tickets are on the list.")}</h1>
+        <p class="lede">${txf("Sent to {dest} · {pay}", { dest: tx(dest.label), pay: storePayLabel(order.method, order.last4) })}</p>
+      </div>
+      <div class="stat-row">
+        <div><div class="num">${money(order.total)}</div><div class="kicker">${order.paidAt}</div></div>
+      </div>
+    </div>
+    <section class="card panel">
+      <div class="lunch-row">
+        <div class="title-block">
+          <strong>${tx(order.campaignTitle)}</strong>
+          <span class="kicker">${order.qty} × ${money(order.ticketPrice)} · ${order.buyer}</span>
+        </div>
+        <span class="lunch-price">${money(order.total)}</span>
+      </div>
+      <h2 style="margin-top:16px">${tx("Student names on tickets")}</h2>
+      ${order.studentNames.map((name, i) => `<div class="list-row"><div class="title-block"><span class="kicker">${tx("Ticket")} ${i + 1}</span><strong>${name}</strong></div></div>`).join("")}
+      <p class="kicker" style="margin-top:12px">${tx(campaign?.drawNote || "Weekly draws are posted on the school Facebook page.")}</p>
+    </section>
+    <div class="actions">
+      <a class="btn" href="#/fundraise/${order.campaignId}">${tx("Back to campaign")}</a>
+      <a class="btn ghost" href="#/fundraise">${tx("All campaigns")}</a>
+    </div>
+  `;
+}
+
+function fundraiseRoute(parts) {
+  const id = parts[1];
+  const step = parts[2];
+  if (!id) return fundraiseListView();
+  if (step === "buy") return fundraiseBuyView(id);
+  if (step === "pay") return fundraisePayView(id);
+  if (step === "receipt") return fundraiseReceiptView(id);
+  return fundraiseCampaignView(id);
+}
+
 function setNavOpen(open) {
   document.body.classList.toggle("nav-open", open);
   const btn = document.getElementById("menu-btn");
@@ -8050,6 +8660,13 @@ function render() {
   if (parts[0] === "alerts") return alertsView();
   if (parts[0] === "scan") return scanView(parts[1]);
   if (parts[0] === "store" || (parts[0] === "admin" && parts[1] === "store")) return storeRoute(parts);
+  if (parts[0] === "fundraise") {
+    if (state.edition === "mvp") {
+      state.notice = tx("Online Loto 500 tickets live in Dream. Switch the Temp toggle to try the flow.");
+      return eventsView();
+    }
+    return fundraiseRoute(parts);
+  }
 
   if (state.edition === "mvp") {
     if (parts[0] === "inbox") return mvpInbox(parts[1]);
@@ -8108,6 +8725,7 @@ function render() {
   if (parts[0] === "bus") return bus();
   if (parts[0] === "class") return classroom(parts[1]);
   if (parts[0] === "messages") return messages(parts[1]);
+  if (parts[0] === "fundraise") return fundraiseRoute(parts);
   parentHome();
 }
 
