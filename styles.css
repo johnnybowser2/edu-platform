@@ -3091,6 +3091,38 @@ button.year-day {
   font-size: 16px;
 }
 
+.fund-secondary {
+  margin: 14px 0 0;
+  font-size: 13px;
+}
+
+.fund-secondary a {
+  color: var(--ink-soft);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.fund-order-row {
+  margin: 14px 0;
+  padding: 12px 14px 4px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--paper-2);
+}
+
+.fund-order-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.fund-order-row-head .btn.ghost {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
 @media (max-width: 720px) {
   .fund-facts {
     grid-template-columns: 1fr;
