@@ -882,7 +882,90 @@ function childUnread(id) {
   ).filter((alert) => alert.unread).length;
 }
 
-function navBadgeCount(id) {
+function normalizeNavItem(item) {
+  if (Array.isArray(item)) {
+    const [id, label, href] = item;
+    return { id, label, href };
+  }
+  return item;
+}
+
+function currentNavItems() {
+  const raw = state.edition === "mvp" ? mvpNavByRole[state.role] : navByRole[state.role];
+  return (raw || []).map(normalizeNavItem);
+}
+
+function findNavItem(id) {
+  for (const item of currentNavItems()) {
+    if (item.id === id) return item;
+    const child = item.children?.find((entry) => entry.id === id);
+    if (child) return child;
+  }
+  return null;
+}
+
+function hubForLeaf(leafId) {
+  if (state.edition !== "dream") return null;
+  for (const item of currentNavItems()) {
+    if (item.children?.some((entry) => entry.id === leafId)) return item;
+  }
+  return null;
+}
+
+function railActiveId(active) {
+  const hub = hubForLeaf(active);
+  return hub ? hub.id : active;
+}
+
+let railOpenHubId = null;
+let railUserCollapsedHubId = null;
+let railUserForcedOpenId = null;
+let lastRailActive = "home";
+let railCollapseTimer = 0;
+
+const DREAM_HUB_PATHS = new Set(["life", "transit", "buy", "publish", "duty", "ops", "cal"]);
+
+function collapseRailHub(group) {
+  const hubId = group?.dataset?.hub;
+  if (!hubId) return;
+  railUserCollapsedHubId = hubId;
+  railUserForcedOpenId = null;
+  railOpenHubId = null;
+  const hubLink = group.querySelector(".rail-link.has-kids");
+  const sub = group.querySelector(".rail-subnav");
+  group.classList.remove("is-open");
+  hubLink?.classList.remove("is-expanded");
+  hubLink?.setAttribute("aria-expanded", "false");
+  group.querySelectorAll(".rail-sublink").forEach((link) => link.setAttribute("tabindex", "-1"));
+
+  const finish = () => {
+    if (railUserCollapsedHubId !== hubId) return;
+    if (sub) {
+      sub.setAttribute("aria-hidden", "true");
+      sub.setAttribute("inert", "");
+    }
+    paintChrome(lastRailActive);
+  };
+
+  if (preferReducedMotion() || !sub) {
+    finish();
+    return;
+  }
+
+  window.clearTimeout(railCollapseTimer);
+  let done = false;
+  const once = (event) => {
+    if (event && event.target !== sub) return;
+    if (done) return;
+    done = true;
+    sub.removeEventListener("transitionend", once);
+    finish();
+  };
+  sub.addEventListener("transitionend", once);
+  railCollapseTimer = window.setTimeout(once, 380);
+}
+
+function leafNavBadge(id) {
   const reminders = unreadAlerts().filter((alert) => alert.section === id || (id === "calendar" && alert.section === "schedule")).length;
   if (id === "alerts") return unreadAlerts().length;
   if (id === "messages" || id === "inbox") return unreadComms();
@@ -907,6 +990,19 @@ function navBadgeCount(id) {
   }
   if (id === "bus" || id === "class" || id === "attendance") return reminders;
   return 0;
+}
+
+function navBadgeCount(id) {
+  const item = findNavItem(id);
+  if (item?.children?.length) {
+    return item.children.reduce((sum, child) => sum + leafNavBadge(child.id), 0);
+  }
+  return leafNavBadge(id);
+}
+
+function crumbsWithHub(_leafId, leafCrumb, extras = []) {
+  // Hub landing pages are gone — crumbs go straight to the destination.
+  return [boardCrumb(), leafCrumb, ...extras];
 }
 
 function badgeMarkup(count) {
@@ -1278,9 +1374,10 @@ function isoDay(y, m, d) {
 }
 
 function monthWeekdays(y, m) {
+  // School year grid is Mon–Fri only — weekends never have class.
   const firstDow = new Date(y, m, 1).getDay();
-  const mondayIndex = firstDow === 0 ? 6 : firstDow - 1;
-  const lead = Math.min(mondayIndex, 5);
+  const monBased = firstDow === 0 ? 6 : firstDow - 1;
+  const lead = monBased < 5 ? monBased : 0;
   const last = new Date(y, m + 1, 0).getDate();
   const cells = Array(lead).fill(null);
   for (let d = 1; d <= last; d += 1) {
@@ -1713,7 +1810,7 @@ function waitingStorePickups() {
 }
 
 function storeCrumbs(extra) {
-  return [boardCrumb(), { label: "Store", href: "#/store" }, ...(extra || [])];
+  return crumbsWithHub("store", { label: "Store", href: "#/store" }, extra || []);
 }
 
 function storePayLabel(method, last4) {
@@ -2488,40 +2585,89 @@ const state = {
 
 const navByRole = {
   parent: [
-    ["home", "Today", "#/"],
-    ["attendance", "Attendance", "#/attendance"],
-    ["reports", "Report cards", "#/reports"],
-    ["calendar", "Calendar", "#/calendar"],
-    ["events", "Events", "#/events"],
-    ["lunch", "Cafeteria", "#/lunch"],
-    ["store", "Store", "#/store"],
-    ["dismiss", "Dismissal", "#/dismiss"],
-    ["bus", "Bus", "#/bus"],
-    ["class", "Classroom", "#/class"],
-    ["messages", "Messages", "#/messages"],
+    { id: "home", label: "Today", href: "#/" },
+    { id: "messages", label: "Messages", href: "#/messages" },
+    { id: "attendance", label: "Attendance", href: "#/attendance" },
+    {
+      id: "life",
+      label: "School life",
+      href: "#",
+      children: [
+        { id: "calendar", label: "Calendar", href: "#/calendar", hint: "Week and year schedule" },
+        { id: "events", label: "Events", href: "#/events", hint: "Sign-ups and going" },
+        { id: "class", label: "Classroom", href: "#/class", hint: "Class feed" },
+        { id: "reports", label: "Report cards", href: "#/reports", hint: "Grades" },
+      ],
+    },
+    {
+      id: "transit",
+      label: "Coming & going",
+      href: "#",
+      children: [
+        { id: "dismiss", label: "Dismissal", href: "#/dismiss", hint: "Pickup plan" },
+        { id: "bus", label: "Bus", href: "#/bus", hint: "Route and walk" },
+      ],
+    },
+    {
+      id: "buy",
+      label: "Buy",
+      href: "#",
+      children: [
+        { id: "lunch", label: "Cafeteria", href: "#/lunch", hint: "Order hot lunch" },
+        { id: "store", label: "Store", href: "#/store", hint: "Spirit wear" },
+      ],
+    },
   ],
   teacher: [
-    ["home", "My class", "#/"],
-    ["scan", "Scan flyer", "#/scan"],
-    ["attendance", "Attendance", "#/teach/attendance"],
-    ["calendar", "Calendar", "#/calendar"],
-    ["events", "Events", "#/events"],
-    ["lunch", "Lunch list", "#/lunch"],
-    ["store", "Store", "#/store"],
-    ["dismiss", "Dismissal", "#/dismiss"],
-    ["class", "Activities", "#/class"],
-    ["messages", "Families", "#/messages"],
+    { id: "home", label: "My class", href: "#/" },
+    { id: "messages", label: "Families", href: "#/messages" },
+    { id: "attendance", label: "Attendance", href: "#/teach/attendance" },
+    {
+      id: "publish",
+      label: "Publish",
+      href: "#",
+      children: [
+        { id: "scan", label: "Scan flyer", href: "#/scan", hint: "Turn a flyer into a post" },
+        { id: "class", label: "Activities", href: "#/class", hint: "Class feed" },
+        { id: "events", label: "Events", href: "#/events", hint: "Dances, games, fundraisers" },
+        { id: "calendar", label: "Calendar", href: "#/calendar", hint: "Week and year schedule" },
+      ],
+    },
+    {
+      id: "duty",
+      label: "Duty",
+      href: "#",
+      children: [
+        { id: "dismiss", label: "Dismissal", href: "#/dismiss", hint: "Pickup changes" },
+        { id: "lunch", label: "Lunch list", href: "#/lunch", hint: "Who ordered today" },
+      ],
+    },
+    { id: "store", label: "Store", href: "#/store" },
   ],
   admin: [
-    ["home", "School", "#/"],
-    ["scan", "Scan flyer", "#/scan"],
-    ["attendance", "Attendance", "#/admin/attendance"],
-    ["bus", "Buses", "#/bus"],
-    ["dismiss", "Dismissal", "#/dismiss"],
-    ["lunch", "Hot lunch menu", "#/lunch"],
-    ["store", "Store", "#/admin/store"],
-    ["calendar", "Calendar", "#/calendar"],
-    ["events", "Events", "#/events"],
+    { id: "home", label: "School", href: "#/" },
+    { id: "attendance", label: "Attendance", href: "#/admin/attendance" },
+    { id: "scan", label: "Scan flyer", href: "#/scan" },
+    {
+      id: "ops",
+      label: "Operations",
+      href: "#",
+      children: [
+        { id: "bus", label: "Buses", href: "#/bus", hint: "Routes and changes" },
+        { id: "dismiss", label: "Dismissal", href: "#/dismiss", hint: "Live pickup board" },
+        { id: "lunch", label: "Hot lunch menu", href: "#/lunch", hint: "Post this week" },
+        { id: "store", label: "Store", href: "#/admin/store", hint: "Inventory and pickups" },
+      ],
+    },
+    {
+      id: "cal",
+      label: "Calendar & events",
+      href: "#",
+      children: [
+        { id: "calendar", label: "Calendar", href: "#/calendar", hint: "Week and year schedule" },
+        { id: "events", label: "Events", href: "#/events", hint: "Dances, games, fundraisers" },
+      ],
+    },
   ],
 };
 
@@ -2786,6 +2932,36 @@ const BOOK = {
   ["Bus", "Autobus", "校车", "ਬੱਸ", "Autobús"],
   ["Classroom", "Classe", "课堂", "ਕਲਾਸ", "Salón"],
   ["Messages", "Messages", "消息", "ਸੁਨੇਹੇ", "Mensajes"],
+  ["School life", "Vie scolaire", "校园生活", "ਸਕੂਲ ਜੀਵਨ", "Vida escolar"],
+  ["Coming & going", "Aller-retour", "往返", "ਆਉਣ-ਜਾਣ", "Ida y vuelta"],
+  ["Buy", "Acheter", "购买", "ਖ਼ਰੀਦੋ", "Comprar"],
+  ["Publish", "Publier", "发布", "ਪ੍ਰਕਾਸ਼ਿਤ", "Publicar"],
+  ["Duty", "Service", "值班", "ਡਿਊਟੀ", "Turno"],
+  ["Operations", "Opérations", "运营", "ਓਪਰੇਸ਼ਨ", "Operaciones"],
+  ["Calendar & events", "Calendrier et événements", "日历与活动", "ਕੈਲੰਡਰ ਤੇ ਈਵੈਂਟ", "Calendario y eventos"],
+  ["Calendar, events, classroom, and report cards.", "Calendrier, événements, classe et bulletins.", "日历、活动、课堂和成绩单。", "ਕੈਲੰਡਰ, ਈਵੈਂਟ, ਕਲਾਸ ਅਤੇ ਰਿਪੋਰਟ ਕਾਰਡ।", "Calendario, eventos, salón y boletines."],
+  ["Dismissal plans and bus.", "Plans de sortie et autobus.", "放学安排与校车。", "ਛੁੱਟੀ ਯੋਜਨਾ ਅਤੇ ਬੱਸ।", "Planes de salida y autobús."],
+  ["Cafeteria and school store.", "Cafétéria et boutique scolaire.", "食堂与学校商店。", "ਕੈਫੇਟੇਰੀਆ ਅਤੇ ਸਕੂਲ ਸਟੋਰ।", "Cafetería y tienda escolar."],
+  ["Scan flyers, activities, events, and calendar.", "Scanner des affiches, activités, événements et calendrier.", "扫描传单、活动、赛事和日历。", "ਪਰਚੇ, ਗਤੀਵਿਧੀਆਂ, ਈਵੈਂਟ ਅਤੇ ਕੈਲੰਡਰ ਸਕੈਨ।", "Escanear volantes, actividades, eventos y calendario."],
+  ["Dismissal board and lunch list.", "Tableau de sortie et liste du dîner.", "放学看板与午餐名单。", "ਛੁੱਟੀ ਬੋਰਡ ਅਤੇ ਲੰਚ ਸੂਚੀ।", "Tablero de salida y lista del almuerzo."],
+  ["Buses, dismissal, hot lunch, and store.", "Autobus, sortie, dîner chaud et boutique.", "校车、放学、热午餐与商店。", "ਬੱਸਾਂ, ਛੁੱਟੀ, ਗਰਮ ਲੰਚ ਅਤੇ ਸਟੋਰ।", "Autobuses, salida, almuerzo caliente y tienda."],
+  ["School calendar and events.", "Calendrier et événements de l’école.", "学校日历与活动。", "ਸਕੂਲ ਕੈਲੰਡਰ ਤੇ ਈਵੈਂਟ।", "Calendario y eventos escolares."],
+  ["Week and year schedule", "Horaire de la semaine et de l’année", "周与年日程", "ਹਫ਼ਤਾ ਤੇ ਸਾਲ ਹੋਰਾਰੀ", "Horario semanal y anual"],
+  ["Sign-ups and going", "Inscriptions et participation", "报名与参加", "ਰਜਿਸਟਰ ਤੇ ਜਾਣਾ", "Inscripciones y asistencia"],
+  ["Class feed", "Fil de classe", "班级动态", "ਕਲਾਸ ਫੀਡ", "Feed del salón"],
+  ["Grades", "Notes", "成绩", "ਗ੍ਰੇਡ", "Notas"],
+  ["Pickup plan", "Plan de ramassage", "接送计划", "ਪਿਕਅੱਪ ਯੋਜਨਾ", "Plan de recogida"],
+  ["Route and walk", "Parcours et marche", "路线与步行", "ਰੂਟ ਤੇ ਤੁਰਨਾ", "Ruta y caminata"],
+  ["Order hot lunch", "Commander le dîner chaud", "预订热午餐", "ਗਰਮ ਲੰਚ ਆਰਡਰ", "Pedir almuerzo caliente"],
+  ["Spirit wear", "Vêtements d’esprit", "校园服饰", "ਸਪਿਰਿਟ ਪਹਿਰਾਵਾ", "Ropa de espíritu"],
+  ["Turn a flyer into a post", "Transformer une affiche en billet", "把传单变成帖子", "ਪਰਚੇ ਨੂੰ ਪੋਸਟ ਬਣਾਓ", "Convertir un volante en publicación"],
+  ["Dances, games, fundraisers", "Danses, matchs, collectes", "舞会、比赛、募捐", "ਡਾਂਸ, ਖੇਡਾਂ, ਫੰਡਰੇਜ਼ਰ", "Bailes, partidos, recaudaciones"],
+  ["Pickup changes", "Changements de ramassage", "接送变更", "ਪਿਕਅੱਪ ਬਦਲਾਅ", "Cambios de recogida"],
+  ["Who ordered today", "Qui a commandé aujourd’hui", "今日订餐名单", "ਅੱਜ ਕਿਸ ਨੇ ਆਰਡਰ ਕੀਤਾ", "Quién pidió hoy"],
+  ["Routes and changes", "Parcours et changements", "路线与变更", "ਰੂਟ ਤੇ ਬਦਲਾਅ", "Rutas y cambios"],
+  ["Live pickup board", "Tableau de ramassage en direct", "实时接送看板", "ਲਾਈਵ ਪਿਕਅੱਪ ਬੋਰਡ", "Tablero de recogida en vivo"],
+  ["Post this week", "Publier cette semaine", "发布本周菜单", "ਇਸ ਹਫ਼ਤੇ ਪੋਸਟ", "Publicar esta semana"],
+  ["Inventory and pickups", "Inventaire et retraits", "库存与取货", "ਇਨਵੈਂਟਰੀ ਤੇ ਪਿਕਅੱਪ", "Inventario y recogidas"],
   ["Home", "Accueil", "首页", "ਘਰ", "Inicio"],
   ["Read in", "Lire en", "阅读语言", "ਪੜ੍ਹੋ", "Leer en"],
   ["Teacher", "Enseignant", "老师", "ਅਧਿਆਪਕ", "Maestro"],
@@ -3724,6 +3900,41 @@ const view = document.getElementById("view");
 const crumbs = document.getElementById("crumbs");
 const railNav = document.getElementById("rail-nav");
 
+/** Compact filled glyphs for chrome (rail, a few CTAs). Keep the set small. */
+const ICONS = {
+  home: "M12 3.2 3.5 10.2V21h6.2v-6.1h4.6V21h6.2V10.2L12 3.2Z",
+  attendance: "M7 3h10a2 2 0 0 1 2 2v14l-7-3.2L5 19V5a2 2 0 0 1 2-2Zm2 4v2h6V7H9Zm0 4v2h6v-2H9Z",
+  messages: "M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8A2.5 2.5 0 0 1 17.5 16H9l-5 4v-4.2A2.5 2.5 0 0 1 4 13.5v-8Z",
+  calendar: "M8 3.2h1.8V5h4.4V3.2H16V5h2.2A1.8 1.8 0 0 1 20 6.8V19a1.8 1.8 0 0 1-1.8 1.8H5.8A1.8 1.8 0 0 1 4 19V6.8A1.8 1.8 0 0 1 5.8 5H8V3.2ZM5.8 9.5V19h12.4V9.5H5.8Zm2.2 2.2h3V14H8v-2.3Zm4.4 0h3V14h-3v-2.3Z",
+  events: "M12 3.5a1.2 1.2 0 0 1 1.05.6l1.7 3.05 3.4.55a1.2 1.2 0 0 1 .65 2l-2.45 2.55.55 3.45a1.2 1.2 0 0 1-1.7 1.25L12 15.7l-3.2 1.6a1.2 1.2 0 0 1-1.7-1.25l.55-3.45L5.2 9.7a1.2 1.2 0 0 1 .65-2l3.4-.55L11 4.1A1.2 1.2 0 0 1 12 3.5Z",
+  store: "M5 7.2 6.4 3.8h11.2L19 7.2v1.3A2.5 2.5 0 0 1 16 11a2.5 2.5 0 0 1-2.2-1.3A2.5 2.5 0 0 1 12 11a2.5 2.5 0 0 1-1.8-1.3A2.5 2.5 0 0 1 8 11 2.5 2.5 0 0 1 5 8.5V7.2Zm1.5 5.3h11V20H6.5v-7.5Z",
+  docs: "M7 3.5h7.2L19 8.3V20a1.5 1.5 0 0 1-1.5 1.5h-10A1.5 1.5 0 0 1 6 20V5A1.5 1.5 0 0 1 7.5 3.5H7Zm6.2.7v4.1H17L13.2 4.2ZM9 12h6v1.6H9V12Zm0 3.2h6V17H9v-1.8Z",
+  scan: "M4 7V4.8A1.8 1.8 0 0 1 5.8 3H8v1.8H5.8V7H4Zm12-4h2.2A1.8 1.8 0 0 1 20 4.8V7h-1.8V4.8H16V3ZM4 17h1.8v2.2H8V21H5.8A1.8 1.8 0 0 1 4 19.2V17Zm14.2 2.2H16V21h2.2A1.8 1.8 0 0 0 20 19.2V17h-1.8v2.2ZM8 8h8v8H8V8Z",
+  lunch: "M4.5 4.2h2.2v7.1c0 1.7.9 2.6 2.3 2.6s2.3-.9 2.3-2.6V4.2h2.1v7.1c0 2.9-1.9 4.6-4.4 4.6S4.5 14.2 4.5 11.3V4.2Zm13.2 0c2.2 0 3.8 1.5 3.8 3.7v4.6h-2.1V8.1c0-.9-.5-1.4-1.3-1.4h-.4v12.1h-2.1V4.2h2.1Z",
+  dismiss: "M12 3a9 9 0 1 1 0 18 9 9 0 0 1 0-18Zm0 1.8a7.2 7.2 0 1 0 0 14.4 7.2 7.2 0 0 0 0-14.4Zm.7 3.2v4.05l3.1 1.85-.9 1.5L11 12.4V8h1.7Z",
+  bus: "M6 4.2h12c1.3 0 2.2.9 2.2 2.2v9.2c0 .9-.5 1.6-1.3 1.9l.9 1.7h-1.9l-.7-1.4H7.8l-.7 1.4H5.2l.9-1.7c-.8-.3-1.3-1-1.3-1.9V6.4c0-1.3.9-2.2 2.2-2.2Zm0 2.2v4.4h12V6.4H6Zm1.6 7.2a1.2 1.2 0 1 1 0 2.4 1.2 1.2 0 0 1 0-2.4Zm9.2 0a1.2 1.2 0 1 1 0 2.4 1.2 1.2 0 0 1 0-2.4Z",
+  class: "M3.8 6.2 12 3.5l8.2 2.7v2.1L12 5.6 3.8 8.3V6.2Zm1.4 3.3h13.6V18H5.2V9.5Zm2.2 2.1v4.2h2.2v-4.2H7.4Zm4.4 0v4.2h2.2v-4.2h-2.2Zm4.4 0v4.2H18v-4.2h-1.8ZM3.5 19h17v1.8h-17V19Z",
+  reports: "M6 3.5h9.2L18.5 7v13.5A1.5 1.5 0 0 1 17 22H6a1.5 1.5 0 0 1-1.5-1.5v-15A1.5 1.5 0 0 1 6 3.5Zm8.2.8v3.2h3.2L14.2 4.3ZM8 11h2.2v7H8v-7Zm4.2 2.5H14V18h-1.8v-4.5Zm4.2-4H18V18h-1.6V9.5Z",
+  alerts: "M12 22a2.4 2.4 0 0 0 2.4-2.4H9.6A2.4 2.4 0 0 0 12 22Zm7-5.2V11a7 7 0 1 0-14 0v5.8L3 18.6V20h18v-1.4l-2-1.8Z",
+  config:
+    "M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.07 7.07 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.59.24-1.13.55-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.71 8.84a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94L2.83 14.52a.5.5 0 0 0-.12.64l1.92 3.32c.12.22.39.3.6.22l2.39-.96c.5.39 1.04.7 1.63.94l.36 2.54c.05.24.26.42.5.42h3.84c.24 0 .45-.18.5-.42l.36-2.54c.59-.24 1.13-.55 1.63-.94l2.39.96c.22.08.48 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58ZM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2Z",
+  life: "M4.5 19.5V8.2L12 3.8l7.5 4.4v11.3h-5.2v-5.4H9.7v5.4H4.5Zm2.1-1.8h1.3v-5.4h8.2v5.4h1.3V9.1L12 5.7 6.6 9.1v8.6Z",
+  transit:
+    "M4.2 11.2 12 4.5l7.8 6.7v1.9l-1.6-1.4V19h-4.2v-4.6H9.999V19H5.8v-7.3L4.2 13.1v-1.9Zm3.4 1.2v4.8h1.6v-4.8H7.6Zm7.2 0v4.8h1.6v-4.8h-1.6Z",
+  buy: "M7.2 6.2h12.1l-1.2 8.4H8.1L7.2 6.2Zm-.9-2.2 1.1 1.6h11.5l.7-1.6H6.3ZM9 18.2a1.4 1.4 0 1 1 0 2.8 1.4 1.4 0 0 1 0-2.8Zm7.2 0a1.4 1.4 0 1 1 0 2.8 1.4 1.4 0 0 1 0-2.8Z",
+  publish:
+    "M5 4.5h9.2L19 9.3V19.5A1.5 1.5 0 0 1 17.5 21h-12A1.5 1.5 0 0 1 4 19.5v-13A1.5 1.5 0 0 1 5.5 5H5Zm8.2.8v3.6H17L13.2 5.3ZM8 12.2h8V14H8v-1.8Zm0 3.2h5.5V17H8v-1.6Z",
+  duty: "M8.2 3.5h7.6v2.2h3.5V20a1.5 1.5 0 0 1-1.5 1.5h-12A1.5 1.5 0 0 1 4.3 20V5.7h3.9V3.5Zm1.8 1.6v.6h4V5.1H10Zm-3.9 2.4v12.4h12V7.5H6.1Zm3.2 3.2 1.5 1.5 3.8-3.8 1.3 1.3-5.1 5.1-2.8-2.8 1.3-1.3Z",
+  ops: "M4.5 5.2h6.2v6.2H4.5V5.2Zm0 7.4h6.2v6.2H4.5v-6.2Zm8.8-7.4H19.5v6.2h-6.2V5.2Zm0 7.4H19.5v6.2h-6.2v-6.2ZM6.2 6.9v2.8h2.8V6.9H6.2Zm0 7.4v2.8h2.8v-2.8H6.2Zm8.8-7.4v2.8h2.8V6.9h-2.8Zm0 7.4v2.8h2.8v-2.8h-2.8Z",
+  cal: "M8 3.2h1.8V5h4.4V3.2H16V5h2.2A1.8 1.8 0 0 1 20 6.8V19a1.8 1.8 0 0 1-1.8 1.8H5.8A1.8 1.8 0 0 1 4 19V6.8A1.8 1.8 0 0 1 5.8 5H8V3.2ZM5.8 9.5V19h12.4V9.5H5.8Zm2.4 2.4 1.3 1.3 3.4-3.4 1.2 1.2-4.6 4.6-2.5-2.5 1.2-1.2Z",
+};
+
+function icon(name, size = 16) {
+  const path = ICONS[name];
+  if (!path) return "";
+  return `<svg class="icon" viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true"><path fill="currentColor" d="${path}"/></svg>`;
+}
+
 function homeHref() {
   return "#/";
 }
@@ -3816,13 +4027,76 @@ function paintChrome(active) {
     menuBtn.setAttribute("aria-expanded", String(menuOpen));
     menuBtn.setAttribute("aria-label", menuOpen ? tx("Close menu") : tx("Menu"));
   }
-  const nav = state.edition === "mvp" ? mvpNavByRole[state.role] : navByRole[state.role];
-  railNav.innerHTML = nav
-    .map(([id, label, href]) => {
-      const count = navBadgeCount(id);
-      return `<a class="rail-link ${id === active ? "is-active" : ""}" href="${href}" data-nav="${id}"><span>${tx(label)}</span>${badgeMarkup(count)}</a>`;
+  const prevActive = lastRailActive;
+  lastRailActive = active;
+  const routeHub = currentNavItems().find(
+    (item) => item.children?.length && (item.id === active || item.children.some((child) => child.id === active))
+  );
+  const routeHubId = routeHub?.id || null;
+  // Leave a manually collapsed hub until the user opens it again or moves to another section.
+  if (railUserCollapsedHubId && routeHubId !== railUserCollapsedHubId) {
+    railUserCollapsedHubId = null;
+  }
+  // Forced open wins over the route hub so mobile can browse other submenus while still on a leaf.
+  // Drop it once the route owns that hub, or after navigating to a leaf under a different hub.
+  if (railUserForcedOpenId && routeHubId === railUserForcedOpenId) {
+    railUserForcedOpenId = null;
+  } else if (
+    railUserForcedOpenId &&
+    prevActive !== active &&
+    routeHubId &&
+    routeHubId !== railUserForcedOpenId
+  ) {
+    railUserForcedOpenId = null;
+  }
+  let nextOpenId = null;
+  if (railUserForcedOpenId && railUserForcedOpenId !== railUserCollapsedHubId) nextOpenId = railUserForcedOpenId;
+  else if (routeHubId && routeHubId !== railUserCollapsedHubId) nextOpenId = routeHubId;
+  const needsOpenAnim = Boolean(nextOpenId && nextOpenId !== railOpenHubId && !preferReducedMotion());
+
+  railNav.innerHTML = currentNavItems()
+    .map((item) => {
+      const hasKids = Boolean(item.children?.length);
+      const wantOpen = hasKids && item.id === nextOpenId;
+      // Start closed when we need an open animation, then flip to is-open on the next frame.
+      const open = wantOpen && !needsOpenAnim;
+      const hubOn = !hasKids && item.id === active;
+      // When expanded, child links carry their own badges; keep the hub rollup only when closed.
+      const count = wantOpen ? 0 : navBadgeCount(item.id);
+      const chevron = hasKids ? `<span class="rail-chevron" aria-hidden="true"></span>` : "";
+      const top = `<a class="rail-link ${hubOn ? "is-active" : ""} ${open ? "is-expanded" : ""} ${hasKids ? "has-kids" : ""}" href="${item.href}" data-nav="${item.id}" ${hasKids ? `role="button" aria-expanded="${open}"` : ""}><span class="rail-link-main"><span>${tx(item.label)}</span></span><span class="rail-link-end">${badgeMarkup(count)}${chevron}</span></a>`;
+      if (!hasKids) {
+        return `<div class="rail-group">${top}</div>`;
+      }
+      const subs = item.children
+        .map((child) => {
+          const childCount = leafNavBadge(child.id);
+          return `<a class="rail-link rail-sublink ${child.id === active ? "is-active" : ""}" href="${child.href}" data-nav="${child.id}" tabindex="${open || (wantOpen && needsOpenAnim) ? "0" : "-1"}"><span class="rail-link-main"><span>${tx(child.label)}</span></span>${badgeMarkup(childCount)}</a>`;
+        })
+        .join("");
+      return `<div class="rail-group ${open ? "is-open" : ""}" data-hub="${item.id}">${top}<div class="rail-subnav" role="group" aria-label="${tx(item.label)}" ${open ? "" : 'aria-hidden="true" inert'}><div class="rail-subnav-inner">${subs}</div></div></div>`;
     })
     .join("");
+
+  if (needsOpenAnim) {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const group = railNav.querySelector(`[data-hub="${nextOpenId}"]`);
+        if (!group) return;
+        group.classList.add("is-open");
+        const hubLink = group.querySelector(".rail-link.has-kids");
+        hubLink?.classList.add("is-expanded");
+        hubLink?.setAttribute("aria-expanded", "true");
+        const sub = group.querySelector(".rail-subnav");
+        if (sub) {
+          sub.removeAttribute("aria-hidden");
+          sub.removeAttribute("inert");
+        }
+        group.querySelectorAll(".rail-sublink").forEach((link) => link.setAttribute("tabindex", "0"));
+      });
+    });
+  }
+  railOpenHubId = nextOpenId;
 }
 
 function reminderBanner() {
@@ -4124,10 +4398,7 @@ function attendanceReport() {
 
 function reports() {
   paintChrome("reports");
-  setCrumbs([
-    { label: "Today", href: "#/" },
-    { label: "Report cards", href: "#/reports" },
-  ]);
+  setCrumbs(crumbsWithHub("reports", { label: "Report cards", href: "#/reports" }));
   view.innerHTML = `
     <div class="hero">
       <div>
@@ -4346,10 +4617,7 @@ function bindCalendarExport() {
 
 function calendar() {
   paintChrome("calendar");
-  setCrumbs([
-    boardCrumb(),
-    { label: "Calendar", href: "#/calendar" },
-  ]);
+  setCrumbs(crumbsWithHub("calendar", { label: "Calendar", href: "#/calendar" }));
   const who = state.role === "parent" ? child().short : "Cedar Hill";
   view.innerHTML = `
     <div class="hero">
@@ -4371,7 +4639,8 @@ function calendar() {
 }
 
 function lunchCrumbs(extra) {
-  return [boardCrumb(), { label: "Cafeteria", href: "#/lunch" }, ...(extra || [])];
+  const label = state.role === "teacher" ? "Lunch list" : state.role === "admin" ? "Hot lunch menu" : "Cafeteria";
+  return crumbsWithHub("lunch", { label, href: "#/lunch" }, extra || []);
 }
 
 function qtyControl(iso, item) {
@@ -4477,6 +4746,52 @@ function lunchDayMark(iso) {
   return "packed";
 }
 
+function lunchTodayChipLabel() {
+  return ({ en: "Today", fr: "Auj.", zh: "今天", pa: "ਅੱਜ", es: "Hoy" }[readLang()] || "Today");
+}
+
+let lunchWeekSliding = false;
+
+function preferReducedMotion() {
+  return window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+}
+
+function scrollLunchWeekChipIntoView(iso) {
+  const scroller = view.querySelector(".lunch-week-track > .lunch-days.is-bar") || view.querySelector(".lunch-days.is-bar");
+  if (!scroller) return;
+  const chip =
+    (iso && scroller.querySelector(`.day-chip[data-lunch-day="${iso}"]`)) ||
+    scroller.querySelector(".day-chip.is-today") ||
+    scroller.querySelector(".day-chip.is-on");
+  if (!chip) return;
+  const pad = 8;
+  const left = chip.offsetLeft - (scroller.clientWidth - chip.offsetWidth) / 2;
+  scroller.scrollLeft = Math.max(0, Math.min(left, scroller.scrollWidth - scroller.clientWidth));
+  // Keep the active chip fully visible if centering still clips an edge.
+  const chipLeft = chip.offsetLeft;
+  const chipRight = chipLeft + chip.offsetWidth;
+  if (chipLeft < scroller.scrollLeft + pad) scroller.scrollLeft = Math.max(0, chipLeft - pad);
+  else if (chipRight > scroller.scrollLeft + scroller.clientWidth - pad) {
+    scroller.scrollLeft = Math.max(0, chipRight - scroller.clientWidth + pad);
+  }
+}
+
+function lunchDayChipsHtml(weekMonday, selectedIso) {
+  return lunchWeekdayRow(weekMonday)
+    .map((day) => {
+      const mark = day.open ? lunchDayMark(day.iso) : "";
+      const label = !day.open ? "—" : mark === "ordered" ? tx("Ordered") : mark === "bag" ? tx("In bag") : tx("Packed");
+      const on = day.iso === selectedIso;
+      return `
+            <button type="button" class="day-chip ${on ? "is-on" : ""} ${day.today ? "is-today" : ""} ${day.open && mark !== "packed" ? "has-order" : ""} ${day.open ? "" : "is-off"}" data-lunch-day="${day.iso}" ${day.today ? 'aria-current="date"' : ""} ${day.open ? "" : "disabled"}>
+              <span class="kicker">${tx(day.dow)}${day.today ? `<span class="day-chip-today">${lunchTodayChipLabel()}</span>` : ""}</span>
+              <strong>${day.day}</strong>
+              <span class="lunch-mark">${label}</span>
+            </button>`;
+    })
+    .join("");
+}
+
 function lunchWeekBar(selectedIso) {
   const weeks = lunchWeeks();
   const weekAt = lunchWeekIndex();
@@ -4485,24 +4800,18 @@ function lunchWeekBar(selectedIso) {
   return `
     <div class="lunch-weekbar">
       <div class="widget-head">
-        <h2>${week.title}</h2>
+        <h2 data-lunch-week-title>${week.title}</h2>
         <span class="kicker">${tx("Through Nov 6")}</span>
       </div>
-      <div class="lunch-days is-bar">
+      <div class="lunch-week-strip">
         <button type="button" class="lunch-week-nav" data-lunch-week="-1" ${weekAt <= 0 ? "disabled" : ""} aria-label="${tx("Previous week")}">‹</button>
-        ${lunchWeekdayRow(week.week)
-          .map((day) => {
-            const mark = day.open ? lunchDayMark(day.iso) : "";
-            const label = !day.open ? "—" : mark === "ordered" ? tx("Ordered") : mark === "bag" ? tx("In bag") : tx("Packed");
-            const on = day.iso === selectedIso;
-            return `
-          <button type="button" class="day-chip ${on ? "is-on" : ""} ${day.today ? "is-today" : ""} ${day.open && mark !== "packed" ? "has-order" : ""} ${day.open ? "" : "is-off"}" data-lunch-day="${day.iso}" ${day.open ? "" : "disabled"}>
-            <span class="kicker">${day.today ? tx("Today") : tx(day.dow)}</span>
-            <strong>${day.day}</strong>
-            <span class="lunch-mark">${label}</span>
-          </button>`;
-          })
-          .join("")}
+        <div class="lunch-week-viewport">
+          <div class="lunch-week-track">
+            <div class="lunch-days is-bar">
+              ${lunchDayChipsHtml(week.week, selectedIso)}
+            </div>
+          </div>
+        </div>
         <button type="button" class="lunch-week-nav" data-lunch-week="1" ${weekAt >= weeks.length - 1 ? "disabled" : ""} aria-label="${tx("Next week")}">›</button>
       </div>
     </div>`;
@@ -4515,11 +4824,59 @@ function lunchWeekIndex() {
 }
 
 function shiftLunchWeek(delta) {
+  if (!delta || lunchWeekSliding) return;
   const weeks = lunchWeeks();
   const next = weeks[lunchWeekIndex() + delta];
   if (!next) return;
-  state.lunchDay = next.days[0].iso;
-  lunch();
+  const nextIso = next.days[0].iso;
+  const commit = () => {
+    lunchWeekSliding = false;
+    state.lunchDay = nextIso;
+    lunch();
+  };
+  const track = view.querySelector(".lunch-week-track");
+  if (!track || preferReducedMotion()) {
+    commit();
+    return;
+  }
+
+  lunchWeekSliding = true;
+  view.querySelectorAll("[data-lunch-week]").forEach((btn) => {
+    btn.disabled = true;
+  });
+
+  const incoming = document.createElement("div");
+  incoming.className = "lunch-days is-bar";
+  incoming.setAttribute("aria-hidden", "true");
+  incoming.innerHTML = lunchDayChipsHtml(next.week, nextIso);
+
+  const titleEl = view.querySelector("[data-lunch-week-title]");
+  track.style.transition = "none";
+  if (delta > 0) {
+    track.appendChild(incoming);
+    track.style.transform = "translateX(0)";
+  } else {
+    track.insertBefore(incoming, track.firstElementChild);
+    track.style.transform = "translateX(-100%)";
+  }
+  void track.offsetWidth;
+  track.style.transition = "";
+  track.classList.add("is-sliding");
+  requestAnimationFrame(() => {
+    track.style.transform = delta > 0 ? "translateX(-100%)" : "translateX(0)";
+    if (titleEl) titleEl.textContent = next.title;
+  });
+
+  let done = false;
+  const finish = (event) => {
+    if (event && event.target !== track) return;
+    if (done) return;
+    done = true;
+    track.removeEventListener("transitionend", finish);
+    commit();
+  };
+  track.addEventListener("transitionend", finish);
+  setTimeout(finish, 650);
 }
 
 function lunchDock() {
@@ -4621,6 +4978,7 @@ function lunchMenuView() {
     });
   });
   bindLunchQty();
+  requestAnimationFrame(() => scrollLunchWeekChipIntoView(selected.iso));
 }
 
 function lunchCartView() {
@@ -4889,7 +5247,7 @@ function adminLunch() {
   const menu = selected ? lunchMenu(selected.iso) : [];
   const posted = selected && Object.prototype.hasOwnProperty.call(state.lunchMenuByIso, selected.iso);
   paintChrome("lunch");
-  setCrumbs([boardCrumb(), { label: "Hot lunch menu", href: "#/lunch" }]);
+  setCrumbs(crumbsWithHub("lunch", { label: "Hot lunch menu", href: "#/lunch" }));
   view.innerHTML = `
     ${notice()}
     <div class="hero">
@@ -5017,7 +5375,7 @@ function teacherLunchList() {
   const kids = roster.filter((s) => s.room === room.id);
   const buying = kids.filter((s) => lunchLinesForChild(selected.iso, s.id).length);
   paintChrome("lunch");
-  setCrumbs([boardCrumb(), { label: "Lunch list", href: "#/lunch" }]);
+  setCrumbs(crumbsWithHub("lunch", { label: "Lunch list", href: "#/lunch" }));
   view.innerHTML = `
     ${notice()}
     <div class="hero">
@@ -5156,7 +5514,7 @@ function parentDismiss() {
   const plan = todayDismiss(kid.id);
   const usual = usualDismiss(kid.id);
   paintChrome("dismiss");
-  setCrumbs([boardCrumb(), { label: "Dismissal", href: "#/dismiss" }]);
+  setCrumbs(crumbsWithHub("dismiss", { label: "Dismissal", href: "#/dismiss" }));
   view.innerHTML = `
     ${notice()}
     ${
@@ -5284,7 +5642,7 @@ function teacherDismiss() {
   const kids = roster.filter((s) => s.room === room.id);
   const changed = kids.filter((s) => todayDismiss(s.id).change);
   paintChrome("dismiss");
-  setCrumbs([boardCrumb(), { label: "Dismissal", href: "#/dismiss" }]);
+  setCrumbs(crumbsWithHub("dismiss", { label: "Dismissal", href: "#/dismiss" }));
   view.innerHTML = `
     ${notice()}
     <div class="hero">
@@ -5333,7 +5691,7 @@ function dutyDismiss() {
     });
   const waiting = kids.filter((s) => todayDismiss(s.id).status !== "released").length;
   paintChrome("dismiss");
-  setCrumbs([boardCrumb(), { label: "Dismissal", href: "#/dismiss" }]);
+  setCrumbs(crumbsWithHub("dismiss", { label: "Dismissal", href: "#/dismiss" }));
   const groups = (lane === "all" ? DISMISS_MODES : DISMISS_MODES.filter((m) => m.id === lane)).map((mode) => ({
     ...mode,
     students: kids.filter((s) => todayDismiss(s.id).mode === mode.id),
@@ -5406,10 +5764,7 @@ function dismissView() {
 function bus() {
   if (state.edition === "dream" && state.role === "parent") return parentDismiss();
   paintChrome("bus");
-  setCrumbs([
-    { label: "Today", href: "#/" },
-    { label: "Bus", href: "#/bus" },
-  ]);
+  setCrumbs(crumbsWithHub("bus", { label: state.role === "admin" ? "Buses" : "Bus", href: "#/bus" }));
   const kid = child();
   if (!ridesBus()) {
     view.innerHTML = `
@@ -5457,11 +5812,11 @@ function bus() {
 function classroom(id) {
   paintChrome("class");
   const activity = child().activities.find((a) => a.id === id) || child().activities[0];
-  setCrumbs([
-    { label: "Today", href: "#/" },
-    { label: "Classroom", href: "#/class" },
-    { label: activity.title, href: `#/class/${activity.id}` },
-  ]);
+  setCrumbs(
+    crumbsWithHub("class", { label: state.role === "teacher" ? "Activities" : "Classroom", href: "#/class" }, [
+      { label: activity.title, href: `#/class/${activity.id}` },
+    ])
+  );
   view.innerHTML = `
     <div class="hero">
       <div>
@@ -5584,7 +5939,7 @@ function teacherHome() {
       </div>
     </div>
     <div class="actions" style="margin-bottom:22px">
-      <a class="btn" href="#/scan">Scan a flyer</a>
+      ${scanFlyerBtn()}
       <a class="btn ghost" href="#/teach/attendance">Take attendance</a>
       <a class="btn ghost" href="#/alerts">Send a reminder</a>
     </div>
@@ -5979,7 +6334,7 @@ function adminHome() {
       </div>
     </div>
     <div class="actions" style="margin-bottom:22px">
-      <a class="btn" href="#/scan">Scan a flyer</a>
+      ${scanFlyerBtn()}
       <a class="btn ghost" href="#/alerts">Send a reminder</a>
     </div>
     <section class="metrics">
@@ -6236,10 +6591,7 @@ function runOcr(id) {
 
 function scanCapture() {
   paintChrome("scan");
-  setCrumbs([
-    { label: state.role === "teacher" ? "Class board" : "School board", href: "#/" },
-    { label: "Scan flyer", href: "#/scan" },
-  ]);
+  setCrumbs(crumbsWithHub("scan", { label: "Scan flyer", href: "#/scan" }));
   view.innerHTML = `
     <div class="hero">
       <div>
@@ -6288,11 +6640,7 @@ function scanCapture() {
 function scanReview() {
   const draft = state.scan || FLYERS.orchard;
   paintChrome("scan");
-  setCrumbs([
-    { label: state.role === "teacher" ? "Class board" : "School board", href: "#/" },
-    { label: "Scan flyer", href: "#/scan" },
-    { label: "Review", href: "#/scan/review" },
-  ]);
+  setCrumbs(crumbsWithHub("scan", { label: "Scan flyer", href: "#/scan" }, [{ label: "Review", href: "#/scan/review" }]));
   view.innerHTML = `
     <div class="hero">
       <div>
@@ -6557,6 +6905,14 @@ function widgetDocs() {
     </section>`;
 }
 
+function configureBtn(extraClass = "ghost") {
+  return `<a class="btn ${extraClass}" href="#/configure">${icon("config", 16)}${tx("Configure")}</a>`;
+}
+
+function scanFlyerBtn(extraClass = "") {
+  return `<a class="btn ${extraClass}" href="#/scan">${icon("scan", 16)}Scan a flyer</a>`;
+}
+
 function mvpParentHome() {
   paintChrome("home");
   setCrumbs([boardCrumb()]);
@@ -6572,7 +6928,7 @@ function mvpParentHome() {
         <h1>${txf("{name}’s day.", { name: kid.name })}</h1>
         <p class="lede">${txf("{grade} · {band} with {teacher} in {room}. Reminders, notices, and posts arrive in {lang}.", { grade: tx(kid.grade), band: tx(kid.band), teacher: kid.teacher, room: kid.room, lang: LANGS[state.parentLang].native })}</p>
       </div>
-      <a class="btn ghost" href="#/configure">${tx("Tune the board.")}</a>
+      ${configureBtn()}
     </div>
     ${askBar()}
     <section class="metrics">
@@ -6612,8 +6968,10 @@ function mvpStaffHome() {
             : "Bulletin, events, and forms sit beside Ms. Ellison’s class notes — translated per family."
         }</p>
       </div>
-      <a class="btn" href="#/scan">Scan a flyer</a>
-      ${isTeacher ? "" : `<a class="btn ghost" href="#/configure">Family board</a>`}
+      <div class="actions" style="margin-top:0">
+        ${isTeacher ? "" : configureBtn()}
+        ${scanFlyerBtn()}
+      </div>
     </div>
     <section class="metrics">
       <a class="card metric" href="${isTeacher ? "#/teach/attendance" : "#/admin/attendance"}"><div class="metric-label">Attendance</div><div class="metric-value">${isTeacher ? ((c) => `${c.present}/${c.total}`)(teacherTodayCounts()) : "96%"}</div><div class="metric-hint">${isTeacher ? "Room 12 today" : "Add an office entry"}</div></a>
@@ -6954,7 +7312,7 @@ function eventsView(id) {
   }
   paintChrome("events");
   if (!item) {
-    setCrumbs([boardCrumb(), { label: "Events", href: "#/events" }]);
+    setCrumbs(crumbsWithHub("events", { label: "Events", href: "#/events" }));
     const canPost = state.role !== "parent";
     const shown = filteredEvents();
     view.innerHTML = `
@@ -7048,11 +7406,7 @@ function eventsView(id) {
     }
     return;
   }
-  setCrumbs([
-    boardCrumb(),
-    { label: "Events", href: "#/events" },
-    { label: item.title, href: `#/events/${item.id}` },
-  ]);
+  setCrumbs(crumbsWithHub("events", { label: "Events", href: "#/events" }, [{ label: item.title, href: `#/events/${item.id}` }]));
   const titleShown = state.showOriginal[item.id] ? item.title : tx(item.title);
   const bodyShown = state.showOriginal[item.id] ? item.body : tx(item.body);
   const formDoc = item.docId ? kidDocs().find((d) => d.id === item.docId) : null;
@@ -7564,7 +7918,7 @@ function adminStore() {
     return storeFrontView();
   }
   paintChrome("store");
-  setCrumbs([boardCrumb(), { label: "Store", href: "#/admin/store" }]);
+  setCrumbs(crumbsWithHub("store", { label: "Store", href: "#/admin/store" }));
   const waiting = waitingStorePickups();
   view.innerHTML = `
     ${notice()}
@@ -7713,6 +8067,16 @@ function render() {
     return mvpStaffHome();
   }
 
+  // Old hub landing hashes — expand that hub in the rail and land on Today/home.
+  if (DREAM_HUB_PATHS.has(parts[0])) {
+    railUserForcedOpenId = parts[0];
+    railUserCollapsedHubId = null;
+    history.replaceState(null, "", `${location.pathname}${location.search}#/`);
+    if (state.role === "teacher") return teacherHome();
+    if (state.role === "admin") return adminHome();
+    return parentHome();
+  }
+
   if (state.role === "teacher") {
     if (parts[0] === "teach" && parts[1] === "attendance") return teacherAttendance();
     if (parts[0] === "calendar") return calendar();
@@ -7760,6 +8124,9 @@ document.querySelectorAll("[data-role]").forEach((btn) => {
   btn.addEventListener("click", () => {
     state.role = btn.dataset.role;
     state.notice = "";
+    railUserForcedOpenId = null;
+    railUserCollapsedHubId = null;
+    railOpenHubId = null;
     location.hash = "#/";
     render();
   });
@@ -7770,6 +8137,9 @@ document.querySelectorAll("[data-edition]").forEach((btn) => {
     state.edition = btn.dataset.edition;
     localStorage.setItem("harborEdition", state.edition);
     state.notice = "";
+    railUserForcedOpenId = null;
+    railUserCollapsedHubId = null;
+    railOpenHubId = null;
     location.hash = "#/";
     render();
   });
@@ -7780,6 +8150,21 @@ document.getElementById("menu-btn")?.addEventListener("click", () => {
 });
 document.getElementById("nav-scrim")?.addEventListener("click", () => setNavOpen(false));
 document.getElementById("rail")?.addEventListener("click", (e) => {
+  const hubLink = e.target.closest("#rail-nav a.rail-link.has-kids");
+  if (hubLink) {
+    e.preventDefault();
+    const group = hubLink.closest(".rail-group");
+    const hubId = group?.dataset.hub;
+    if (group?.classList.contains("is-open")) {
+      collapseRailHub(group);
+    } else if (hubId) {
+      railUserCollapsedHubId = null;
+      railUserForcedOpenId = hubId;
+      paintChrome(lastRailActive);
+    }
+    // Keep the mobile drawer open until a real destination (submenu item) is chosen.
+    return;
+  }
   if (e.target.closest("a, [data-role], [data-child]")) setNavOpen(false);
 });
 document.addEventListener("keydown", (e) => {
