@@ -2483,7 +2483,6 @@ const mvpNavByRole = {
     ["events", "Events", "#/events"],
     ["store", "Store", "#/store"],
     ["docs", "Documents", "#/docs"],
-    ["config", "Configure", "#/configure"],
   ],
   teacher: [
     ["home", "Class board", "#/"],
@@ -2504,7 +2503,6 @@ const mvpNavByRole = {
     ["events", "Events", "#/events"],
     ["store", "Store", "#/admin/store"],
     ["docs", "Documents", "#/docs"],
-    ["config", "Family board", "#/configure"],
   ],
 };
 
@@ -6522,6 +6520,7 @@ function mvpParentHome() {
         <h1>${txf("{name}’s day.", { name: kid.name })}</h1>
         <p class="lede">${txf("{grade} · {band} with {teacher} in {room}. Reminders, notices, and posts arrive in {lang}.", { grade: tx(kid.grade), band: tx(kid.band), teacher: kid.teacher, room: kid.room, lang: LANGS[state.parentLang].native })}</p>
       </div>
+      <a class="btn ghost" href="#/configure">${tx("Tune the board.")}</a>
     </div>
     ${askBar()}
     <section class="metrics">
@@ -6562,6 +6561,7 @@ function mvpStaffHome() {
         }</p>
       </div>
       <a class="btn" href="#/scan">Scan a flyer</a>
+      ${isTeacher ? "" : `<a class="btn ghost" href="#/configure">Family board</a>`}
     </div>
     <section class="metrics">
       <a class="card metric" href="${isTeacher ? "#/teach/attendance" : "#/admin/attendance"}"><div class="metric-label">Attendance</div><div class="metric-value">${isTeacher ? ((c) => `${c.present}/${c.total}`)(teacherTodayCounts()) : "96%"}</div><div class="metric-hint">${isTeacher ? "Room 12 today" : "Add an office entry"}</div></a>
