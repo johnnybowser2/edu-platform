@@ -7021,25 +7021,34 @@ function eventRow(item) {
     </a>`;
 }
 
+const MVP_INBOX_PREVIEW = 6;
+
 function widgetComms() {
+  const items = kidComms();
+  const preview = items.slice(0, MVP_INBOX_PREVIEW);
+  const more = Math.max(0, items.length - preview.length);
   return `
-    <section class="card panel">
+    <section class="card panel panel-featured">
       <div class="widget-head">
         <h2>${tx("From school")}</h2>
         <a href="#/inbox">${tx("Inbox")} ${badgeMarkup(unreadComms())}</a>
       </div>
-      ${kidComms().slice(0, 3).map(commRow).join("")}
+      ${preview.length ? preview.map(commRow).join("") : `<p class="doc-empty">${tx("Nothing in this pile.")}</p>`}
+      <div class="widget-more">
+        <a href="#/inbox">${tx("See all")}${more ? ` (${items.length})` : ""}</a>
+      </div>
     </section>`;
 }
 
 function widgetSchedule() {
+  const items = kidSchedule().slice(0, 5);
   return `
-    <section class="card panel">
+    <section class="card panel panel-quiet">
       <div class="widget-head">
         <h2>${tx("This week")}</h2>
         <a href="#/schedule">${tx("Schedule")}</a>
       </div>
-      ${kidSchedule().map(schedRow).join("")}
+      ${items.length ? items.map(schedRow).join("") : `<p class="doc-empty">${tx("Nothing in this pile.")}</p>`}
     </section>`;
 }
 
@@ -7069,7 +7078,7 @@ function docsList(groups) {
 function widgetAttendance() {
   const present = child().attendance.filter((d) => d.status === "Present").length;
   return `
-    <section class="card panel">
+    <section class="card panel panel-quiet">
       <div class="widget-head">
         <h2>${tx("Attendance")}</h2>
         <a href="#/attendance">${present}/4 · ${tx("See the week")}</a>
@@ -7095,28 +7104,32 @@ function widgetAttendance() {
 function widgetEvents() {
   const upcoming = kidEvents().slice(0, 4);
   return `
-    <section class="card panel">
+    <section class="card panel panel-quiet">
       <div class="widget-head">
         <h2>${tx("Coming up")}</h2>
-        <a href="#/events">${tx("Events")} ${badgeMarkup(unreadEventsCount())}</a>
+        <a href="#/events">${tx("See all")} ${badgeMarkup(unreadEventsCount())}</a>
       </div>
       ${upcoming.length ? upcoming.map(eventRow).join("") : `<p class="doc-empty">${tx("No events in this pile.")}</p>`}
     </section>`;
 }
 
 function widgetDocs() {
+  const preview = kidDocs().slice(0, 5);
+  const total = kidDocs().length;
   return `
     <section class="card panel">
       <div class="widget-head">
         <h2>${tx("To read or sign")}</h2>
         <a href="#/docs">${tx("Documents")} ${badgeMarkup(unreadDocsCount())}</a>
       </div>
-      ${docsByBucket()
-        .map((group) => {
-          if (!group.items.length) return "";
-          return `<h3 class="doc-sub">${tx(group.title)}</h3>${group.items.map(docRow).join("")}`;
-        })
-        .join("")}
+      ${
+        preview.length
+          ? preview.map(docRow).join("")
+          : `<p class="doc-empty">${tx("Nothing waiting")}</p>`
+      }
+      <div class="widget-more">
+        <a href="#/docs">${tx("See all")}${total > preview.length ? ` (${total})` : ""}</a>
+      </div>
     </section>`;
 }
 
@@ -7153,13 +7166,15 @@ function mvpParentHome() {
       <a class="card metric" href="#/alerts"><div class="metric-label">${tx("Notifications")}</div><div class="metric-value">${unreadAlerts().length}</div><div class="metric-hint">${nextReminder ? tx(nextReminder.title) : tx("Caught up")}</div></a>
     </section>
     ${widgetTodayAlerts()}
-    <div class="grid-2" style="margin-top:16px">
-      ${state.widgets.comms ? widgetComms() : ""}
+    <div class="mvp-dash" style="margin-top:16px">
+      <div class="mvp-stack">
+        ${state.widgets.comms ? widgetComms() : ""}
+        ${state.widgets.docs ? widgetDocs() : ""}
+      </div>
       <div class="mvp-stack">
         ${state.widgets.attendance ? widgetAttendance() : ""}
         ${state.widgets.schedule ? widgetSchedule() : ""}
         ${state.widgets.events ? widgetEvents() : ""}
-        ${state.widgets.docs ? widgetDocs() : ""}
       </div>
     </div>
   `;
@@ -7198,24 +7213,29 @@ function mvpStaffHome() {
           : `<a class="card metric" href="#/admin/store"><div class="metric-label">${tx("Store")}</div><div class="metric-value">${waitingStorePickups().length}</div><div class="metric-hint">${tx("Waiting for pickup")}</div></a>`
       }
     </section>
-    <div class="grid-2">
-      <section class="card panel" style="padding-bottom:18px">
-        <h2>${isTeacher ? "Class update" : "Office bulletin"}</h2>
-        <form id="post-form">
-          <div class="field">
-            <label for="post-title">Title</label>
-            <input id="post-title" required placeholder="${isTeacher ? "Field trip reminder" : "Early dismissal Friday"}" />
-          </div>
-          <div class="field">
-            <label for="post-body">Note to families</label>
-            <textarea id="post-body" rows="3" required></textarea>
-          </div>
-          <button class="btn" type="submit">Post to family board</button>
-        </form>
-      </section>
-      ${widgetComms()}
+    <div class="mvp-dash">
+      <div class="mvp-stack">
+        <section class="card panel panel-compose" style="padding-bottom:18px">
+          <h2>${isTeacher ? "Class update" : "Office bulletin"}</h2>
+          <form id="post-form">
+            <div class="field">
+              <label for="post-title">Title</label>
+              <input id="post-title" required placeholder="${isTeacher ? "Field trip reminder" : "Early dismissal Friday"}" />
+            </div>
+            <div class="field">
+              <label for="post-body">Note to families</label>
+              <textarea id="post-body" rows="3" required></textarea>
+            </div>
+            <button class="btn" type="submit">Post to family board</button>
+          </form>
+        </section>
+        ${reminderComposer()}
+      </div>
+      <div class="mvp-stack">
+        ${widgetComms()}
+        ${widgetEvents()}
+      </div>
     </div>
-    <div style="margin-top:16px">${reminderComposer()}</div>
   `;
   bindReminderComposer(() => mvpStaffHome());
   document.getElementById("post-form").addEventListener("submit", (e) => {
