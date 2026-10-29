@@ -2844,7 +2844,7 @@ const navByRole = {
         { id: "lunch", label: "Hot lunch menu", href: "#/lunch", hint: "Post this week" },
         { id: "store", label: "Store", href: "#/admin/store", hint: "Inventory and pickups" },
         { id: "fundraise", label: "Fundraise", href: "#/fundraise", hint: "Campaigns and ticket sales" },
-        { id: "banking", label: "Banking", href: "#/fundraise/banking", hint: "Accounts for fund destinations" },
+        { id: "banking", label: "Banking", href: "#/fundraise/banking", hint: "School payment accounts" },
       ],
     },
     {
@@ -8310,7 +8310,7 @@ function fundraiseListView() {
       </div>
       ${
         state.role === "admin"
-          ? `<a class="btn ghost" href="#/fundraise/banking">${tx("Banking accounts")}</a>`
+          ? `<a class="btn ghost" href="#/fundraise/banking">${tx("Payment accounts")}</a>`
           : ""
       }
     </div>
@@ -8408,7 +8408,7 @@ function fundraiseCampaignView(id) {
         canOrganize
           ? `<div class="fund-organize">
               <h2>${tx("Organizer setting")}</h2>
-              <p class="lede">${tx("Choose which banking account receives online payments and drop-offs for this campaign.")}</p>
+              <p class="lede">${tx("Choose which school payment account receives online payments and drop-offs for this campaign.")}</p>
               <div class="pay-methods" role="group" aria-label="${tx("Payment destination")}">
                 ${fundBankAccounts()
                   .map(
@@ -8418,7 +8418,7 @@ function fundraiseCampaignView(id) {
                   .join("")}
               </div>
               <p class="kicker">${tx(dest.hint || "")}${dest.bankName ? ` · ${dest.bankName} ${dest.accountNumber || ""}` : ""}</p>
-              <p class="fund-secondary"><a href="#/fundraise/banking">${tx("Manage banking accounts")}</a></p>
+              <p class="fund-secondary"><a href="#/fundraise/banking">${tx("Manage payment accounts")}</a></p>
             </div>`
           : `<p class="kicker" style="margin-top:12px">${tx("Payments go to")} ${tx(fundAccountLabel(dest))}. ${tx(dest.hint || "")}</p>`
       }
@@ -8942,14 +8942,13 @@ function fundraiseReceiptView(id) {
 
 function fundraiseBankingView() {
   if (state.role !== "admin") {
-    state.notice = tx("Only the office can manage fundraising bank accounts.");
-    location.hash = "#/fundraise";
-    return fundraiseListView();
+    state.notice = tx("Only the office can manage school payment accounts.");
+    location.hash = "#/";
+    return state.edition === "mvp" ? mvpStaffHome() : adminHome();
   }
   paintChrome("banking");
   setCrumbs([
     boardCrumb(),
-    { label: "Fundraise", href: "#/fundraise" },
     { label: "Banking", href: "#/fundraise/banking" },
   ]);
   const accounts = fundBankAccounts();
@@ -8957,10 +8956,9 @@ function fundraiseBankingView() {
     ${notice()}
     <div class="hero">
       <div>
-        <h1>${tx("Fundraising bank accounts")}</h1>
-        <p class="lede">${tx("Set up accounts for where campaign money goes — committee, school, or project funds. Campaigns pick one as their destination.")}</p>
+        <h1>${tx("School payment accounts")}</h1>
+        <p class="lede">${tx("Bank accounts for cafeteria, store, fundraise, and other school expenses. Each feature can send money to one of these destinations.")}</p>
       </div>
-      <a class="btn ghost" href="#/fundraise">${tx("Campaigns")}</a>
     </div>
     <section class="card panel">
       ${
@@ -8982,16 +8980,16 @@ function fundraiseBankingView() {
         </div>`
               )
               .join("")
-          : `<p class="doc-empty">${tx("No bank accounts yet. Add one for a campaign destination.")}</p>`
+          : `<p class="doc-empty">${tx("No payment accounts yet. Add one for cafeteria, store, fundraise, or other expenses.")}</p>`
       }
     </section>
     <section class="card panel" style="margin-top:16px;padding-bottom:18px">
-      <h2 id="fund-bank-form-title">${tx("Add bank account")}</h2>
+      <h2 id="fund-bank-form-title">${tx("Add payment account")}</h2>
       <form id="fund-bank-form">
         <input type="hidden" id="fund-bank-id" value="" />
         <div class="field"><label for="fund-bank-label">${tx("Display name")}</label><input id="fund-bank-label" required placeholder="${tx("Parents' Committee")}" /></div>
-        <div class="field"><label for="fund-bank-purpose">${tx("Purpose / acquisition")}</label><input id="fund-bank-purpose" placeholder="${tx("Playground acquisitions")}" /></div>
-        <div class="field"><label for="fund-bank-hint">${tx("Family-facing hint")}</label><input id="fund-bank-hint" placeholder="${tx("Collects for school investment")}" /></div>
+        <div class="field"><label for="fund-bank-purpose">${tx("Purpose / acquisition")}</label><input id="fund-bank-purpose" placeholder="${tx("Cafeteria, store, playground…")}" /></div>
+        <div class="field"><label for="fund-bank-hint">${tx("Family-facing hint")}</label><input id="fund-bank-hint" placeholder="${tx("Where this payment goes")}" /></div>
         <div class="field"><label for="fund-bank-name">${tx("Bank")}</label><input id="fund-bank-name" placeholder="Scotiabank" /></div>
         <div class="field"><label for="fund-bank-account-name">${tx("Account name")}</label><input id="fund-bank-account-name" /></div>
         <div class="card-grid">
@@ -9017,7 +9015,7 @@ function fundraiseBankingView() {
     document.getElementById("fund-bank-transit").value = account?.transit || "";
     document.getElementById("fund-bank-institution").value = account?.institution || "";
     document.getElementById("fund-bank-number").value = account?.accountNumber || "";
-    document.getElementById("fund-bank-form-title").textContent = account ? tx("Edit bank account") : tx("Add bank account");
+    document.getElementById("fund-bank-form-title").textContent = account ? tx("Edit payment account") : tx("Add payment account");
     document.getElementById("fund-bank-reset").hidden = !account;
   };
 
@@ -9028,7 +9026,7 @@ function fundraiseBankingView() {
     btn.addEventListener("click", () => {
       const id = btn.dataset.removeBank;
       if (fundBankAccounts().length <= 1) {
-        state.notice = tx("Keep at least one destination account.");
+        state.notice = tx("Keep at least one payment account.");
         fundraiseBankingView();
         return;
       }
@@ -9036,7 +9034,7 @@ function fundraiseBankingView() {
       state.fundCampaigns.forEach((c) => {
         if (c.payDestination === id) c.payDestination = state.fundBankAccounts[0].id;
       });
-      state.notice = tx("Bank account removed.");
+      state.notice = tx("Payment account removed.");
       fundraiseBankingView();
     });
   });
@@ -9064,7 +9062,7 @@ function fundraiseBankingView() {
     const idx = state.fundBankAccounts.findIndex((a) => a.id === payload.id);
     if (idx >= 0) state.fundBankAccounts[idx] = payload;
     else state.fundBankAccounts.push(payload);
-    state.notice = existingId ? tx("Bank account updated.") : tx("Bank account added.");
+    state.notice = existingId ? tx("Payment account updated.") : tx("Payment account added.");
     fundraiseBankingView();
   });
 }
