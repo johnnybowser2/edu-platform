@@ -6177,6 +6177,7 @@ function teacherHome() {
   paintChrome("home");
   setCrumbs([{ label: "My class", href: "#/" }]);
   view.innerHTML = `
+    ${notice()}
     <div class="hero">
       <div>
         <h1>Room 12 is in science.</h1>
@@ -8974,8 +8975,12 @@ function fundraiseReceiptView(id) {
 function fundraiseBankingView() {
   if (state.role !== "admin") {
     state.notice = tx("Only the office can manage school payment accounts.");
-    location.hash = "#/";
-    return state.edition === "mvp" ? mvpStaffHome() : adminHome();
+    if (location.hash && location.hash !== "#" && location.hash !== "#/") {
+      history.replaceState(null, "", `${location.pathname}${location.search}#/`);
+    }
+    if (state.edition === "mvp") return mvpStaffHome();
+    if (state.role === "teacher") return teacherHome();
+    return parentHome();
   }
   paintChrome("banking");
   setCrumbs([
@@ -9140,6 +9145,9 @@ function render() {
   if (parts[0] === "scan") return scanView(parts[1]);
   if (parts[0] === "store" || (parts[0] === "admin" && parts[1] === "store")) return storeRoute(parts);
   if (parts[0] === "fundraise") {
+    // Banking is office-only. Resolve it before the Dream switch, or MVP staff
+    // lose their board and teachers are painted onto the office dashboard.
+    if (parts[1] === "banking" && state.role !== "admin") return fundraiseBankingView();
     // Fundraise / Loto 500 is a Dream surface — deep links should land there, not bounce to MVP Events.
     if (state.edition !== "dream") {
       state.edition = "dream";
