@@ -1059,7 +1059,7 @@ label.btn {
 
 .lunch-mains {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -1118,7 +1118,11 @@ label.btn {
   width: 36px;
   height: 36px;
   border-radius: 999px;
-  font-size: 18px;
+}
+
+.lunch-main .qty-glyph {
+  width: 15px;
+  height: 15px;
 }
 
 .lunch-main.is-on {
@@ -1410,14 +1414,23 @@ label.btn {
 }
 
 .qty-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 28px;
   height: 28px;
+  padding: 0;
   border-radius: 8px;
   border: 1px solid var(--line);
   background: #fff;
   font-size: 16px;
-  line-height: 1;
+  line-height: 0;
   color: var(--ink);
+}
+
+.qty-glyph {
+  display: block;
+  flex: 0 0 auto;
 }
 
 .qty-btn.add {
@@ -3040,6 +3053,11 @@ button.year-day {
   .qty {
     grid-column: 1 / -1;
     justify-content: flex-end;
+  }
+
+  .lunch-main .qty {
+    grid-column: auto;
+    justify-self: end;
   }
 
   .pay-methods {

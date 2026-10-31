@@ -4857,13 +4857,20 @@ function lunchCrumbs(extra) {
   return crumbsWithHub("lunch", { label, href: "#/lunch" }, extra || []);
 }
 
+function qtyGlyph(kind) {
+  if (kind === "minus") {
+    return `<svg class="qty-glyph" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M3.25 7.25h9.5v1.5h-9.5z"/></svg>`;
+  }
+  return `<svg class="qty-glyph" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M7.25 3.25h1.5v3.5h3.5v1.5h-3.5v3.5h-1.5v-3.5h-3.5v-1.5h3.5z"/></svg>`;
+}
+
 function qtyControl(iso, item) {
   const qty = cartQty(iso, item.id);
   return `
     <div class="qty" role="group" aria-label="${tx(item.name)}">
-      <button type="button" class="qty-btn" data-lunch-iso="${iso}" data-lunch-item="${item.id}" data-lunch-delta="-1" ${qty ? "" : "disabled"} aria-label="${tx("Remove")}">−</button>
+      <button type="button" class="qty-btn" data-lunch-iso="${iso}" data-lunch-item="${item.id}" data-lunch-delta="-1" ${qty ? "" : "disabled"} aria-label="${tx("Remove")}">${qtyGlyph("minus")}</button>
       <span class="qty-n">${qty || ""}</span>
-      <button type="button" class="qty-btn add" data-lunch-iso="${iso}" data-lunch-item="${item.id}" data-lunch-delta="1" ${qty >= 9 ? "disabled" : ""} aria-label="${tx("Add")}">+</button>
+      <button type="button" class="qty-btn add" data-lunch-iso="${iso}" data-lunch-item="${item.id}" data-lunch-delta="1" ${qty >= 9 ? "disabled" : ""} aria-label="${tx("Add")}">${qtyGlyph("plus")}</button>
     </div>`;
 }
 
