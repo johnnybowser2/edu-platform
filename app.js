@@ -4893,15 +4893,6 @@ function lunchAddOns(iso) {
   return lunchMenu(iso).filter((item) => item.cat !== "main");
 }
 
-function lunchItemHint(item) {
-  if (item.cat === "main") return /milk/i.test(item.name) ? "Includes milk" : "Hot lunch";
-  if (item.cat === "sandwich") return "Sandwich";
-  if (item.cat === "salad") return "Salad";
-  if (item.cat === "drink") return "Beverage";
-  if (item.cat === "dessert") return "Dessert";
-  return "Add-on";
-}
-
 function lunchGroupCount(iso, cat) {
   return lunchAddOns(iso)
     .filter((item) => item.cat === cat)
@@ -4918,11 +4909,39 @@ function lunchMainCard(iso, item, on) {
     <div class="lunch-main ${on ? "is-on" : ""}">
       <div class="title-block">
         <strong>${tx(item.name)}</strong>
-        <span class="kicker">${tx(lunchItemHint(item))}</span>
+        <span class="lunch-item-price">${money(item.price)}</span>
       </div>
-      <b>${money(item.price)}</b>
       ${qtyControl(iso, item)}
     </div>`;
+}
+
+function lunchAddonBlock(iso, cat, title, items) {
+  const open = lunchGroupOpen(cat, iso);
+  const picked = lunchGroupCount(iso, cat);
+  const panelId = `lunch-acc-${cat}`;
+  return `
+    <section class="lunch-acc-block ${open ? "is-open" : ""}" data-lunch-acc-block="${cat}">
+      <button type="button" class="lunch-acc ${open ? "is-open" : ""}" data-lunch-acc="${cat}" aria-expanded="${open}" aria-controls="${panelId}">
+        <span class="lunch-acc-lead">
+          <span class="lunch-acc-mark" aria-hidden="true"></span>
+          <span class="lunch-acc-copy">
+            <strong>${tx(title)}</strong>
+            <span class="kicker">${picked ? `${picked} ${tx("in bag")}` : `${items.length} ${tx("items")}`}</span>
+          </span>
+        </span>
+        <span class="lunch-acc-trail">
+          ${picked ? `<span class="lunch-acc-count">${picked}</span>` : ""}
+          <span class="lunch-acc-chev" aria-hidden="true"></span>
+        </span>
+      </button>
+      <div class="lunch-acc-panel" id="${panelId}" role="region" aria-label="${tx(title)}" ${open ? "" : "inert"}>
+        <div class="lunch-acc-panel-inner">
+          <div class="lunch-mains">
+            ${items.map((item) => lunchMainCard(iso, item, cartQty(iso, item.id) > 0)).join("")}
+          </div>
+        </div>
+      </div>
+    </section>`;
 }
 
 const LUNCH_ADDON_GROUPS = [
@@ -5147,23 +5166,13 @@ function lunchMenuView() {
       <div class="lunch-mains">
         ${mains.map((item) => lunchMainCard(selected.iso, item, pickedMain === item.id)).join("")}
       </div>
-      ${LUNCH_ADDON_GROUPS.map(([cat, title]) => {
-        const items = addOns.filter((item) => item.cat === cat);
-        if (!items.length) return "";
-        const open = lunchGroupOpen(cat, selected.iso);
-        const picked = lunchGroupCount(selected.iso, cat);
-        return `
-      <button type="button" class="lunch-acc ${open ? "is-open" : ""}" data-lunch-acc="${cat}" aria-expanded="${open}">
-        <span>
-          ${tx(title)}
-          <span class="kicker">${picked ? `${picked} ${tx("in bag")}` : `${items.length} ${tx("items")}`}</span>
-        </span>
-        <span class="lunch-acc-chev" aria-hidden="true"></span>
-      </button>
-      <div class="lunch-mains ${open ? "" : "is-shut"}" ${open ? "" : "hidden"}>
-        ${items.map((item) => lunchMainCard(selected.iso, item, cartQty(selected.iso, item.id) > 0)).join("")}
-      </div>`;
-      }).join("")}
+      <div class="lunch-addons">
+        ${LUNCH_ADDON_GROUPS.map(([cat, title]) => {
+          const items = addOns.filter((item) => item.cat === cat);
+          if (!items.length) return "";
+          return lunchAddonBlock(selected.iso, cat, title, items);
+        }).join("")}
+      </div>
       ${lunchWeekBar(selected.iso)}
     </article>
     ${lunchDock()}
@@ -5177,22 +5186,37 @@ function lunchMenuView() {
   view.querySelectorAll("[data-lunch-week]").forEach((btn) => {
     btn.addEventListener("click", () => shiftLunchWeek(Number(btn.dataset.lunchWeek)));
   });
+  bindLunchAccordions(selected.iso);
+  bindLunchQty();
+  requestAnimationFrame(() => scrollLunchWeekChipIntoView(selected.iso));
+}
+
+function bindLunchAccordions(iso) {
   view.querySelectorAll("[data-lunch-acc]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const cat = btn.dataset.lunchAcc;
-      const next = !lunchGroupOpen(cat, selected.iso);
+      const block = btn.closest("[data-lunch-acc-block]");
+      const panel = block?.querySelector(".lunch-acc-panel");
+      const next = !lunchGroupOpen(cat, iso);
       state.lunchOpen[cat] = next;
       btn.classList.toggle("is-open", next);
       btn.setAttribute("aria-expanded", String(next));
-      const panel = btn.nextElementSibling;
-      if (panel) {
-        panel.hidden = !next;
-        panel.classList.toggle("is-shut", !next);
+      block?.classList.toggle("is-open", next);
+      if (!panel) return;
+      if (next || preferReducedMotion()) {
+        if (next) panel.removeAttribute("inert");
+        else panel.setAttribute("inert", "");
+        return;
       }
+      const finish = (event) => {
+        if (event && event.target !== panel) return;
+        panel.removeEventListener("transitionend", finish);
+        if (!lunchGroupOpen(cat, iso)) panel.setAttribute("inert", "");
+      };
+      panel.addEventListener("transitionend", finish);
+      setTimeout(finish, 450);
     });
   });
-  bindLunchQty();
-  requestAnimationFrame(() => scrollLunchWeekChipIntoView(selected.iso));
 }
 
 function lunchCartView() {
