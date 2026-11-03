@@ -2866,6 +2866,7 @@ const mvpNavByRole = {
     ["messages", "Inbox", "#/inbox"],
     ["calendar", "Schedule", "#/schedule"],
     ["events", "Events", "#/events"],
+    ["lunch", "Cafeteria", "#/lunch"],
     ["store", "Store", "#/store"],
     ["docs", "Documents", "#/docs"],
   ],
@@ -2876,6 +2877,7 @@ const mvpNavByRole = {
     ["messages", "Updates", "#/inbox"],
     ["calendar", "Schedule", "#/schedule"],
     ["events", "Events", "#/events"],
+    ["lunch", "Lunch list", "#/lunch"],
     ["store", "Store", "#/store"],
     ["docs", "Documents", "#/docs"],
   ],
@@ -2886,6 +2888,7 @@ const mvpNavByRole = {
     ["messages", "Office inbox", "#/inbox"],
     ["calendar", "Schedule", "#/schedule"],
     ["events", "Events", "#/events"],
+    ["lunch", "Hot lunch menu", "#/lunch"],
     ["store", "Store", "#/admin/store"],
     ["docs", "Documents", "#/docs"],
   ],
@@ -3961,7 +3964,8 @@ function askIndex() {
     },
   ];
   if (state.edition === "mvp") {
-    items = items.filter((item) => item.id !== "balance" && item.id !== "lunch-menu" && item.id !== "dismiss");
+    // Cafeteria is in MVP now — keep lunch/balance asks. Dismissal stays Dream-only.
+    items = items.filter((item) => item.id !== "dismiss");
   }
   if (kid.id !== "maya") {
     const hide = new Set(["choir", "walk"]);
@@ -9183,6 +9187,7 @@ function render() {
     if (parts[0] === "admin" && parts[1] === "attendance") return adminAttendance();
     if (parts[0] === "configure") return mvpConfigure();
     if (parts[0] === "bus") return bus();
+    if (parts[0] === "lunch") return lunch(parts[1]);
     if (state.role === "parent") return mvpParentHome();
     return mvpStaffHome();
   }
