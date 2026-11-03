@@ -4414,37 +4414,6 @@ function parentWeekDays() {
   return days;
 }
 
-function parentFocusAlerts() {
-  const items = [...visibleAlerts()].sort((a, b) => Number(b.unread) - Number(a.unread));
-  const preview = items.slice(0, 5);
-  const unread = items.filter((alert) => alert.unread).length;
-  return `
-    <section class="card panel panel-featured parent-alerts">
-      <div class="widget-head">
-        <h2>${tx("Alerts")}</h2>
-        <a href="#/alerts">${tx("See all")} ${badgeMarkup(unread)}</a>
-      </div>
-      ${
-        preview.length
-          ? preview
-              .map(
-                (alert) => `
-        <a class="list-row ${alert.unread ? "is-new" : ""}" href="${alertHref(alert)}" data-alert="${alert.id}">
-          <div class="title-block">
-            <span class="kicker">${tx(alert.when)} · ${tx(alert.kind === "reminder" ? "Reminder" : "Notification")}</span>
-            <strong>${tx(alert.title)}</strong>
-            <span class="kicker">${tx(alert.body)}</span>
-          </div>
-          ${alert.unread ? pill("New", "risk") : pill("Read")}
-        </a>`
-              )
-              .join("")
-          : `<p class="doc-empty">${tx("Caught up")}</p>`
-      }
-      <div class="widget-more"><a href="#/alerts">${tx("See all")}</a></div>
-    </section>`;
-}
-
 function parentFocusWeek() {
   const days = parentWeekDays();
   const calHref = parentCalHref();
@@ -4520,12 +4489,33 @@ function parentFocusLunch() {
 function parentFocusComingUp() {
   const upcoming = kidEvents().slice(0, 4);
   return `
-    <section class="card panel panel-quiet parent-coming">
+    <section class="card panel panel-featured parent-coming">
       <div class="widget-head">
         <h2>${tx("Coming up")}</h2>
         <a href="#/events">${tx("See all")} ${badgeMarkup(unreadEventsCount())}</a>
       </div>
-      ${upcoming.length ? upcoming.map(eventRow).join("") : `<p class="doc-empty">${tx("No events in this pile.")}</p>`}
+      ${
+        upcoming.length
+          ? `<div class="parent-coming-grid">
+              ${upcoming
+                .map((item) => {
+                  const href = item.campaignId ? `#/fundraise/${item.campaignId}` : `#/events/${item.id}`;
+                  const meta = eventKindMeta(item.kind);
+                  return `
+                <a class="parent-event ${item.unread ? "is-new" : ""}" href="${href}">
+                  <span class="kicker">${tx(meta.title)} · ${tx(item.when)}</span>
+                  <strong>${tx(item.title)}</strong>
+                  <span class="parent-event-where">${tx(item.where || "")}</span>
+                  <span class="parent-event-tags">
+                    ${pill(meta.singular, eventKindTone(item.kind))}
+                    ${item.going ? pill("Going") : item.unread ? pill("New", "risk") : ""}
+                  </span>
+                </a>`;
+                })
+                .join("")}
+            </div>`
+          : `<p class="doc-empty">${tx("No events in this pile.")}</p>`
+      }
     </section>`;
 }
 
@@ -4548,7 +4538,6 @@ function parentFocusHome() {
       : "";
   view.innerHTML = `
     ${notice()}
-    ${reminderBanner()}
     ${dreamDismiss}
     <div class="hero">
       <div>
@@ -4559,18 +4548,14 @@ function parentFocusHome() {
     </div>
     ${askBar()}
     <div class="parent-focus">
-      ${parentFocusAlerts()}
       <div class="parent-focus-grid">
         ${parentFocusWeek()}
-        <div class="mvp-stack">
-          ${parentFocusLunch()}
-          ${parentFocusComingUp()}
-        </div>
+        ${parentFocusLunch()}
       </div>
+      ${parentFocusComingUp()}
     </div>
   `;
   bindAsk();
-  bindAlertRows();
 }
 
 function alertsView() {
