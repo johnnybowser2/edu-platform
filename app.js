@@ -4538,6 +4538,7 @@ function parentFocusHome() {
       : "";
   view.innerHTML = `
     ${notice()}
+    ${state.edition === "mvp" ? reminderBanner() : ""}
     ${dreamDismiss}
     <div class="hero">
       <div>
