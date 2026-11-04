@@ -4049,7 +4049,9 @@ function askBar(current = "") {
   const ph = hints[0];
   return `
     <form class="ask-bar" id="ask-form">
-      <div class="ask-label">${tx("Ask my portal")}</div>
+      <div class="widget-head">
+        <h2>${tx("Ask my portal")}</h2>
+      </div>
       <div class="ask-row">
         <input id="ask-q" name="q" value="${current.replace(/"/g, "&quot;")}" placeholder="${ph}" autocomplete="off" />
         <button class="btn" type="submit">${tx("Ask")}</button>
@@ -4445,75 +4447,69 @@ function parentFocusWeek() {
 function parentFocusLunch() {
   const iso = parentDashTodayIso();
   const meta = lunchDateMeta(iso);
+  const mains = lunchMains(iso).slice(0, 2);
   const ordered = lunchLinesForChild(iso, child().id);
   const bag = cartLines().filter((line) => line.iso === iso);
-  const lines = ordered.length
-    ? ordered.map((line) => ({ name: line.name, qty: line.qty, price: line.price, status: "ordered" }))
-    : bag.map((line) => {
-        const item = lunchItem(line.iso, line.itemId);
-        return { name: item?.name || line.itemId, qty: line.qty, price: item?.price || 0, status: "bag" };
-      });
-  const total = lines.reduce((sum, line) => sum + line.price * line.qty, 0);
-  const menuMain = lunchMenu(iso).find((item) => item.cat === "main");
+  const bagTotal = dayCartTotal(iso);
+  const orderedLabel = ordered.map((line) => tx(line.name)).join(" · ");
+  const picked = selectedMainId(iso);
   return `
     <section class="card panel parent-lunch">
       <div class="widget-head">
         <h2>${tx("Cafeteria")}</h2>
-        <a href="#/lunch">${tx(meta.dow)} ${meta.day}</a>
+        <a href="#/lunch">${tx(meta.dow)} ${meta.day} · ${tx("Full menu")}</a>
       </div>
       ${
-        lines.length
-          ? `<ul class="parent-lunch-list">
-              ${lines
-                .map(
-                  (line) => `
-                <li>
-                  <span><strong>${tx(line.name)}</strong>${line.qty > 1 ? ` ×${line.qty}` : ""}</span>
-                  <span class="kicker">${line.status === "ordered" ? tx("Ordered") : tx("In bag")} · ${money(line.price * line.qty)}</span>
-                </li>`
-                )
-                .join("")}
-            </ul>
-            <div class="parent-lunch-foot">
-              <strong>${money(total)}</strong>
-              <a class="btn ghost" href="#/lunch">${tx("Change order")}</a>
-            </div>`
-          : `<p class="doc-empty">${tx("Packed lunch")}${menuMain ? ` · ${tx("Today")}: ${tx(menuMain.name)}` : ""}</p>
-             <div class="actions" style="padding:4px 0 12px">
-               <a class="btn" href="#/lunch">${tx("Order hot lunch")}</a>
-             </div>`
+        ordered.length
+          ? `<p class="parent-lunch-status"><strong>${tx("Ordered")}</strong> · ${orderedLabel}</p>`
+          : bag.length
+            ? `<p class="parent-lunch-status"><strong>${tx("In bag")}</strong> · ${money(bagTotal)}</p>`
+            : `<p class="parent-lunch-status kicker">${tx("Packed lunch")} · ${tx("Today’s main")} · ${tx("Pick one")}</p>`
       }
+      <div class="lunch-mains parent-lunch-mains">
+        ${mains.map((item) => lunchMainCard(iso, item, picked === item.id || ordered.some((line) => line.itemId === item.id))).join("")}
+      </div>
+      <div class="parent-lunch-foot">
+        ${
+          bagTotal
+            ? `<a class="btn" href="#/lunch/cart">${tx("Check out")} · ${money(bagTotal)}</a>`
+            : `<span class="kicker">${tx("Packed lunch")}</span>`
+        }
+        <a class="btn ghost" href="#/lunch">${tx("Full menu")}</a>
+      </div>
     </section>`;
 }
 
 function parentFocusComingUp() {
   const upcoming = kidEvents().slice(0, 4);
   return `
-    <section class="card panel panel-featured parent-coming">
+    <section class="card panel parent-coming">
       <div class="widget-head">
         <h2>${tx("Coming up")}</h2>
         <a href="#/events">${tx("See all")} ${badgeMarkup(unreadEventsCount())}</a>
       </div>
       ${
         upcoming.length
-          ? `<div class="parent-coming-grid">
+          ? `<ul class="parent-lunch-list parent-coming-list">
               ${upcoming
                 .map((item) => {
                   const href = item.campaignId ? `#/fundraise/${item.campaignId}` : `#/events/${item.id}`;
                   const meta = eventKindMeta(item.kind);
                   return `
-                <a class="parent-event ${item.unread ? "is-new" : ""}" href="${href}">
-                  <span class="kicker">${tx(meta.title)} · ${tx(item.when)}</span>
-                  <strong>${tx(item.title)}</strong>
-                  <span class="parent-event-where">${tx(item.where || "")}</span>
-                  <span class="parent-event-tags">
-                    ${pill(meta.singular, eventKindTone(item.kind))}
-                    ${item.going ? pill("Going") : item.unread ? pill("New", "risk") : ""}
-                  </span>
-                </a>`;
+                <li>
+                  <a class="parent-coming-row ${item.unread ? "is-new" : ""}" href="${href}">
+                    <span>
+                      <strong>${tx(item.title)}</strong>
+                      <span class="kicker">${tx(meta.singular)} · ${tx(item.when)}${item.where ? ` · ${tx(item.where)}` : ""}</span>
+                    </span>
+                    <span class="parent-event-tags">
+                      ${item.going ? pill("Going") : item.unread ? pill("New", "risk") : pill(meta.singular, eventKindTone(item.kind))}
+                    </span>
+                  </a>
+                </li>`;
                 })
                 .join("")}
-            </div>`
+            </ul>`
           : `<p class="doc-empty">${tx("No events in this pile.")}</p>`
       }
     </section>`;
@@ -4551,12 +4547,13 @@ function parentFocusHome() {
     <div class="parent-focus">
       <div class="parent-focus-grid">
         ${parentFocusWeek()}
-        ${parentFocusLunch()}
+        ${parentFocusComingUp()}
       </div>
-      ${parentFocusComingUp()}
+      ${parentFocusLunch()}
     </div>
   `;
   bindAsk();
+  bindLunchQty(parentFocusHome);
 }
 
 function alertsView() {
@@ -4967,7 +4964,7 @@ function qtyControl(iso, item) {
     </div>`;
 }
 
-function bindLunchQty(step) {
+function bindLunchQty(stepOrRender) {
   view.querySelectorAll("[data-lunch-delta]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const iso = btn.dataset.lunchIso;
@@ -4980,7 +4977,8 @@ function bindLunchQty(step) {
         });
       }
       setLunchQty(iso, itemId, cartQty(iso, itemId) + delta);
-      lunch(step);
+      if (typeof stepOrRender === "function") stepOrRender();
+      else lunch(stepOrRender);
     });
   });
 }
