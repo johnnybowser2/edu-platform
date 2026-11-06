@@ -4481,7 +4481,7 @@ function parentFocusLunch() {
 }
 
 function parentFocusComingUp() {
-  const upcoming = kidEvents().slice(0, 6);
+  const upcoming = kidEvents().slice(0, 5);
   return `
     <section class="card panel parent-coming">
       <div class="widget-head">
@@ -4549,7 +4549,9 @@ function parentFocusHome() {
           ${askBar()}
           ${parentFocusWeek()}
         </div>
-        ${parentFocusComingUp()}
+        <div class="parent-coming-slot">
+          ${parentFocusComingUp()}
+        </div>
       </div>
       ${parentFocusLunch()}
     </div>
