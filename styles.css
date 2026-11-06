@@ -1558,6 +1558,7 @@ label.btn {
   font-size: 18px;
   color: var(--mark, #152033);
   letter-spacing: -0.03em;
+  padding: 5px 10px;
 }
 
 .store-swatch.is-hoodie .store-mark {
