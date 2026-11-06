@@ -2100,6 +2100,18 @@ const state = {
   lunchRoom: "Room K2",
   lunchOrders: [
     {
+      id: "o-maya",
+      childId: "maya",
+      method: "account",
+      last4: "",
+      total: 5.8,
+      paidAt: "This morning",
+      lines: [
+        { iso: LUNCH_TODAY, itemId: "bowl", name: "Rice bowl", qty: 1, price: 5 },
+        { iso: LUNCH_TODAY, itemId: "milk", name: "White milk", qty: 1, price: 0.8 },
+      ],
+    },
+    {
       id: "o-k1",
       childId: "noah",
       method: "account",
@@ -4037,7 +4049,9 @@ function askBar(current = "") {
   const ph = hints[0];
   return `
     <form class="ask-bar" id="ask-form">
-      <div class="ask-label">${tx("Ask my portal")}</div>
+      <div class="widget-head">
+        <h2>${tx("Ask my portal")}</h2>
+      </div>
       <div class="ask-row">
         <input id="ask-q" name="q" value="${current.replace(/"/g, "&quot;")}" placeholder="${ph}" autocomplete="off" />
         <button class="btn" type="submit">${tx("Ask")}</button>
@@ -4377,6 +4391,171 @@ function widgetTodayAlerts() {
     </div>`;
 }
 
+function parentCalHref() {
+  return state.edition === "mvp" ? "#/schedule" : "#/calendar";
+}
+
+function parentDashTodayIso() {
+  // Cafeteria “today” is the live school day for the board.
+  return LUNCH_TODAY;
+}
+
+function parentWeekDays() {
+  const today = parentDashTodayIso();
+  const week = mondayIso(today);
+  const days = [];
+  for (let i = 0; i < 5; i += 1) {
+    const dt = parseIso(week);
+    dt.setDate(dt.getDate() + i);
+    const iso = isoDay(dt.getFullYear(), dt.getMonth(), dt.getDate());
+    const meta = lunchDateMeta(iso);
+    const schedule = kidSchedule().filter((item) => item.day === meta.dow);
+    const events = kidEvents().filter((item) => eventIso(item) === iso);
+    days.push({ ...meta, schedule, events, isToday: iso === today });
+  }
+  return days;
+}
+
+function parentFocusWeek() {
+  const days = parentWeekDays();
+  const calHref = parentCalHref();
+  return `
+    <section class="card panel parent-week">
+      <div class="widget-head">
+        <h2>${tx("This week")}</h2>
+        <a href="${calHref}">${tx("Schedule")}</a>
+      </div>
+      <div class="parent-week-grid" role="list">
+        ${days
+          .map((day) => {
+            const bits = [
+              ...day.schedule.slice(0, 2).map((item) => `${item.time} ${tx(item.title)}`),
+              ...day.events.slice(0, 1).map((item) => tx(item.title)),
+            ];
+            return `
+          <a class="parent-day ${day.isToday ? "is-today" : ""}" href="${calHref}" role="listitem" ${day.isToday ? 'aria-current="date"' : ""}>
+            <span class="kicker">${tx(day.dow)}${day.isToday ? ` · ${tx("Today")}` : ""}</span>
+            <strong>${day.day}</strong>
+            <span class="parent-day-bits">${bits.length ? bits.join(" · ") : "—"}</span>
+          </a>`;
+          })
+          .join("")}
+      </div>
+    </section>`;
+}
+
+function parentFocusLunch() {
+  const iso = parentDashTodayIso();
+  const meta = lunchDateMeta(iso);
+  const mains = lunchMains(iso).slice(0, 2);
+  const ordered = lunchLinesForChild(iso, child().id);
+  const bag = cartLines().filter((line) => line.iso === iso);
+  const bagTotal = dayCartTotal(iso);
+  const orderedLabel = ordered.map((line) => tx(line.name)).join(" · ");
+  const picked = selectedMainId(iso);
+  return `
+    <section class="card panel parent-lunch">
+      <div class="widget-head">
+        <h2>${tx("Cafeteria")}</h2>
+        <a href="#/lunch">${tx(meta.dow)} ${meta.day} · ${tx("Full menu")}</a>
+      </div>
+      ${
+        ordered.length
+          ? `<p class="parent-lunch-status"><strong>${tx("Ordered")}</strong> · ${orderedLabel}</p>`
+          : bag.length
+            ? `<p class="parent-lunch-status"><strong>${tx("In bag")}</strong> · ${money(bagTotal)}</p>`
+            : `<p class="parent-lunch-status kicker">${tx("Packed lunch")} · ${tx("Today’s main")} · ${tx("Pick one")}</p>`
+      }
+      <div class="lunch-mains parent-lunch-mains">
+        ${mains.map((item) => lunchMainCard(iso, item, picked === item.id || ordered.some((line) => line.itemId === item.id))).join("")}
+      </div>
+      <div class="parent-lunch-foot">
+        ${
+          bagTotal
+            ? `<a class="btn" href="#/lunch/cart">${tx("Check out")} · ${money(bagTotal)}</a>`
+            : `<span class="kicker">${tx("Packed lunch")}</span>`
+        }
+        <a class="btn ghost" href="#/lunch">${tx("Full menu")}</a>
+      </div>
+    </section>`;
+}
+
+function parentFocusComingUp() {
+  const upcoming = kidEvents().slice(0, 4);
+  return `
+    <section class="card panel parent-coming">
+      <div class="widget-head">
+        <h2>${tx("Coming up")}</h2>
+        <a href="#/events">${tx("See all")} ${badgeMarkup(unreadEventsCount())}</a>
+      </div>
+      ${
+        upcoming.length
+          ? `<ul class="parent-lunch-list parent-coming-list">
+              ${upcoming
+                .map((item) => {
+                  const href = item.campaignId ? `#/fundraise/${item.campaignId}` : `#/events/${item.id}`;
+                  const meta = eventKindMeta(item.kind);
+                  return `
+                <li>
+                  <a class="parent-coming-row ${item.unread ? "is-new" : ""}" href="${href}">
+                    <span>
+                      <strong>${tx(item.title)}</strong>
+                      <span class="kicker">${tx(meta.singular)} · ${tx(item.when)}${item.where ? ` · ${tx(item.where)}` : ""}</span>
+                    </span>
+                    <span class="parent-event-tags">
+                      ${item.going ? pill("Going") : item.unread ? pill("New", "risk") : pill(meta.singular, eventKindTone(item.kind))}
+                    </span>
+                  </a>
+                </li>`;
+                })
+                .join("")}
+            </ul>`
+          : `<p class="doc-empty">${tx("No events in this pile.")}</p>`
+      }
+    </section>`;
+}
+
+function parentFocusHome() {
+  paintChrome("home");
+  setCrumbs([boardCrumb()]);
+  const kid = child();
+  const dreamDismiss =
+    state.edition === "dream"
+      ? (() => {
+          const plan = todayDismiss(kid.id);
+          return `<div class="banner ${plan.change ? "risk" : ""}">
+      <div>
+        <strong>${plan.change ? tx("Dismissal change") : tx("Dismissal today")}</strong>
+        ${tx(dismissMode(plan.mode).title)} · ${tx(plan.detail)}${plan.note ? ` · ${tx(plan.note)}` : ""}
+      </div>
+      <a class="btn ghost" href="#/dismiss">${tx("Live board")}</a>
+    </div>`;
+        })()
+      : "";
+  view.innerHTML = `
+    ${notice()}
+    ${state.edition === "mvp" ? reminderBanner() : ""}
+    ${dreamDismiss}
+    <div class="hero">
+      <div>
+        <h1>${txf("{name}’s day.", { name: kid.name })}</h1>
+        <p class="lede">${txf("{grade} · {band} with {teacher} in {room}.", { grade: tx(kid.grade), band: tx(kid.band), teacher: kid.teacher, room: kid.room })}</p>
+      </div>
+      ${state.edition === "mvp" ? configureBtn() : ""}
+    </div>
+    ${askBar()}
+    <div class="parent-focus">
+      <div class="parent-focus-grid">
+        ${parentFocusWeek()}
+        ${parentFocusComingUp()}
+      </div>
+      ${parentFocusLunch()}
+    </div>
+  `;
+  bindAsk();
+  bindLunchQty(parentFocusHome);
+}
+
 function alertsView() {
   paintChrome("alerts");
   const home = state.edition === "mvp" ? boardCrumb() : { label: state.role === "parent" ? "Today" : "Home", href: "#/" };
@@ -4421,100 +4600,7 @@ function notice() {
 }
 
 function parentHome() {
-  paintChrome("home");
-  setCrumbs([{ label: "Today", href: "#/" }]);
-  const kid = child();
-  const present = kid.attendance.filter((d) => d.status === "Present").length;
-  const nextMeal = kid.meals.find((m) => !m.bought) || kid.meals[0];
-  const nextReminder = unreadAlerts().find((alert) => alert.kind === "reminder");
-  view.innerHTML = `
-    ${notice()}
-    ${reminderBanner()}
-    ${
-      (() => {
-        const plan = todayDismiss(kid.id);
-        return `<div class="banner ${plan.change ? "risk" : ""}">
-      <div>
-        <strong>${plan.change ? tx("Dismissal change") : tx("Dismissal today")}</strong>
-        ${tx(dismissMode(plan.mode).title)} · ${tx(plan.detail)}${plan.note ? ` · ${tx(plan.note)}` : ""}
-      </div>
-      <a class="btn ghost" href="#/dismiss">${tx("Live board")}</a>
-    </div>`;
-      })()
-    }
-    <div class="hero">
-      <div>
-        <h1>${txf("{name}’s day.", { name: kid.name })}</h1>
-        <p class="lede">${txf("{grade} · {band} with {teacher} in {room}. Cedar Hill is K–8 — switch siblings in the rail.", { grade: tx(kid.grade), band: tx(kid.band), teacher: kid.teacher, room: kid.room })}</p>
-      </div>
-    </div>
-    ${askBar()}
-    <section class="metrics">
-      <a class="card metric" href="#/attendance">
-        <div class="metric-label">${tx("This week")}</div>
-        <div class="metric-value">${present}/4</div>
-        <div class="metric-hint">${tx("Days present so far")}</div>
-      </a>
-      <a class="card metric" href="#/reports">
-        <div class="metric-label">${tx("Report card")}</div>
-        <div class="metric-value">${tx("Fall")}</div>
-        <div class="metric-hint">${tx("Ready to read")}</div>
-      </a>
-      <a class="card metric" href="#/lunch">
-        <div class="metric-label">${tx("Lunch")}</div>
-        <div class="metric-value">${tx("Today")}</div>
-        <div class="metric-hint">${tx(lunchMenu(LUNCH_TODAY).find((item) => item.cat === "main")?.name || nextMeal.name)}</div>
-      </a>
-      <a class="card metric" href="#/alerts">
-        <div class="metric-label">${tx("Notifications")}</div>
-        <div class="metric-value">${unreadAlerts().length}</div>
-        <div class="metric-hint">${nextReminder ? tx(nextReminder.title) : tx("Caught up")}</div>
-      </a>
-    </section>
-    <div class="grid-2">
-      <section class="card panel">
-        <h2>${tx("In class")}</h2>
-        ${kid.activities
-          .map(
-            (a) => `
-          <a class="list-row" href="#/class/${a.id}">
-            <div class="title-block">
-              <span class="kicker">${tx(a.when)}</span>
-              <strong>${tx(a.title)}</strong>
-            </div>
-            ${pill("Open")}
-          </a>`
-          )
-          .join("")}
-      </section>
-      <div>
-        <section class="card panel">
-          <h2>${tx("This week")}</h2>
-          ${Object.entries(weekByDay())
-            .map(
-              ([day, items]) => `
-            <a class="session" href="#/calendar">
-              <time>${tx(day)}</time>
-              <strong>${items.join(" · ") || "—"}</strong>
-            </a>`
-            )
-            .join("")}
-        </section>
-        <section class="card panel" style="margin-top:16px">
-          <div class="widget-head">
-            <h2>${tx("Events")}</h2>
-            <a href="#/events">${tx("See all")} ${badgeMarkup(unreadEventsCount())}</a>
-          </div>
-          ${kidEvents().slice(0, 3).map(eventRow).join("")}
-        </section>
-        <div class="actions">
-          <a class="btn" href="#/attendance/report">${tx("Report absence")}</a>
-          <a class="btn ghost" href="#/messages/${teacherThreadId()}">${tx("Message teacher")}</a>
-        </div>
-      </div>
-    </div>
-  `;
-  bindAsk();
+  parentFocusHome();
 }
 
 function boardCrumb() {
@@ -4878,7 +4964,7 @@ function qtyControl(iso, item) {
     </div>`;
 }
 
-function bindLunchQty(step) {
+function bindLunchQty(stepOrRender) {
   view.querySelectorAll("[data-lunch-delta]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const iso = btn.dataset.lunchIso;
@@ -4891,7 +4977,8 @@ function bindLunchQty(step) {
         });
       }
       setLunchQty(iso, itemId, cartQty(iso, itemId) + delta);
-      lunch(step);
+      if (typeof stepOrRender === "function") stepOrRender();
+      else lunch(stepOrRender);
     });
   });
 }
@@ -7177,44 +7264,7 @@ function scanFlyerBtn(extraClass = "") {
 }
 
 function mvpParentHome() {
-  paintChrome("home");
-  setCrumbs([boardCrumb()]);
-  const kid = child();
-  const unread = kidComms().filter((c) => c.unread).length + kidDocs().filter((d) => d.unread && !d.signed).length;
-  const form = unsignedForms()[0];
-  const nextReminder = unreadAlerts().find((alert) => alert.kind === "reminder");
-  view.innerHTML = `
-    ${notice()}
-    ${reminderBanner()}
-    <div class="hero">
-      <div>
-        <h1>${txf("{name}’s day.", { name: kid.name })}</h1>
-        <p class="lede">${txf("{grade} · {band} with {teacher} in {room}. Reminders, notices, and posts arrive in {lang}.", { grade: tx(kid.grade), band: tx(kid.band), teacher: kid.teacher, room: kid.room, lang: LANGS[state.parentLang].native })}</p>
-      </div>
-      ${configureBtn()}
-    </div>
-    ${askBar()}
-    <section class="metrics">
-      <a class="card metric" href="#/attendance"><div class="metric-label">${tx("Attendance")}</div><div class="metric-value">${kid.attendance.filter((d) => d.status === "Present").length}/4</div><div class="metric-hint">${tx("Days present so far")}</div></a>
-      <a class="card metric" href="#/inbox"><div class="metric-label">${tx("Inbox")}</div><div class="metric-value">${unread}</div><div class="metric-hint">${tx("New from teacher or office")}</div></a>
-      <a class="card metric" href="#/docs"><div class="metric-label">${tx("To sign")}</div><div class="metric-value">${unsignedForms().length}</div><div class="metric-hint">${form ? tx(form.title) : tx("Nothing waiting")}</div></a>
-      <a class="card metric" href="#/alerts"><div class="metric-label">${tx("Notifications")}</div><div class="metric-value">${unreadAlerts().length}</div><div class="metric-hint">${nextReminder ? tx(nextReminder.title) : tx("Caught up")}</div></a>
-    </section>
-    ${widgetTodayAlerts()}
-    <div class="mvp-dash" style="margin-top:16px">
-      <div class="mvp-stack">
-        ${state.widgets.comms ? widgetComms() : ""}
-        ${state.widgets.docs ? widgetDocs() : ""}
-      </div>
-      <div class="mvp-stack">
-        ${state.widgets.attendance ? widgetAttendance() : ""}
-        ${state.widgets.schedule ? widgetSchedule() : ""}
-        ${state.widgets.events ? widgetEvents() : ""}
-      </div>
-    </div>
-  `;
-  bindAsk();
-  bindAlertRows();
+  parentFocusHome();
 }
 
 function mvpStaffHome() {
