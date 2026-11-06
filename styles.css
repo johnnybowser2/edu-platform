@@ -2290,17 +2290,46 @@ button.year-day {
   align-items: stretch;
 }
 
+.parent-focus-main {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+  min-width: 0;
+}
+
+.parent-focus-main .ask-bar {
+  margin: 0;
+}
+
+/* Slot takes the Ask+week row height; Coming up fills it (scroll if needed). */
+.parent-coming-slot {
+  position: relative;
+  min-height: 0;
+  min-width: 0;
+}
+
+.parent-coming-slot > .parent-coming {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.parent-week {
+  padding-bottom: 14px;
+}
+
 .parent-week-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
-  margin: 4px 0 10px;
+  margin: 4px 0 0;
 }
 
 .parent-day {
   display: grid;
   gap: 4px;
-  min-height: 118px;
+  min-height: 108px;
   padding: 12px 10px;
   border-radius: 14px;
   border: 1px solid var(--line);
@@ -2385,7 +2414,15 @@ button.year-day {
 }
 
 .parent-coming {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
   padding-bottom: 8px;
+}
+
+.parent-coming-list {
+  flex: 1;
 }
 
 .parent-coming-list li {
@@ -3036,6 +3073,18 @@ button.year-day {
   .week,
   .find-filters {
     grid-template-columns: 1fr;
+  }
+
+  .parent-coming-slot {
+    position: static;
+    min-height: 0;
+  }
+
+  .parent-coming-slot > .parent-coming {
+    position: static;
+    inset: auto;
+    overflow: visible;
+    height: auto;
   }
 
   .parent-week-grid {
