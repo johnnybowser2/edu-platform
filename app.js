@@ -642,6 +642,53 @@ const USUAL_DISMISS = {
   kai: { mode: "bus", detail: "Route 12" },
 };
 
+// Mock district bus feed shaped like the vendor transportation portal (routes + stops + map).
+const BUS_HOME = [45.88235, -64.5519];
+const BUS_SCHOOL = [45.9011, -64.5684];
+const BUS_PATH_AM = [
+  BUS_HOME,
+  [45.8852, -64.5551],
+  [45.8896, -64.5598],
+  [45.8948, -64.5642],
+  BUS_SCHOOL,
+];
+const BUS_PATH_PM = [...BUS_PATH_AM].reverse();
+
+const BUS_ROUTE_7 = {
+  eligibility: "Bussed",
+  metAtBus: false,
+  school: "Cedar Hill K–8",
+  toSchool: {
+    label: "To school",
+    route: "7",
+    operator: "District Transport",
+    pickup: { time: "7:42 AM", stop: "Oak & 3rd", kind: "AM pickup" },
+    dropoff: { time: "7:58 AM", stop: "Cedar Hill loop", kind: "AM dropoff" },
+    path: BUS_PATH_AM,
+  },
+  fromSchool: {
+    label: "From school",
+    route: "7",
+    operator: "District Transport",
+    pickup: { time: "3:20 PM", stop: "Cedar Hill loop", kind: "PM pickup" },
+    dropoff: { time: "3:38 PM", stop: "Oak & 3rd", kind: "PM dropoff" },
+    path: BUS_PATH_PM,
+  },
+};
+
+const BUS_PLANS = {
+  maya: BUS_ROUTE_7,
+  noah: BUS_ROUTE_7,
+};
+
+let busLiveTimer = null;
+let busMap = null;
+let busLiveMarker = null;
+let busLiveProgress = 0.38;
+let busLiveLeg = "toSchool";
+let leafletReady = null;
+let busMountToken = 0;
+
 function dismissMode(id) {
   return DISMISS_MODES.find((m) => m.id === id) || DISMISS_MODES[0];
 }
@@ -2875,6 +2922,7 @@ const mvpNavByRole = {
   parent: [
     ["home", "Today", "#/"],
     ["attendance", "Attendance", "#/attendance"],
+    ["bus", "Bus", "#/bus"],
     ["messages", "Inbox", "#/inbox"],
     ["calendar", "Schedule", "#/schedule"],
     ["events", "Events", "#/events"],
@@ -3241,6 +3289,37 @@ const BOOK = {
   ["Tap a meal to order. Packed lunch stays the default until you buy.", "Touchez un repas pour commander. Le lunch maison reste par défaut tant que vous n’achetez pas.", "点餐即可订购。不买则默认带饭。", "ਖਰੀਦਣ ਲਈ ਭੋਜਨ ਟੈਪ ਕਰੋ। ਘਰ ਦਾ ਲੰਚ ਡਿਫਾਲਟ ਰਹਿੰਦਾ ਹੈ।", "Toque una comida para pedir. El lunch de casa sigue hasta que compre."],
   ["Walks.", "À pied.", "步行。", "ਤੁਰਕੇ।", "Camina."],
   ["Stops", "Arrêts", "站点", "ਸਟਾਪ", "Paradas"],
+  ["To school", "Vers l’école", "去学校", "ਸਕੂਲ ਵੱਲ", "A la escuela"],
+  ["From school", "De l’école", "放学", "ਸਕੂਲ ਤੋਂ", "Desde la escuela"],
+  ["AM pickup", "Prise en charge AM", "上午上车", "ਸਵੇਰ ਦੀ ਚੜ੍ਹਾਈ", "Recogida AM"],
+  ["AM dropoff", "Dépose AM", "上午下车", "ਸਵੇਰ ਦੀ ਉਤਾਰ", "Dejada AM"],
+  ["PM pickup", "Prise en charge PM", "下午上车", "ਸ਼ਾਮ ਦੀ ਚੜ੍ਹਾਈ", "Recogida PM"],
+  ["PM dropoff", "Dépose PM", "下午下车", "ਸ਼ਾਮ ਦੀ ਉਤਾਰ", "Dejada PM"],
+  ["Time", "Heure", "时间", "ਸਮਾਂ", "Hora"],
+  ["Stop", "Arrêt", "站点", "ਸਟਾਪ", "Parada"],
+  ["Route", "Circuit", "线路", "ਰੂਟ", "Ruta"],
+  ["Operator", "Transporteur", "运营商", "ਆਪਰੇਟਰ", "Operador"],
+  ["Live map", "Carte en direct", "实时地图", "ਲਾਈਵ ਨਕਸ਼ਾ", "Mapa en vivo"],
+  ["On map", "Sur la carte", "地图上", "ਨਕਸ਼ੇ ਤੇ", "En el mapa"],
+  ["Live tracking", "Suivi en direct", "实时追踪", "ਲਾਈਵ ਟਰੈਕਿੰਗ", "Seguimiento en vivo"],
+  ["{name} dismisses on foot — no district bus seat today.", "{name} sort à pied — pas de place d’autobus du district aujourd’hui.", "{name}步行放学 — 今天没有校车座位。", "{name} ਪੈਦਲ ਜਾਂਦਾ/ਜਾਂਦੀ ਹੈ — ਅੱਜ ਡਿਸਟ੍ਰਿਕਟ ਬੱਸ ਸੀਟ ਨਹੀਂ।", "{name} sale a pie — sin asiento de autobús del distrito hoy."],
+  ["min away", "min", "分钟", "ਮਿੰਟ", "min"],
+  ["ETA", "Arrivée", "预计到达", "ਪਹੁੰਚ", "ETA"],
+  ["Home stop", "Arrêt maison", "家附近站", "ਘਰ ਵਾਲਾ ਸਟਾਪ", "Parada de casa"],
+  ["School", "École", "学校", "ਸਕੂਲ", "Escuela"],
+  ["Bussed", "Transporté", "乘校车", "ਬੱਸ ਯੋਗ", "Autobús"],
+  ["Met at bus", "Accueilli à l’autobus", "有人接车", "ਬੱਸ ਤੇ ਮਿਲਣਾ", "Encontrado en el bus"],
+  ["Not met at bus", "Sans accueil à l’autobus", "无人接车", "ਬੱਸ ਤੇ ਨਹੀਂ ਮਿਲਦਾ", "No encontrado en el bus"],
+  ["Direction", "Direction", "方向", "ਦਿਸ਼ਾ", "Dirección"],
+  ["Bus route map", "Carte du circuit", "校车路线图", "ਬੱਸ ਰੂਟ ਨਕਸ਼ਾ", "Mapa de la ruta"],
+  ["Tracking updates every few seconds. Times follow the district feed.", "Le suivi se met à jour toutes les quelques secondes. Les heures suivent le flux du district.", "追踪每隔几秒更新。时间来自学区数据。", "ਟਰੈਕਿੰਗ ਹਰ ਕੁਝ ਸਕਿੰਟ ਬਾਅਦ ਅੱਪਡੇਟ ਹੁੰਦੀ ਹੈ। ਸਮਾਂ ਡਿਸਟ੍ਰਿਕਟ ਫੀਡ ਤੋਂ ਹੈ।", "El seguimiento se actualiza cada pocos segundos. Los horarios siguen el feed del distrito."],
+  ["Map unavailable offline.", "Carte indisponible hors ligne.", "离线无法显示地图。", "ਆਫ਼ਲਾਈਨ ਨਕਸ਼ਾ ਉਪਲਬਧ ਨਹੀਂ।", "Mapa no disponible sin conexión."],
+  ["{name} · {school} · {eligibility}", "{name} · {school} · {eligibility}", "{name} · {school} · {eligibility}", "{name} · {school} · {eligibility}", "{name} · {school} · {eligibility}"],
+  ["Change pickup plans from Dismissal. Maya and Noah still ride Route 7.", "Changez le plan de sortie dans Sortie. Maya et Noah prennent encore le circuit 7.", "请在放学计划中更改接送。Maya 和 Noah 仍乘坐 7 路。", "ਛੁੱਟੀ ਤੋਂ ਪਲਾਨ ਬਦਲੋ। ਮਾਇਆ ਤੇ ਨੋਆ ਹਾਲੇ ਰੂਟ 7 ਤੇ ਹਨ।", "Cambie el plan en Salida. Maya y Noah siguen en la ruta 7."],
+  ["Oak & 3rd", "Oak et 3e", "Oak与3街", "Oak ਅਤੇ 3rd", "Oak y 3.ª"],
+  ["Cedar Hill loop", "Boucle Cedar Hill", "Cedar Hill环线", "Cedar Hill ਲੂਪ", "Circuito Cedar Hill"],
+  ["Cedar Hill K–8", "Cedar Hill M–8", "Cedar Hill K–8", "Cedar Hill K–8", "Cedar Hill K–8"],
+  ["District Transport", "Transport du district", "学区交通", "ਡਿਸਟ੍ਰਿਕਟ ਟਰਾਂਸਪੋਰਟ", "Transporte del distrito"],
   ["Feed", "Fil", "动态", "ਫੀਡ", "Feed"],
   ["On", "Activé", "开", "ਚਾਲੂ", "Activado"],
   ["Hidden", "Masqué", "隐藏", "ਲੁਕਿਆ", "Oculto"],
@@ -6101,52 +6180,244 @@ function dismissView() {
   return dutyDismiss();
 }
 
+function childBusPlan() {
+  return BUS_PLANS[child().id] || null;
+}
+
+function teardownBusMap() {
+  if (busLiveTimer) {
+    clearInterval(busLiveTimer);
+    busLiveTimer = null;
+  }
+  if (busMap) {
+    busMap.remove();
+    busMap = null;
+  }
+  busLiveMarker = null;
+  busMountToken += 1;
+  if (typeof view !== "undefined" && view) view.onclick = null;
+}
+
+function ensureLeaflet() {
+  if (window.L) return Promise.resolve(window.L);
+  if (leafletReady) return leafletReady;
+  leafletReady = new Promise((resolve, reject) => {
+    const css = document.createElement("link");
+    css.rel = "stylesheet";
+    css.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+    css.integrity = "sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=";
+    css.crossOrigin = "";
+    document.head.appendChild(css);
+    const script = document.createElement("script");
+    script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+    script.integrity = "sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=";
+    script.crossOrigin = "";
+    script.onload = () => resolve(window.L);
+    script.onerror = () => reject(new Error("Leaflet failed to load"));
+    document.head.appendChild(script);
+  });
+  return leafletReady;
+}
+
+function busLegPoint(path, t) {
+  if (!path?.length) return BUS_HOME;
+  const clamped = Math.max(0, Math.min(0.999, t));
+  const scaled = clamped * (path.length - 1);
+  const i = Math.floor(scaled);
+  const frac = scaled - i;
+  const a = path[i];
+  const b = path[Math.min(i + 1, path.length - 1)];
+  return [a[0] + (b[0] - a[0]) * frac, a[1] + (b[1] - a[1]) * frac];
+}
+
+function busEtaLabel(leg, progress) {
+  const remainMin = Math.max(1, Math.round((1 - progress) * (leg.label === "To school" ? 16 : 18)));
+  const base = leg.label === "To school" ? leg.dropoff.time : leg.dropoff.time;
+  return { remainMin, base };
+}
+
+function busStopBlock(stop) {
+  return `
+    <div class="bus-stop">
+      <span class="kicker">${tx(stop.kind)}</span>
+      <div class="bus-stop-grid">
+        <div>
+          <span class="bus-stop-label">${tx("Time")}</span>
+          <strong>${stop.time}</strong>
+        </div>
+        <div>
+          <span class="bus-stop-label">${tx("Stop")}</span>
+          <strong>${tx(stop.stop)}</strong>
+        </div>
+        <div>
+          <span class="bus-stop-label">${tx("Route")}</span>
+          <strong>${stop.route || ""}</strong>
+        </div>
+      </div>
+    </div>`;
+}
+
+function busLegCard(leg, key) {
+  const on = busLiveLeg === key;
+  return `
+    <button type="button" class="card panel bus-leg ${on ? "is-active" : ""}" data-bus-leg="${key}" aria-pressed="${on}">
+      <div class="widget-head">
+        <h2>${tx(leg.label)}</h2>
+        <span class="kicker">${on ? tx("On map") : `${tx("Route")} ${leg.route}`}</span>
+      </div>
+      ${busStopBlock({ ...leg.pickup, route: leg.route })}
+      ${busStopBlock({ ...leg.dropoff, route: leg.route })}
+      <p class="bus-operator kicker">${tx("Operator")} · ${tx(leg.operator)}</p>
+    </button>`;
+}
+
+function mountBusMap(plan, token) {
+  const el = document.getElementById("bus-map");
+  if (!el || !window.L || token !== busMountToken) return;
+  if (busLiveTimer) {
+    clearInterval(busLiveTimer);
+    busLiveTimer = null;
+  }
+  if (busMap) {
+    busMap.remove();
+    busMap = null;
+  }
+  busLiveMarker = null;
+  const leg = plan[busLiveLeg] || plan.toSchool;
+  const path = leg.path;
+  busMap = window.L.map(el, { zoomControl: true, attributionControl: true });
+  window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: "&copy; OpenStreetMap",
+  }).addTo(busMap);
+  const line = window.L.polyline(path, { color: "#1e3a5f", weight: 5, opacity: 0.85 }).addTo(busMap);
+  window.L.circleMarker(BUS_HOME, { radius: 8, color: "#8f2d3a", fillColor: "#8f2d3a", fillOpacity: 1 })
+    .addTo(busMap)
+    .bindTooltip(tx("Home stop"));
+  window.L.circleMarker(BUS_SCHOOL, { radius: 8, color: "#1e3a5f", fillColor: "#1e3a5f", fillOpacity: 1 })
+    .addTo(busMap)
+    .bindTooltip(tx("School"));
+  const busIcon = window.L.divIcon({
+    className: "bus-live-icon",
+    html: `<span class="bus-live-dot" aria-hidden="true"></span>`,
+    iconSize: [22, 22],
+    iconAnchor: [11, 11],
+  });
+  busLiveMarker = window.L.marker(busLegPoint(path, busLiveProgress), { icon: busIcon }).addTo(busMap);
+  busMap.fitBounds(line.getBounds(), { padding: [28, 28] });
+  requestAnimationFrame(() => {
+    if (token === busMountToken) busMap?.invalidateSize();
+  });
+
+  const statusEl = document.getElementById("bus-live-status");
+  const tick = () => {
+    if (token !== busMountToken) return;
+    busLiveProgress = Math.min(0.97, busLiveProgress + 0.012);
+    if (busLiveProgress > 0.96) busLiveProgress = 0.18;
+    const point = busLegPoint(path, busLiveProgress);
+    busLiveMarker?.setLatLng(point);
+    const eta = busEtaLabel(leg, busLiveProgress);
+    if (statusEl) {
+      statusEl.innerHTML = `
+        <span class="dot live"></span>
+        <strong>${tx("Live tracking")}</strong>
+        <span>${tx("Route")} ${leg.route} · ${eta.remainMin} ${tx("min away")} · ${tx("ETA")} ${eta.base}</span>`;
+    }
+  };
+  tick();
+  busLiveTimer = setInterval(tick, 1600);
+}
+
+function bindBusMap(plan) {
+  view.onclick = (e) => {
+    const btn = e.target.closest("[data-bus-leg]");
+    if (!btn || !view.contains(btn)) return;
+    const next = btn.dataset.busLeg;
+    if (!next || next === busLiveLeg) return;
+    busLiveLeg = next;
+    busLiveProgress = busLiveLeg === "toSchool" ? 0.38 : 0.22;
+    bus();
+  };
+  const token = ++busMountToken;
+  ensureLeaflet()
+    .then(() => mountBusMap(plan, token))
+    .catch(() => {
+      if (token !== busMountToken) return;
+      const el = document.getElementById("bus-map");
+      if (el) el.innerHTML = `<p class="doc-empty">${tx("Map unavailable offline.")}</p>`;
+    });
+}
+
 function bus() {
-  if (state.edition === "dream" && state.role === "parent") return parentDismiss();
+  teardownBusMap();
   paintChrome("bus");
   setCrumbs(crumbsWithHub("bus", { label: state.role === "admin" ? "Buses" : "Bus", href: "#/bus" }));
   const kid = child();
-  if (!ridesBus()) {
+  const plan = childBusPlan();
+  if (!ridesBus() || !plan) {
     view.innerHTML = `
+      ${notice()}
       <div class="hero">
         <div>
           <h1>${tx("Walks.")}</h1>
-          <p class="lede">${txf("{name} is Grade 8 and dismisses at 3:10. No Route 7 seat — Maya and Noah still ride.", { name: kid.short })}</p>
+          <p class="lede">${txf("{name} dismisses on foot — no district bus seat today.", { name: kid.short })}</p>
         </div>
       </div>
       <aside class="notes">
-        <h3>Early dismissal</h3>
-        Wednesday volleyball leaves at 1:30. Report leaving-early from Attendance so the office isn’t looking for a walker at 3:10.
+        <h3>${tx("Dismissal")}</h3>
+        ${tx("Change pickup plans from Dismissal. Maya and Noah still ride Route 7.")}
+        ${state.edition === "dream" ? `<div class="actions"><a class="btn ghost" href="#/dismiss">${tx("Dismissal")}</a></div>` : ""}
       </aside>
     `;
     return;
   }
+
+  const active = plan[busLiveLeg] || plan.toSchool;
   view.innerHTML = `
-    <div class="banner">
-      <div>
-        <strong>${tx("Live change")}</strong>
-        ${tx(state.busChange)}
-      </div>
-    </div>
+    ${notice()}
+    ${
+      state.busChange
+        ? `<div class="banner">
+            <div>
+              <strong>${tx("Live change")}</strong>
+              ${tx(state.busChange)}
+            </div>
+          </div>`
+        : ""
+    }
     <div class="hero">
       <div>
-        <h1>Route 7</h1>
-        <p class="lede">${kid.bus}. Afternoon drop is 3:38 unless a class hold keeps ${kid.short}.</p>
+        <h1>${tx("Route")} ${active.route}</h1>
+        <p class="lede">${txf("{name} · {school} · {eligibility}", { name: kid.name, school: tx(plan.school), eligibility: tx(plan.eligibility) })}</p>
+      </div>
+      <div class="stat-row">
+        <div>
+          <div class="num">${tx("Route")} ${active.route}</div>
+          <div class="kicker">${tx(plan.metAtBus ? "Met at bus" : "Not met at bus")}</div>
+        </div>
       </div>
     </div>
-    <div class="grid-2">
-      <section class="card panel">
-        <h2>${tx("Stops")}</h2>
-        <div class="list-row"><div class="title-block"><strong>Oak & 3rd</strong><span class="kicker">${kid.short}’s stop</span></div>${pill("7:42 AM")}</div>
-        <div class="list-row"><div class="title-block"><strong>Cedar Hill loop</strong><span class="kicker">School</span></div>${pill("7:58 AM")}</div>
-        <div class="list-row"><div class="title-block"><strong>Oak & 3rd</strong><span class="kicker">PM drop</span></div>${pill("3:38 PM")}</div>
+    <div class="bus-leg-toggle" role="group" aria-label="${tx("Direction")}">
+      <button type="button" class="chip ${busLiveLeg === "toSchool" ? "is-on" : ""}" data-bus-leg="toSchool">${tx("To school")}</button>
+      <button type="button" class="chip ${busLiveLeg === "fromSchool" ? "is-on" : ""}" data-bus-leg="fromSchool">${tx("From school")}</button>
+    </div>
+    <div class="bus-layout">
+      <div class="bus-legs">
+        ${busLegCard(plan.toSchool, "toSchool")}
+        ${busLegCard(plan.fromSchool, "fromSchool")}
+      </div>
+      <section class="card panel bus-map-panel">
+        <div class="widget-head">
+          <h2>${tx("Live map")}</h2>
+          <span class="kicker">${tx(active.label)}</span>
+        </div>
+        <div class="bus-live-status" id="bus-live-status"></div>
+        <div id="bus-map" class="bus-map" role="img" aria-label="${tx("Bus route map")}"></div>
+        <p class="bus-map-note kicker">${tx("Tracking updates every few seconds. Times follow the district feed.")}</p>
       </section>
-      <aside class="notes">
-        <h3>If ${kid.short} is absent</h3>
-        Reporting absence from Attendance automatically skips this stop. For leaving early, message the office so the driver isn’t waiting.
-      </aside>
     </div>
   `;
+  bindBusMap(plan);
 }
 
 function classroom(id) {
@@ -9206,6 +9477,7 @@ function render() {
   setNavOpen(false);
   const hash = location.hash.replace(/^#/, "") || "/";
   const parts = hash.split("/").filter(Boolean);
+  if (parts[0] !== "bus") teardownBusMap();
   document.querySelector("[data-home]").setAttribute("href", homeHref());
 
   if (parts[0] === "ask") {
