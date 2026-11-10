@@ -2091,6 +2091,97 @@ function unsignedForms() {
   return kidDocs().filter((d) => !d.signed && d.kind.includes("Form"));
 }
 
+const THEME_PRESETS = [
+  {
+    id: "default",
+    label: "Default",
+    hint: "Current Harbor look",
+    rail: "#152033",
+    paper: "#f4f5f8",
+    accent: "#1e3a5f",
+  },
+  {
+    id: "light",
+    label: "Light",
+    hint: "Same as Default",
+    rail: "#152033",
+    paper: "#f4f5f8",
+    accent: "#1e3a5f",
+  },
+  {
+    id: "dark",
+    label: "Dark",
+    hint: "Low-light board",
+    rail: "#0d1219",
+    paper: "#121820",
+    accent: "#7aa7d9",
+  },
+  {
+    id: "coastal-clarity",
+    label: "Coastal Clarity",
+    hint: "Mist · sea-glass teal",
+    rail: "#fbfcfd",
+    paper: "#f5f7f8",
+    accent: "#2a8a84",
+  },
+  {
+    id: "soft-fog",
+    label: "Soft Fog",
+    hint: "Warm fog · seafoam",
+    rail: "#f7f6f3",
+    paper: "#f3f2ef",
+    accent: "#5f8f86",
+  },
+  {
+    id: "utility-modern",
+    label: "Utility Modern",
+    hint: "Ink navy · amber",
+    rail: "#141820",
+    paper: "#eef0f3",
+    accent: "#d97706",
+  },
+];
+
+const SCHOOL_PRIMARIES = [
+  { id: "auto", label: "Auto (theme)", color: null },
+  { id: "navy", label: "Harbor Navy", color: "#1e3a5f" },
+  { id: "teal", label: "Deep Teal", color: "#1e4a47" },
+  { id: "forest", label: "Forest", color: "#1e4535" },
+  { id: "slate", label: "Slate Blue", color: "#2a3a55" },
+  { id: "wine", label: "Wine", color: "#4a2a38" },
+  { id: "cobalt", label: "Cobalt", color: "#1a3d66" },
+];
+
+const SCHOOL_SECONDARIES = [
+  { id: "auto", label: "Auto (theme)", color: null },
+  { id: "burgundy", label: "Cedar Burgundy", color: "#8f2d3a" },
+  { id: "clay", label: "Warm Clay", color: "#8f4a2d" },
+  { id: "rose", label: "Soft Rose", color: "#8f2d55" },
+  { id: "amber", label: "Amber Deep", color: "#8f6b2d" },
+  { id: "olive", label: "Olive", color: "#5a6f2d" },
+  { id: "steel", label: "Steel", color: "#3d4f5f" },
+];
+
+function applySchoolTheme() {
+  const root = document.documentElement;
+  const theme = THEME_PRESETS.some((p) => p.id === state.theme) ? state.theme : "default";
+  const primary = SCHOOL_PRIMARIES.some((c) => c.id === state.schoolPrimary) ? state.schoolPrimary : "auto";
+  const secondary = SCHOOL_SECONDARIES.some((c) => c.id === state.schoolSecondary)
+    ? state.schoolSecondary
+    : "auto";
+  state.theme = theme;
+  state.schoolPrimary = primary;
+  state.schoolSecondary = secondary;
+  root.setAttribute("data-theme", theme);
+  if (primary === "auto") root.removeAttribute("data-primary");
+  else root.setAttribute("data-primary", primary);
+  if (secondary === "auto") root.removeAttribute("data-secondary");
+  else root.setAttribute("data-secondary", secondary);
+  localStorage.setItem("harborTheme", theme);
+  localStorage.setItem("harborPrimary", primary);
+  localStorage.setItem("harborSecondary", secondary);
+}
+
 const state = {
   role: "parent",
   childId: localStorage.getItem("harborChild") || "maya",
@@ -2376,6 +2467,18 @@ const state = {
   parentLang: ["fr", "en", "zh", "pa", "es"].includes(localStorage.getItem("harborLang"))
     ? localStorage.getItem("harborLang")
     : "fr",
+  theme: (() => {
+    const t = localStorage.getItem("harborTheme") || "default";
+    return THEME_PRESETS.some((p) => p.id === t) ? t : "default";
+  })(),
+  schoolPrimary: (() => {
+    const p = localStorage.getItem("harborPrimary") || "auto";
+    return SCHOOL_PRIMARIES.some((c) => c.id === p) ? p : "auto";
+  })(),
+  schoolSecondary: (() => {
+    const s = localStorage.getItem("harborSecondary") || "auto";
+    return SCHOOL_SECONDARIES.some((c) => c.id === s) ? s : "auto";
+  })(),
   showOriginal: {},
   widgets: { comms: true, schedule: true, docs: true, attendance: true, events: true },
   officeFind: { q: "", grade: "all", room: "all", pick: "" },
@@ -7028,6 +7131,7 @@ function adminHome() {
       </div>
     </div>
     <div class="actions" style="margin-bottom:22px">
+      ${configureBtn()}
       ${scanFlyerBtn()}
       <a class="btn ghost" href="#/alerts">Send a reminder</a>
     </div>
@@ -8134,6 +8238,64 @@ function eventsView(id) {
   });
 }
 
+function themePresetButtons() {
+  return THEME_PRESETS.map((preset) => {
+    const on = state.theme === preset.id ? "is-on" : "";
+    return `
+      <button type="button" class="theme-preset ${on}" data-theme-preset="${preset.id}" aria-pressed="${
+        state.theme === preset.id ? "true" : "false"
+      }">
+        <span class="theme-preset-swatch" style="--swatch-rail:${preset.rail};--swatch-paper:${preset.paper};--swatch-accent:${preset.accent}">
+          <span class="rail-chip"></span>
+          <span class="paper-chip"></span>
+        </span>
+        <span>
+          <strong>${preset.label}</strong>
+          <span class="kicker">${preset.hint}</span>
+        </span>
+      </button>`;
+  }).join("");
+}
+
+function schoolColourSwatches(kind, options, selected) {
+  return `
+    <div>
+      <span class="colour-row-label">${kind === "primary" ? "Primary" : "Secondary"}</span>
+      <div class="swatch-pickers" role="group" aria-label="${kind === "primary" ? "Primary school colour" : "Secondary school colour"}">
+        ${options
+          .map((opt) => {
+            const on = selected === opt.id ? "is-on" : "";
+            const auto = opt.id === "auto" ? "is-auto" : "";
+            const style = opt.color ? `background:${opt.color}` : "";
+            return `<button type="button" class="swatch-pick ${on} ${auto}" data-school-${kind}="${opt.id}" style="${style}" aria-label="${opt.label}" aria-pressed="${
+              selected === opt.id ? "true" : "false"
+            }"><span class="swatch-tip">${opt.label}</span></button>`;
+          })
+          .join("")}
+      </div>
+    </div>`;
+}
+
+function adminThemePanel() {
+  if (state.role !== "admin") return "";
+  return `
+    <section class="card panel" style="margin-top:16px;padding-bottom:18px">
+      <h2>Colour scheme</h2>
+      <p class="lede" style="margin-bottom:4px">Schoolwide look for parents, teachers, and admin. Stored on this device for the prototype.</p>
+      <div class="theme-presets">
+        ${themePresetButtons()}
+      </div>
+    </section>
+    <section class="card panel" style="margin-top:16px;padding-bottom:18px">
+      <h2>School colours</h2>
+      <p class="lede" style="margin-bottom:4px">Pick from a curated list. Tones stay locked to Harbor’s contrast — only the hue changes. Auto keeps the preset’s own accents.</p>
+      <div class="colour-rows">
+        ${schoolColourSwatches("primary", SCHOOL_PRIMARIES, state.schoolPrimary)}
+        ${schoolColourSwatches("secondary", SCHOOL_SECONDARIES, state.schoolSecondary)}
+      </div>
+    </section>`;
+}
+
 function mvpConfigure() {
   paintChrome("config");
   setCrumbs([
@@ -8153,7 +8315,7 @@ function mvpConfigure() {
         <h1>${state.role === "admin" ? "What families see." : tx("Tune the board.")}</h1>
         <p class="lede">${
           state.role === "admin"
-            ? "Cedar Hill’s MVP is these tiles. Turn one off schoolwide."
+            ? "Cedar Hill’s MVP is these tiles. Turn one off schoolwide. Colour scheme is schoolwide too."
             : tx("The school set the default. Hide a tile you don’t need this week.")
         }</p>
       </div>
@@ -8175,18 +8337,42 @@ function mvpConfigure() {
         )
         .join("")}
     </section>
+    ${adminThemePanel()}
     ${
       state.role === "parent"
         ? `<section class="card panel" style="margin-top:16px;padding-bottom:18px">
         <h2>${tx("Preferred language")}</h2>
         <p class="lede" style="margin-bottom:12px">${tx("Announcements, messages, and backpack documents arrive in this language. Staff still read English.")}</p>
       </section>`
-        : `<aside class="notes" style="margin-top:16px"><h3>Harbor AI</h3>Families pick a language. You keep writing English; replies come back translated.</aside>`
+        : state.role === "admin"
+          ? ""
+          : `<aside class="notes" style="margin-top:16px"><h3>Harbor AI</h3>Families pick a language. You keep writing English; replies come back translated.</aside>`
     }
   `;
   view.querySelectorAll("[data-widget]").forEach((box) => {
     box.addEventListener("change", () => {
       state.widgets[box.dataset.widget] = box.checked;
+      mvpConfigure();
+    });
+  });
+  view.querySelectorAll("[data-theme-preset]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.theme = btn.dataset.themePreset;
+      applySchoolTheme();
+      mvpConfigure();
+    });
+  });
+  view.querySelectorAll("[data-school-primary]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.schoolPrimary = btn.dataset.schoolPrimary;
+      applySchoolTheme();
+      mvpConfigure();
+    });
+  });
+  view.querySelectorAll("[data-school-secondary]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.schoolSecondary = btn.dataset.schoolSecondary;
+      applySchoolTheme();
       mvpConfigure();
     });
   });
@@ -9584,6 +9770,8 @@ function render() {
     return fundraiseRoute(parts);
   }
 
+  if (parts[0] === "configure") return mvpConfigure();
+
   if (state.edition === "mvp") {
     if (parts[0] === "inbox") return mvpInbox(parts[1]);
     if (parts[0] === "schedule") return mvpSchedule();
@@ -9594,7 +9782,6 @@ function render() {
     if (parts[0] === "teach" && parts[1] === "attendance") return teacherAttendance();
     if (parts[0] === "admin" && parts[1] === "attendance" && parts[2] === "trends") return attendanceTrends();
     if (parts[0] === "admin" && parts[1] === "attendance") return adminAttendance();
-    if (parts[0] === "configure") return mvpConfigure();
     if (parts[0] === "bus") return bus();
     if (parts[0] === "lunch") return lunch(parts[1]);
     if (state.role === "parent") return mvpParentHome();
@@ -9710,4 +9897,5 @@ window.matchMedia("(min-width: 981px)").addEventListener("change", (e) => {
 });
 
 window.addEventListener("hashchange", render);
+applySchoolTheme();
 render();
