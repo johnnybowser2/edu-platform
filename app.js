@@ -2199,6 +2199,58 @@ function applySchoolTheme() {
   localStorage.setItem("harborSecondary", secondary);
 }
 
+const SEND_HOME_KEY = "harborSendHome";
+
+function defaultSendHomeItems() {
+  return [
+    {
+      id: "sh1",
+      method: "manual",
+      title: "Friday spirit day reminder",
+      body: "Wear green. No early dismissals after 1:30.",
+      dateStart: "2026-10-24",
+      dateEnd: "",
+      attachmentName: "",
+      audience: "parents",
+      staffOnly: false,
+      source: "admin",
+      from: "Front office",
+      createdAt: "Mon",
+      flyerId: null,
+    },
+    {
+      id: "sh2",
+      method: "manual",
+      title: "Picture-day staging notes",
+      body: "Gym doors open 8:40. Grade 4 lines by the north wall. Keep siblings with younger classes.",
+      dateStart: "2026-10-24",
+      dateEnd: "",
+      attachmentName: "picture-day-staging.pdf",
+      audience: "staff",
+      staffOnly: true,
+      source: "admin",
+      from: "Front office",
+      createdAt: "Yesterday",
+      flyerId: null,
+    },
+  ];
+}
+
+function loadSendHomeItems() {
+  try {
+    const raw = localStorage.getItem(SEND_HOME_KEY);
+    if (!raw) return defaultSendHomeItems();
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : defaultSendHomeItems();
+  } catch {
+    return defaultSendHomeItems();
+  }
+}
+
+function persistSendHomeItems() {
+  localStorage.setItem(SEND_HOME_KEY, JSON.stringify(state.sendHomeItems || []));
+}
+
 const state = {
   role: "parent",
   childId: localStorage.getItem("harborChild") || "maya",
@@ -2942,6 +2994,8 @@ const state = {
       ],
     },
   ],
+  scan: null,
+  sendHomeItems: loadSendHomeItems(),
 };
 
 const navByRole = {
@@ -2989,7 +3043,7 @@ const navByRole = {
       label: "Publish",
       href: "#",
       children: [
-        { id: "scan", label: "Scan flyer", href: "#/scan", hint: "Turn a flyer into a post" },
+        { id: "scan", label: "Send home", href: "#/scan", hint: "Flyer or write it yourself" },
         { id: "class", label: "Activities", href: "#/class", hint: "Class feed" },
         { id: "events", label: "Events", href: "#/events", hint: "Dances, games, fundraisers" },
         { id: "calendar", label: "Calendar", href: "#/calendar", hint: "Week and year schedule" },
@@ -3009,7 +3063,7 @@ const navByRole = {
   admin: [
     { id: "home", label: "School", href: "#/" },
     { id: "attendance", label: "Attendance", href: "#/admin/attendance" },
-    { id: "scan", label: "Scan flyer", href: "#/scan" },
+    { id: "scan", label: "Send home", href: "#/scan" },
     {
       id: "ops",
       label: "Operations",
@@ -3049,7 +3103,7 @@ const mvpNavByRole = {
   ],
   teacher: [
     ["home", "Class board", "#/"],
-    ["scan", "Scan flyer", "#/scan"],
+    ["scan", "Send home", "#/scan"],
     ["attendance", "Attendance", "#/teach/attendance"],
     ["messages", "Updates", "#/inbox"],
     ["calendar", "Schedule", "#/schedule"],
@@ -3060,7 +3114,7 @@ const mvpNavByRole = {
   ],
   admin: [
     ["home", "School board", "#/"],
-    ["scan", "Scan flyer", "#/scan"],
+    ["scan", "Send home", "#/scan"],
     ["attendance", "Attendance", "#/admin/attendance"],
     ["messages", "Office inbox", "#/inbox"],
     ["calendar", "Schedule", "#/schedule"],
@@ -3310,7 +3364,7 @@ const BOOK = {
   ["Calendar, events, classroom, and report cards.", "Calendrier, événements, classe et bulletins.", "日历、活动、课堂和成绩单。", "ਕੈਲੰਡਰ, ਈਵੈਂਟ, ਕਲਾਸ ਅਤੇ ਰਿਪੋਰਟ ਕਾਰਡ।", "Calendario, eventos, salón y boletines."],
   ["Dismissal plans and bus.", "Plans de sortie et autobus.", "放学安排与校车。", "ਛੁੱਟੀ ਯੋਜਨਾ ਅਤੇ ਬੱਸ।", "Planes de salida y autobús."],
   ["Cafeteria and school store.", "Cafétéria et boutique scolaire.", "食堂与学校商店。", "ਕੈਫੇਟੇਰੀਆ ਅਤੇ ਸਕੂਲ ਸਟੋਰ।", "Cafetería y tienda escolar."],
-  ["Scan flyers, activities, events, and calendar.", "Scanner des affiches, activités, événements et calendrier.", "扫描传单、活动、赛事和日历。", "ਪਰਚੇ, ਗਤੀਵਿਧੀਆਂ, ਈਵੈਂਟ ਅਤੇ ਕੈਲੰਡਰ ਸਕੈਨ।", "Escanear volantes, actividades, eventos y calendario."],
+  ["Send home notes, activities, events, and calendar.", "Notes à envoyer, activités, événements et calendrier.", "家校通知、活动、赛事和日历。", "ਘਰ ਭੇਜਣ ਲਈ ਨੋਟ, ਗਤੀਵਿਧੀਆਂ, ਈਵੈਂਟ ਅਤੇ ਕੈਲੰਡਰ।", "Notas para casa, actividades, eventos y calendario."],
   ["Dismissal board and lunch list.", "Tableau de sortie et liste du dîner.", "放学看板与午餐名单。", "ਛੁੱਟੀ ਬੋਰਡ ਅਤੇ ਲੰਚ ਸੂਚੀ।", "Tablero de salida y lista del almuerzo."],
   ["Buses, dismissal, hot lunch, and store.", "Autobus, sortie, dîner chaud et boutique.", "校车、放学、热午餐与商店。", "ਬੱਸਾਂ, ਛੁੱਟੀ, ਗਰਮ ਲੰਚ ਅਤੇ ਸਟੋਰ।", "Autobuses, salida, almuerzo caliente y tienda."],
   ["School calendar and events.", "Calendrier et événements de l’école.", "学校日历与活动。", "ਸਕੂਲ ਕੈਲੰਡਰ ਤੇ ਈਵੈਂਟ।", "Calendario y eventos escolares."],
@@ -3322,6 +3376,56 @@ const BOOK = {
   ["Route and walk", "Parcours et marche", "路线与步行", "ਰੂਟ ਤੇ ਤੁਰਨਾ", "Ruta y caminata"],
   ["Order hot lunch", "Commander le dîner chaud", "预订热午餐", "ਗਰਮ ਲੰਚ ਆਰਡਰ", "Pedir almuerzo caliente"],
   ["Spirit wear", "Vêtements d’esprit", "校园服饰", "ਸਪਿਰਿਟ ਪਹਿਰਾਵਾ", "Ropa de espíritu"],
+  ["Flyer or write it yourself", "Affiche ou rédiger soi-même", "传单或自行填写", "ਪਰਚਾ ਜਾਂ ਖੁਦ ਲਿਖੋ", "Volante o escríbelo tú"],
+  ["Send home", "Envoyer à la maison", "发给家长", "ਘਰ ਭੇਜੋ", "Enviar a casa"],
+  ["Parents", "Parents", "家长", "ਮਾਤਾ-ਪਿਤਾ", "Padres"],
+  ["Staff only", "Personnel seulement", "仅教职工", "ਸਿਰਫ਼ ਸਟਾਫ", "Solo personal"],
+  ["Scan or upload a flyer", "Scanner ou téléverser une affiche", "扫描或上传传单", "ਪਰਚਾ ਸਕੈਨ ਜਾਂ ਅੱਪਲੋਡ", "Escanear o subir un volante"],
+  ["Write it yourself", "Rédiger soi-même", "自行填写", "ਖੁਦ ਲਿਖੋ", "Escríbelo tú"],
+  ["Who can see this", "Qui peut voir ceci", "谁可以看到", "ਇਹ ਕੌਣ ਵੇਖ ਸਕਦਾ ਹੈ", "Quién puede ver esto"],
+  ["Most common — family board and inbox", "Le plus courant — babillard et boîte de réception", "最常见 — 家庭看板和收件箱", "ਸਭ ਤੋਂ ਆਮ — ਪਰਿਵਾਰ ਬੋਰਡ ਤੇ ਇਨਬੌਕਸ", "Lo más común — tablero e bandeja"],
+  ["Teachers and admin — not parents", "Enseignants et admin — pas les parents", "教师和管理员 — 不面向家长", "ਅਧਿਆਪਕ ਤੇ ਐਡਮਿਨ — ਮਾਤਾ-ਪਿਤਾ ਨਹੀਂ", "Maestros y admin — no padres"],
+  ["From flyer", "Depuis une affiche", "来自传单", "ਪਰਚੇ ਤੋਂ", "Desde volante"],
+  ["Written", "Rédigé", "手写", "ਲਿਖਿਆ", "Escrito"],
+  ["Send information home.", "Envoyer l’information à la maison.", "把信息发给家长。", "ਜਾਣਕਾਰੀ ਘਰ ਭੇਜੋ।", "Enviar información a casa."],
+  ["Scan a backpack flyer or write the note yourself. Most posts go to parents; keep some for staff only.", "Scannez une affiche ou rédigez la note. La plupart vont aux parents; certaines restent au personnel.", "扫描书包传单或自行填写。多数发给家长；部分仅教职工可见。", "ਪਰਚਾ ਸਕੈਨ ਕਰੋ ਜਾਂ ਖੁਦ ਲਿਖੋ। ਜ਼ਿਆਦਾਤਰ ਮਾਤਾ-ਪਿਤਾ ਲਈ; ਕੁਝ ਸਿਰਫ਼ ਸਟਾਫ।", "Escanea un volante o escríbelo. La mayoría va a padres; algunas solo al personal."],
+  ["Add what families need — from a paper flyer or a blank form. Limit visibility to teachers and admin when it should stay internal.", "Ajoutez ce dont les familles ont besoin — affiche ou formulaire. Limitez aux enseignants et à l’admin si c’est interne.", "添加家庭需要的信息 — 纸质传单或空白表单。内部信息仅限教师和管理员。", "ਪਰਿਵਾਰਾਂ ਲਈ ਜੋ ਚਾਹੀਦਾ ਹੈ ਉਹ ਜੋੜੋ — ਪਰਚਾ ਜਾਂ ਖਾਲੀ ਫਾਰਮ। ਅੰਦਰੂਨੀ ਲਈ ਸਿਰਫ਼ ਅਧਿਆਪਕ/ਐਡਮਿਨ।", "Añade lo que las familias necesitan — volante o formulario. Limita a maestros y admin si es interno."],
+  ["Photo or file — Harbor reads title, date, cost, and consent.", "Photo ou fichier — Harbor lit titre, date, coût et consentement.", "照片或文件 — Harbor 读取标题、日期、费用和同意。", "ਫੋਟੋ ਜਾਂ ਫਾਈਲ — Harbor ਸਿਰਲੇਖ, ਤਾਰੀਖ, ਲਾਗਤ ਤੇ ਸਹਿਮਤੀ ਪੜ੍ਹਦਾ ਹੈ।", "Foto o archivo — Harbor lee título, fecha, costo y consentimiento."],
+  ["No flyer — title, body, dates, and an optional attachment.", "Sans affiche — titre, texte, dates et pièce jointe optionnelle.", "无传单 — 标题、正文、日期和可选附件。", "ਬਿਨਾਂ ਪਰਚੇ — ਸਿਰਲੇਖ, ਲਿਖਤ, ਤਾਰੀਖਾਂ ਤੇ ਵਿਕਲਪਕ ਅਟੈਚਮੈਂਟ।", "Sin volante — título, cuerpo, fechas y adjunto opcional."],
+  ["Recently sent", "Envoyés récemment", "最近发送", "ਹਾਲ ਹੀ ਭੇਜੇ", "Enviados recientemente"],
+  ["Nothing sent home yet.", "Rien d’envoyé pour l’instant.", "尚未发送任何内容。", "ਹਾਲੇ ਕੁਝ ਘਰ ਨਹੀਂ ਭੇਜਿਆ।", "Nada enviado a casa aún."],
+  ["All send-home", "Tout l’envoi", "全部家校通知", "ਸਾਰਾ ਘਰ-ਭੇਜ", "Todo lo enviado"],
+  ["Snap the backpack flyer.", "Photographiez l’affiche du cartable.", "拍下书包里的传单。", "ਬੈਕਪੈਕ ਵਾਲਾ ਪਰਚਾ ਫੋਟੋ ਕਰੋ।", "Fotografía el volante de la mochila."],
+  ["Harbor OCR pulls title, date, cost, and whether families must consent — then you choose parents or staff only.", "L’OCR Harbor lit titre, date, coût et consentement — puis vous choisissez parents ou personnel seulement.", "Harbor OCR 提取标题、日期、费用和是否需同意 — 然后选择家长或仅教职工。", "Harbor OCR ਸਿਰਲੇਖ, ਤਾਰੀਖ, ਲਾਗਤ ਤੇ ਸਹਿਮਤੀ ਪੜ੍ਹਦਾ ਹੈ — ਫਿਰ ਮਾਤਾ-ਪਿਤਾ ਜਾਂ ਸਿਰਫ਼ ਸਟਾਫ ਚੁਣੋ।", "Harbor OCR lee título, fecha, costo y consentimiento — luego eliges padres o solo personal."],
+  ["Snap photo", "Prendre une photo", "拍照", "ਫੋਟੋ ਲਵੋ", "Tomar foto"],
+  ["Upload photo", "Téléverser une photo", "上传照片", "ਫੋਟੋ ਅੱਪਲੋਡ", "Subir foto"],
+  ["What AI reads", "Ce que lit l’IA", "AI 读取内容", "AI ਕੀ ਪੜ੍ਹਦੀ ਹੈ", "Lo que lee la IA"],
+  ["Event title, date and time, cost, and permission requirements. You can edit anything before it goes out.", "Titre, date et heure, coût et permissions. Vous pouvez tout modifier avant l’envoi.", "活动标题、日期时间、费用和许可要求。发出前可编辑任何内容。", "ਸਿਰਲੇਖ, ਤਾਰੀਖ ਤੇ ਸਮਾਂ, ਲਾਗਤ ਤੇ ਇਜਾਜ਼ਤ। ਭੇਜਣ ਤੋਂ ਪਹਿਲਾਂ ਸੰਪਾਦਨ ਕਰੋ।", "Título, fecha y hora, costo y permisos. Puedes editar antes de enviar."],
+  ["Or try another flyer", "Ou essayez une autre affiche", "或试试另一张传单", "ਜਾਂ ਹੋਰ ਪਰਚਾ ਅਜ਼ਮਾਓ", "O prueba otro volante"],
+  ["No flyer? Write it yourself", "Pas d’affiche? Rédigez", "没有传单？自行填写", "ਪਰਚਾ ਨਹੀਂ? ਖੁਦ ਲਿਖੋ", "¿Sin volante? Escríbelo"],
+  ["Check the extract.", "Vérifiez l’extrait.", "核对提取结果。", "ਐਕਸਟਰੈਕਟ ਚੈੱਕ ਕਰੋ।", "Revisa el extracto."],
+  ["Harbor read the paper in a second. Confirm the fields, choose who sees it, then publish.", "Harbor a lu le papier en une seconde. Confirmez, choisissez qui voit, puis publiez.", "Harbor 一秒读完纸张。确认字段、选择可见对象，然后发布。", "Harbor ਨੇ ਇੱਕ ਸਕਿੰਟ ਵਿਚ ਪੜ੍ਹਿਆ। ਖੇਤ ਪੁਸ਼ਟੀ ਕਰੋ, ਦਰਸ਼ਕ ਚੁਣੋ, ਫਿਰ ਪ੍ਰਕਾਸ਼ਿਤ ਕਰੋ।", "Harbor leyó el papel en un segundo. Confirma, elige quién ve, y publica."],
+  ["Structured from the page", "Structuré depuis la page", "从页面结构化", "ਪੰਨੇ ਤੋਂ ਢਾਂਚਾਬੱਧ", "Estructurado de la página"],
+  ["Event title", "Titre de l’événement", "活动标题", "ਈਵੈਂਟ ਸਿਰਲੇਖ", "Título del evento"],
+  ["Day", "Jour", "日", "ਦਿਨ", "Día"],
+  ["Time", "Heure", "时间", "ਸਮਾਂ", "Hora"],
+  ["Where", "Lieu", "地点", "ਥਾਂ", "Dónde"],
+  ["Cost", "Coût", "费用", "ਲਾਗਤ", "Costo"],
+  ["Permission / consent required", "Permission / consentement requis", "需要许可/同意", "ਇਜਾਜ਼ਤ / ਸਹਿਮਤੀ ਲੋੜੀਂਦੀ", "Permiso / consentimiento requerido"],
+  ["What they see", "Ce qu’ils voient", "他们看到的内容", "ਉਹ ਕੀ ਵੇਖਦੇ ਹਨ", "Lo que ven"],
+  ["Publish send-home", "Publier l’envoi", "发布家校通知", "ਘਰ-ਭੇਜ ਪ੍ਰਕਾਸ਼ਿਤ", "Publicar envío a casa"],
+  ["Write what goes home.", "Rédigez ce qui part à la maison.", "填写要发给家长的内容。", "ਘਰ ਜਾਣ ਵਾਲੀ ਗੱਲ ਲਿਖੋ।", "Escribe lo que va a casa."],
+  ["No flyer needed. Add a title, the note, optional dates, and an attachment when you have one.", "Pas d’affiche nécessaire. Ajoutez un titre, la note, des dates optionnelles et une pièce jointe.", "无需传单。添加标题、说明、可选日期和附件。", "ਪਰਚਾ ਲੋੜੀਂਦਾ ਨਹੀਂ। ਸਿਰਲੇਖ, ਨੋਟ, ਵਿਕਲਪਕ ਤਾਰੀਖਾਂ ਤੇ ਅਟੈਚਮੈਂਟ ਜੋੜੋ।", "No hace falta volante. Añade título, nota, fechas opcionales y un adjunto."],
+  ["Have a flyer?", "Vous avez une affiche?", "有传单？", "ਪਰਚਾ ਹੈ?", "¿Tienes un volante?"],
+  ["Class note", "Note de classe", "班级通知", "ਕਲਾਸ ਨੋਟ", "Nota de clase"],
+  ["School note", "Note de l’école", "学校通知", "ਸਕੂਲ ਨੋਟ", "Nota escolar"],
+  ["Body", "Texte", "正文", "ਲਿਖਤ", "Cuerpo"],
+  ["What should they know?", "Que doivent-ils savoir?", "他们需要知道什么？", "ਉਹਨਾਂ ਨੂੰ ਕੀ ਪਤਾ ਹੋਣਾ ਚਾਹੀਦਾ ਹੈ?", "¿Qué deben saber?"],
+  ["Starts", "Début", "开始", "ਸ਼ੁਰੂ", "Empieza"],
+  ["Ends", "Fin", "结束", "ਖਤਮ", "Termina"],
+  ["Attachment", "Pièce jointe", "附件", "ਅਟੈਚਮੈਂਟ", "Adjunto"],
+  ["Optional — PDF, photo, or form", "Facultatif — PDF, photo ou formulaire", "可选 — PDF、照片或表格", "ਵਿਕਲਪਕ — PDF, ਫੋਟੋ ਜਾਂ ਫਾਰਮ", "Opcional — PDF, foto o formulario"],
+  ["Cancel", "Annuler", "取消", "ਰੱਦ", "Cancelar"],
   ["Turn a flyer into a post", "Transformer une affiche en billet", "把传单变成帖子", "ਪਰਚੇ ਨੂੰ ਪੋਸਟ ਬਣਾਓ", "Convertir un volante en publicación"],
   ["Dances, games, fundraisers", "Danses, matchs, collectes", "舞会、比赛、募捐", "ਡਾਂਸ, ਖੇਡਾਂ, ਫੰਡਰੇਜ਼ਰ", "Bailes, partidos, recaudaciones"],
   ["Pickup changes", "Changements de ramassage", "接送变更", "ਪਿਕਅੱਪ ਬਦਲਾਅ", "Cambios de recogida"],
@@ -6746,11 +6850,11 @@ function teacherHome() {
     <div class="hero">
       <div>
         <h1>Room 12 is in science.</h1>
-        <p class="lede">Snap a paper flyer into a calendar hold and a consent form. Then take attendance and answer families.</p>
+        <p class="lede">Send information home — scan a flyer or write it yourself. Then take attendance and answer families.</p>
       </div>
     </div>
     <div class="actions" style="margin-bottom:22px">
-      ${scanFlyerBtn()}
+      ${sendHomeBtn()}
       <a class="btn ghost" href="#/teach/attendance">Take attendance</a>
       <a class="btn ghost" href="#/alerts">Send a reminder</a>
     </div>
@@ -7141,12 +7245,12 @@ function adminHome() {
     <div class="hero">
       <div>
         <h1>Cedar Hill, Thursday.</h1>
-        <p class="lede">Digitize a backpack flyer before the office copier eats it. Then the rest of the board.</p>
+        <p class="lede">Send information home before the office copier eats the flyer. Then the rest of the board.</p>
       </div>
     </div>
     <div class="actions" style="margin-bottom:22px">
       ${configureBtn()}
-      ${scanFlyerBtn()}
+      ${sendHomeBtn()}
       <a class="btn ghost" href="#/alerts">Send a reminder</a>
     </div>
     <section class="metrics">
@@ -7368,8 +7472,222 @@ const FLYERS = {
   },
 };
 
+function sendHomeCrumbs(extras = []) {
+  return crumbsWithHub("scan", { label: "Send home", href: "#/scan" }, extras);
+}
+
+function audienceToggleHtml(name, selected = "parents") {
+  return `
+    <div class="field">
+      <span class="field-label">${tx("Who can see this")}</span>
+      <div class="audience-toggle" role="radiogroup" aria-label="${tx("Who can see this")}">
+        <label class="audience-option ${selected === "parents" ? "is-on" : ""}">
+          <input type="radio" name="${name}" value="parents" ${selected === "parents" ? "checked" : ""} />
+          <strong>${tx("Parents")}</strong>
+          <span class="kicker">${tx("Most common — family board and inbox")}</span>
+        </label>
+        <label class="audience-option ${selected === "staff" ? "is-on" : ""}">
+          <input type="radio" name="${name}" value="staff" ${selected === "staff" ? "checked" : ""} />
+          <strong>${tx("Staff only")}</strong>
+          <span class="kicker">${tx("Teachers and admin — not parents")}</span>
+        </label>
+      </div>
+    </div>`;
+}
+
+function bindAudienceToggle(form) {
+  form?.querySelectorAll(".audience-option input")?.forEach((input) => {
+    input.addEventListener("change", () => {
+      form.querySelectorAll(".audience-option").forEach((el) => {
+        el.classList.toggle("is-on", el.querySelector("input")?.checked);
+      });
+    });
+  });
+}
+
+function sendHomeAudienceLabel(item) {
+  return item.staffOnly || item.audience === "staff" ? tx("Staff only") : tx("Parents");
+}
+
+function sendHomeMethodLabel(item) {
+  return item.method === "flyer" ? tx("From flyer") : tx("Written");
+}
+
+function sendHomeRow(item) {
+  const dates = [item.dateStart, item.dateEnd].filter(Boolean).join(" → ");
+  const meta = [
+    item.from,
+    sendHomeMethodLabel(item),
+    dates || null,
+    item.attachmentName || null,
+    item.createdAt,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  return `
+    <div class="list-row">
+      <div class="title-block">
+        <span class="kicker">${meta}</span>
+        <strong>${item.title}</strong>
+        <span class="kicker send-home-snippet">${item.body}</span>
+      </div>
+      ${sourcePill(item.source)}
+      ${pill(sendHomeAudienceLabel(item), item.staffOnly ? "amber" : "")}
+    </div>`;
+}
+
+function publishSendHome(payload) {
+  const source = state.role === "teacher" ? "teacher" : "admin";
+  const from = state.role === "teacher" ? "Ms. Ellison" : "Front office";
+  const staffOnly = payload.audience === "staff";
+  const forAudience = source === "teacher" ? "maya" : "all";
+  const stamp = Date.now();
+  const item = {
+    id: "sh" + stamp,
+    method: payload.method || "manual",
+    title: payload.title,
+    body: payload.body,
+    dateStart: payload.dateStart || "",
+    dateEnd: payload.dateEnd || "",
+    attachmentName: payload.attachmentName || "",
+    audience: staffOnly ? "staff" : "parents",
+    staffOnly,
+    source,
+    from,
+    createdAt: "Just now",
+    flyerId: payload.flyerId || null,
+    day: payload.day || "",
+    time: payload.time || "",
+    where: payload.where || "",
+    cost: payload.cost || "",
+    permission: !!payload.permission,
+  };
+  state.sendHomeItems.unshift(item);
+  persistSendHomeItems();
+
+  if (staffOnly) {
+    const alertBody = `${from} posted staff-only: ${payload.title}`;
+    pushAlert({
+      audience: "teacher",
+      kind: "notice",
+      section: "inbox",
+      ref: item.id,
+      title: payload.title,
+      body: alertBody,
+      href: "#/scan",
+      source,
+      from,
+    });
+    pushAlert({
+      audience: "admin",
+      kind: "notice",
+      section: "inbox",
+      ref: item.id,
+      title: payload.title,
+      body: alertBody,
+      href: "#/scan",
+      source,
+      from,
+    });
+    state.scan = null;
+    state.notice = `${payload.title} is visible to teachers and admin only.`;
+    location.hash = "#/scan";
+    render();
+    return item;
+  }
+
+  const bodyWithExtras = [
+    payload.body,
+    payload.cost ? `Cost: $${payload.cost}.` : "",
+    payload.attachmentName ? `Attachment: ${payload.attachmentName}.` : "",
+    payload.dateStart
+      ? `When: ${payload.dateStart}${payload.dateEnd ? ` → ${payload.dateEnd}` : ""}.`
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  if (payload.day && payload.time) {
+    state.scheduleItems.push({
+      id: "s" + stamp,
+      source,
+      for: forAudience,
+      day: payload.day,
+      time: payload.time,
+      title: payload.title,
+      where: payload.where || "",
+    });
+  }
+
+  const commId = "c" + stamp;
+  state.comms.unshift({
+    id: commId,
+    source,
+    for: forAudience,
+    from,
+    title: payload.title,
+    body: bodyWithExtras,
+    time: "Just now",
+    unread: true,
+    lang: "en",
+    replies: [],
+    staffOnly: false,
+    audience: "parent",
+  });
+  pushAlert({
+    for: forAudience,
+    section: "inbox",
+    ref: commId,
+    title: payload.title,
+    body: `${from} posted a new update.`,
+    href: `#/inbox/${commId}`,
+  });
+
+  const bucket =
+    payload.flyerId === "pizza" ? "fundraiser" : source === "teacher" ? "classroom" : "school";
+  if (payload.permission || bucket === "fundraiser") {
+    state.docs.unshift({
+      id: "d" + stamp,
+      source,
+      bucket,
+      for: forAudience,
+      title: payload.title,
+      kind: payload.permission ? "Form · consent" : "Order · optional",
+      unread: true,
+      signed: false,
+      lang: "en",
+      body: payload.permission
+        ? `${payload.body} Event: ${payload.day || ""} ${payload.time || ""} · ${payload.where || ""}. Cost: $${payload.cost || ""}. Sign to consent.`
+        : `${payload.body} Pickup ${payload.day || ""} ${payload.time || ""} · ${payload.where || ""}. Cost: $${payload.cost || ""}.`,
+      replies: [],
+    });
+    pushAlert({
+      kind: "notice",
+      for: forAudience,
+      section: "docs",
+      ref: "d" + stamp,
+      title: bucket === "fundraiser" ? "New fundraiser" : "New document",
+      body: `${payload.title} was added to ${bucketTitle(bucket)}.`,
+      href: `#/docs/d${stamp}`,
+    });
+  }
+
+  state.scan = null;
+  if (payload.permission) {
+    state.notice = `${payload.title} is on the family calendar and waiting for consent.`;
+    location.hash = `#/docs/d${stamp}`;
+  } else if (payload.day && payload.time) {
+    state.notice = `${payload.title} is on the family calendar${bucket === "fundraiser" ? " and in Fundraisers" : ""}.`;
+    location.hash = state.edition === "mvp" ? "#/schedule" : "#/calendar";
+  } else {
+    state.notice = `${payload.title} was sent home to parents.`;
+    location.hash = "#/scan";
+  }
+  render();
+  return item;
+}
+
 function paperFlyer(id, reading) {
-  const flyer = FLYERS[id];
   const mark = (field, text) => `<span class="ocr-mark" data-field="${field}">${text}</span>`;
   if (id === "pizza") {
     return `
@@ -7401,15 +7719,60 @@ function runOcr(id) {
   }, 1100);
 }
 
-function scanCapture() {
+function sendHomeHub() {
   paintChrome("scan");
-  setCrumbs(crumbsWithHub("scan", { label: "Scan flyer", href: "#/scan" }));
+  setCrumbs(sendHomeCrumbs());
+  const items = state.sendHomeItems || [];
+  const isTeacher = state.role === "teacher";
   view.innerHTML = `
+    ${notice()}
     <div class="hero">
       <div>
-        <h1>Snap the backpack flyer.</h1>
-        <p class="lede">Harbor OCR pulls title, date, cost, and whether families must consent — then files a calendar hold and an online form.</p>
+        <h1>${tx("Send information home.")}</h1>
+        <p class="lede">${
+          isTeacher
+            ? tx("Scan a backpack flyer or write the note yourself. Most posts go to parents; keep some for staff only.")
+            : tx("Add what families need — from a paper flyer or a blank form. Limit visibility to teachers and admin when it should stay internal.")
+        }</p>
       </div>
+    </div>
+    <div class="send-home-choices">
+      <a class="send-home-choice" href="#/scan/flyer">
+        <span class="send-home-choice-icon" aria-hidden="true">${icon("scan", 22)}</span>
+        <strong>${tx("Scan or upload a flyer")}</strong>
+        <span class="kicker">${tx("Photo or file — Harbor reads title, date, cost, and consent.")}</span>
+      </a>
+      <a class="send-home-choice" href="#/scan/manual">
+        <span class="send-home-choice-icon" aria-hidden="true">${icon("docs", 22)}</span>
+        <strong>${tx("Write it yourself")}</strong>
+        <span class="kicker">${tx("No flyer — title, body, dates, and an optional attachment.")}</span>
+      </a>
+    </div>
+    <section class="card panel">
+      <div class="widget-head">
+        <h2>${tx("Recently sent")}</h2>
+        <span class="kicker">${items.length || tx("None")}</span>
+      </div>
+      ${
+        items.length
+          ? items.map(sendHomeRow).join("")
+          : `<p class="doc-empty">${tx("Nothing sent home yet.")}</p>`
+      }
+    </section>
+  `;
+}
+
+function scanCapture() {
+  paintChrome("scan");
+  setCrumbs(sendHomeCrumbs([{ label: "Flyer", href: "#/scan/flyer" }]));
+  view.innerHTML = `
+    ${notice()}
+    <div class="hero">
+      <div>
+        <h1>${tx("Snap the backpack flyer.")}</h1>
+        <p class="lede">${tx("Harbor OCR pulls title, date, cost, and whether families must consent — then you choose parents or staff only.")}</p>
+      </div>
+      <a class="btn ghost" href="#/scan">${tx("All send-home")}</a>
     </div>
     <div class="grid-2">
       <section class="card scan-stage">
@@ -7419,20 +7782,20 @@ function scanCapture() {
         </div>
         <p class="kicker scan-hint">Desk camera · Room 12</p>
         <div class="actions">
-          <button class="btn" type="button" id="snap-orchard">Snap photo</button>
+          <button class="btn" type="button" id="snap-orchard">${tx("Snap photo")}</button>
           <label class="btn ghost">
-            Upload photo
+            ${tx("Upload photo")}
             <input id="scan-file" type="file" accept="image/*" capture="environment" hidden />
           </label>
         </div>
       </section>
       <div>
         <aside class="notes">
-          <h3>What AI reads</h3>
-          Event title, date and time, cost, and permission requirements. You can edit anything before families see it.
+          <h3>${tx("What AI reads")}</h3>
+          ${tx("Event title, date and time, cost, and permission requirements. You can edit anything before it goes out.")}
         </aside>
         <section class="card panel" style="margin-top:16px">
-          <h2>Or try another flyer</h2>
+          <h2>${tx("Or try another flyer")}</h2>
           <button class="list-row" type="button" id="snap-pizza">
             <div class="title-block">
               <strong>Pizza kit fundraiser</strong>
@@ -7441,6 +7804,9 @@ function scanCapture() {
             ${pill("Scan")}
           </button>
         </section>
+        <div class="actions">
+          <a class="btn ghost" href="#/scan/manual">${tx("No flyer? Write it yourself")}</a>
+        </div>
       </div>
     </div>
   `;
@@ -7452,12 +7818,17 @@ function scanCapture() {
 function scanReview() {
   const draft = state.scan || FLYERS.orchard;
   paintChrome("scan");
-  setCrumbs(crumbsWithHub("scan", { label: "Scan flyer", href: "#/scan" }, [{ label: "Review", href: "#/scan/review" }]));
+  setCrumbs(
+    sendHomeCrumbs([
+      { label: "Flyer", href: "#/scan/flyer" },
+      { label: "Review", href: "#/scan/review" },
+    ])
+  );
   view.innerHTML = `
     <div class="hero">
       <div>
-        <h1>Check the extract.</h1>
-        <p class="lede">Harbor read the paper in a second. Confirm the fields, then publish a calendar entry and ${draft.permission ? "an online consent form" : "a family notice"}.</p>
+        <h1>${tx("Check the extract.")}</h1>
+        <p class="lede">${tx("Harbor read the paper in a second. Confirm the fields, choose who sees it, then publish.")}</p>
       </div>
     </div>
     <div class="grid-2">
@@ -7468,107 +7839,127 @@ function scanReview() {
         <p class="kicker scan-hint">OCR complete · 4 fields</p>
       </section>
       <section class="card panel" style="padding-bottom:18px">
-        <h2>Structured from the page</h2>
+        <h2>${tx("Structured from the page")}</h2>
         <form id="ocr-form">
-          <div class="field"><label for="ocr-title">Event title</label><input id="ocr-title" value="${draft.title}" required /></div>
-          <div class="field"><label for="ocr-day">Day</label>
+          <div class="field"><label for="ocr-title">${tx("Event title")}</label><input id="ocr-title" value="${draft.title}" required /></div>
+          <div class="field"><label for="ocr-day">${tx("Day")}</label>
             <select id="ocr-day">${["Mon", "Tue", "Wed", "Thu", "Fri"].map((d) => `<option ${d === draft.day ? "selected" : ""}>${d}</option>`).join("")}</select>
           </div>
-          <div class="field"><label for="ocr-time">Time</label><input id="ocr-time" value="${draft.time}" required /></div>
-          <div class="field"><label for="ocr-where">Where</label><input id="ocr-where" value="${draft.where}" /></div>
-          <div class="field"><label for="ocr-cost">Cost</label><input id="ocr-cost" value="${draft.cost}" /></div>
+          <div class="field"><label for="ocr-time">${tx("Time")}</label><input id="ocr-time" value="${draft.time}" required /></div>
+          <div class="field"><label for="ocr-where">${tx("Where")}</label><input id="ocr-where" value="${draft.where}" /></div>
+          <div class="field"><label for="ocr-cost">${tx("Cost")}</label><input id="ocr-cost" value="${draft.cost}" /></div>
           <div class="field">
-            <label><input type="checkbox" id="ocr-perm" ${draft.permission ? "checked" : ""} /> Permission / consent required</label>
+            <label><input type="checkbox" id="ocr-perm" ${draft.permission ? "checked" : ""} /> ${tx("Permission / consent required")}</label>
           </div>
-          <div class="field"><label for="ocr-body">What families see</label><textarea id="ocr-body" rows="3">${draft.body}</textarea></div>
-          <button class="btn" type="submit">Publish calendar + form</button>
+          <div class="field"><label for="ocr-body">${tx("What they see")}</label><textarea id="ocr-body" rows="3">${draft.body}</textarea></div>
+          ${audienceToggleHtml("ocr-audience", "parents")}
+          <button class="btn" type="submit">${tx("Publish send-home")}</button>
         </form>
       </section>
     </div>
   `;
-  document.getElementById("ocr-form").addEventListener("submit", (e) => {
+  const form = document.getElementById("ocr-form");
+  bindAudienceToggle(form);
+  form.addEventListener("submit", (e) => {
     e.preventDefault();
-    const title = document.getElementById("ocr-title").value.trim();
-    const day = document.getElementById("ocr-day").value;
-    const time = document.getElementById("ocr-time").value.trim();
-    const where = document.getElementById("ocr-where").value.trim();
-    const cost = document.getElementById("ocr-cost").value.trim();
-    const permission = document.getElementById("ocr-perm").checked;
-    const body = document.getElementById("ocr-body").value.trim();
-    const source = state.role === "teacher" ? "teacher" : "admin";
-    const from = state.role === "teacher" ? "Ms. Ellison" : "Front office";
-    const audience = source === "teacher" ? "maya" : "all";
-    const id = Date.now();
-    state.scheduleItems.push({
-      id: "s" + id,
-      source,
-      for: audience,
-      day,
-      time,
-      title,
-      where,
+    const audience = form.querySelector('input[name="ocr-audience"]:checked')?.value || "parents";
+    publishSendHome({
+      method: "flyer",
+      flyerId: draft.id || "orchard",
+      title: document.getElementById("ocr-title").value.trim(),
+      day: document.getElementById("ocr-day").value,
+      time: document.getElementById("ocr-time").value.trim(),
+      where: document.getElementById("ocr-where").value.trim(),
+      cost: document.getElementById("ocr-cost").value.trim(),
+      permission: document.getElementById("ocr-perm").checked,
+      body: document.getElementById("ocr-body").value.trim(),
+      audience,
+      dateStart: "",
+      dateEnd: "",
+      attachmentName: draft.label ? `${draft.label}.jpg` : "flyer.jpg",
     });
-    const commId = "c" + id;
-    state.comms.unshift({
-      id: commId,
-      source,
-      for: audience,
-      from,
+  });
+}
+
+function sendHomeManual() {
+  paintChrome("scan");
+  setCrumbs(sendHomeCrumbs([{ label: "Write", href: "#/scan/manual" }]));
+  const isTeacher = state.role === "teacher";
+  view.innerHTML = `
+    ${notice()}
+    <div class="hero">
+      <div>
+        <h1>${tx("Write what goes home.")}</h1>
+        <p class="lede">${tx("No flyer needed. Add a title, the note, optional dates, and an attachment when you have one.")}</p>
+      </div>
+      <a class="btn ghost" href="#/scan/flyer">${tx("Have a flyer?")}</a>
+    </div>
+    <section class="card panel panel-compose" style="padding-bottom:18px;max-width:640px">
+      <h2>${isTeacher ? tx("Class note") : tx("School note")}</h2>
+      <form id="send-home-manual">
+        <div class="field">
+          <label for="sh-title">${tx("Title")}</label>
+          <input id="sh-title" required placeholder="${isTeacher ? "Library books due Tuesday" : "Early dismissal Friday"}" />
+        </div>
+        <div class="field">
+          <label for="sh-body">${tx("Body")}</label>
+          <textarea id="sh-body" rows="4" required placeholder="${tx("What should they know?")}"></textarea>
+        </div>
+        <div class="send-home-dates">
+          <div class="field">
+            <label for="sh-start">${tx("Starts")}</label>
+            <input id="sh-start" type="date" />
+          </div>
+          <div class="field">
+            <label for="sh-end">${tx("Ends")}</label>
+            <input id="sh-end" type="date" />
+          </div>
+        </div>
+        <div class="field">
+          <label for="sh-file">${tx("Attachment")}</label>
+          <input id="sh-file" type="file" />
+          <p class="kicker" id="sh-file-label">${tx("Optional — PDF, photo, or form")}</p>
+        </div>
+        ${audienceToggleHtml("sh-audience", "parents")}
+        <div class="actions" style="margin-top:8px">
+          <button class="btn" type="submit">${tx("Send home")}</button>
+          <a class="btn ghost" href="#/scan">${tx("Cancel")}</a>
+        </div>
+      </form>
+    </section>
+  `;
+  const form = document.getElementById("send-home-manual");
+  bindAudienceToggle(form);
+  document.getElementById("sh-file")?.addEventListener("change", (e) => {
+    const file = e.target.files?.[0];
+    const label = document.getElementById("sh-file-label");
+    if (label) label.textContent = file ? file.name : tx("Optional — PDF, photo, or form");
+  });
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const title = document.getElementById("sh-title").value.trim();
+    const body = document.getElementById("sh-body").value.trim();
+    if (!title || !body) return;
+    const audience = form.querySelector('input[name="sh-audience"]:checked')?.value || "parents";
+    const file = document.getElementById("sh-file")?.files?.[0];
+    publishSendHome({
+      method: "manual",
       title,
-      body: `${body} Cost: $${cost}.`,
-      time: "Just now",
-      unread: true,
-      lang: "en",
-      replies: [],
+      body,
+      dateStart: document.getElementById("sh-start").value || "",
+      dateEnd: document.getElementById("sh-end").value || "",
+      attachmentName: file?.name || "",
+      audience,
     });
-    pushAlert({
-      for: audience,
-      section: "inbox",
-      ref: commId,
-      title,
-      body: `${from} posted a new update.`,
-      href: `#/inbox/${commId}`,
-    });
-    const bucket = draft.id === "pizza" ? "fundraiser" : source === "teacher" ? "classroom" : "school";
-    if (permission || bucket === "fundraiser") {
-      state.docs.unshift({
-        id: "d" + id,
-        source,
-        bucket,
-        for: audience,
-        title,
-        kind: permission ? "Form · consent" : "Order · optional",
-        unread: true,
-        signed: false,
-        lang: "en",
-        body: permission
-          ? `${body} Event: ${day} ${time} · ${where}. Cost: $${cost}. Sign to consent.`
-          : `${body} Pickup ${day} ${time} · ${where}. Cost: $${cost}.`,
-        replies: [],
-      });
-      pushAlert({
-        kind: "notice",
-        for: audience,
-        section: "docs",
-        ref: "d" + id,
-        title: bucket === "fundraiser" ? "New fundraiser" : "New document",
-        body: `${title} was added to ${bucketTitle(bucket)}.`,
-        href: `#/docs/d${id}`,
-      });
-    }
-    state.scan = null;
-    state.notice = permission
-      ? `${title} is on the family calendar and waiting for consent.`
-      : `${title} is on the family calendar${bucket === "fundraiser" ? " and in Fundraisers" : ""}.`;
-    location.hash = permission ? `#/docs/d${id}` : "#/schedule";
-    render();
   });
 }
 
 function scanView(step) {
   if (!requireStaff()) return;
+  if (step === "flyer") return scanCapture();
   if (step === "review") return scanReview();
-  scanCapture();
+  if (step === "manual") return sendHomeManual();
+  sendHomeHub();
 }
 
 function commRow(item) {
@@ -7735,8 +8126,8 @@ function configureBtn(extraClass = "ghost") {
   return `<a class="btn ${extraClass}" href="#/configure">${icon("config", 16)}${tx("Configure")}</a>`;
 }
 
-function scanFlyerBtn(extraClass = "") {
-  return `<a class="btn ${extraClass}" href="#/scan">${icon("scan", 16)}Scan a flyer</a>`;
+function sendHomeBtn(extraClass = "") {
+  return `<a class="btn ${extraClass}" href="#/scan">${icon("scan", 16)}${tx("Send home")}</a>`;
 }
 
 function mvpParentHome() {
@@ -7761,7 +8152,7 @@ function mvpStaffHome() {
       </div>
       <div class="actions" style="margin-top:0">
         ${isTeacher ? "" : configureBtn()}
-        ${scanFlyerBtn()}
+        ${sendHomeBtn()}
       </div>
     </div>
     <section class="metrics">
