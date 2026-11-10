@@ -181,23 +181,260 @@ const students = [
 
 const ATTENDANCE_DAYS = ["Mon 13", "Tue 14", "Wed 15", "Thu 16", "Fri 17"];
 
-const roster = [
-  { id: "maya", name: "Maya Bowser", grade: "Grade 4", room: "Room 12", teacher: "Ms. Ellison" },
-  { id: "noah", name: "Noah Bowser", grade: "Kindergarten", room: "Room K2", teacher: "Mr. Patel" },
-  { id: "samira", name: "Samira Bowser", grade: "Grade 8", room: "Room 28", teacher: "Coach Rivera" },
-  { id: "leo", name: "Leo Park", grade: "Grade 4", room: "Room 12", teacher: "Ms. Ellison" },
-  { id: "amira", name: "Amira Chen", grade: "Grade 4", room: "Room 12", teacher: "Ms. Ellison" },
-  { id: "priya", name: "Priya Nair", grade: "Grade 4", room: "Room 12", teacher: "Ms. Ellison" },
-  { id: "jonas", name: "Jonas Feldt", grade: "Grade 4", room: "Room 12", teacher: "Ms. Ellison" },
-  { id: "elias", name: "Elias Okonkwo", grade: "Kindergarten", room: "Room K2", teacher: "Mr. Patel" },
-  { id: "hana", name: "Hana Sato", grade: "Kindergarten", room: "Room K2", teacher: "Mr. Patel" },
-  { id: "sofia", name: "Sofia Alvarez", grade: "Grade 2", room: "Room 8", teacher: "Ms. Grant" },
-  { id: "ben", name: "Ben Walsh", grade: "Grade 2", room: "Room 8", teacher: "Ms. Grant" },
-  { id: "omar", name: "Omar Haddad", grade: "Grade 6", room: "Room 21", teacher: "Mr. Singh" },
-  { id: "rue", name: "Rue Thompson", grade: "Grade 6", room: "Room 21", teacher: "Mr. Singh" },
-  { id: "lina", name: "Lina Berg", grade: "Grade 8", room: "Room 28", teacher: "Coach Rivera" },
-  { id: "kai", name: "Kai Nguyen", grade: "Grade 8", room: "Room 28", teacher: "Coach Rivera" },
+const SEED_ROSTER = [
+  { id: "maya", name: "Maya Bowser", grade: "Grade 4", room: "Room 12", teacher: "Ms. Ellison", externalId: "S-1001" },
+  { id: "noah", name: "Noah Bowser", grade: "Kindergarten", room: "Room K2", teacher: "Mr. Patel", externalId: "S-1002" },
+  { id: "samira", name: "Samira Bowser", grade: "Grade 8", room: "Room 28", teacher: "Coach Rivera", externalId: "S-1003" },
+  { id: "leo", name: "Leo Park", grade: "Grade 4", room: "Room 12", teacher: "Ms. Ellison", externalId: "S-1004" },
+  { id: "amira", name: "Amira Chen", grade: "Grade 4", room: "Room 12", teacher: "Ms. Ellison", externalId: "S-1005" },
+  { id: "priya", name: "Priya Nair", grade: "Grade 4", room: "Room 12", teacher: "Ms. Ellison", externalId: "S-1006" },
+  { id: "jonas", name: "Jonas Feldt", grade: "Grade 4", room: "Room 12", teacher: "Ms. Ellison", externalId: "S-1007" },
+  { id: "elias", name: "Elias Okonkwo", grade: "Kindergarten", room: "Room K2", teacher: "Mr. Patel", externalId: "S-1008" },
+  { id: "hana", name: "Hana Sato", grade: "Kindergarten", room: "Room K2", teacher: "Mr. Patel", externalId: "S-1009" },
+  { id: "sofia", name: "Sofia Alvarez", grade: "Grade 2", room: "Room 8", teacher: "Ms. Grant", externalId: "S-1010" },
+  { id: "ben", name: "Ben Walsh", grade: "Grade 2", room: "Room 8", teacher: "Ms. Grant", externalId: "S-1011" },
+  { id: "omar", name: "Omar Haddad", grade: "Grade 6", room: "Room 21", teacher: "Mr. Singh", externalId: "S-1012" },
+  { id: "rue", name: "Rue Thompson", grade: "Grade 6", room: "Room 21", teacher: "Mr. Singh", externalId: "S-1013" },
+  { id: "lina", name: "Lina Berg", grade: "Grade 8", room: "Room 28", teacher: "Coach Rivera", externalId: "S-1014" },
+  { id: "kai", name: "Kai Nguyen", grade: "Grade 8", room: "Room 28", teacher: "Coach Rivera", externalId: "S-1015" },
 ];
+
+/** Live school roster snapshot — mutated by the Setup CSV wizard (localStorage). */
+let roster = SEED_ROSTER.map((s) => ({ ...s }));
+
+const SETUP_KEY = "harborSetup";
+const ROSTER_STORE_KEY = "harborRosterStore";
+const INVITES_KEY = "harborInvites";
+
+const CSV_TEMPLATES = {
+  students: {
+    label: "Students",
+    filename: "harbor-students-template.csv",
+    headers: ["external_id", "first_name", "last_name", "grade", "room"],
+    sample: [
+      ["S-1001", "Maya", "Bowser", "Grade 4", "Room 12"],
+      ["S-1002", "Noah", "Bowser", "Kindergarten", "Room K2"],
+      ["S-1099", "Avery", "Nguyen", "Grade 3", "Room 10"],
+    ],
+  },
+  classes: {
+    label: "Classes / rooms",
+    filename: "harbor-classes-template.csv",
+    headers: ["room_id", "label", "grade", "teacher_external_id"],
+    sample: [
+      ["R12", "Room 12", "Grade 4", "T-2001"],
+      ["RK2", "Room K2", "Kindergarten", "T-2002"],
+    ],
+  },
+  staff: {
+    label: "Staff",
+    filename: "harbor-staff-template.csv",
+    headers: ["external_id", "first_name", "last_name", "email", "role"],
+    sample: [
+      ["T-2001", "Alicia", "Ellison", "a.ellison@cedarhill.example", "teacher"],
+      ["A-100", "Chris", "Okonkwo", "c.okonkwo@cedarhill.example", "admin"],
+    ],
+  },
+  guardians: {
+    label: "Parents / guardians",
+    filename: "harbor-guardians-template.csv",
+    headers: ["guardian_external_id", "first_name", "last_name", "email"],
+    sample: [
+      ["G-3001", "Jordan", "Bowser", "jordan.bowser@example.com"],
+      ["G-3002", "Sam", "Park", "sam.park@example.com"],
+    ],
+  },
+  relationships: {
+    label: "Relationships",
+    filename: "harbor-relationships-template.csv",
+    headers: ["student_external_id", "guardian_external_id", "relationship"],
+    sample: [
+      ["S-1001", "G-3001", "parent"],
+      ["S-1002", "G-3001", "parent"],
+      ["S-1003", "G-3001", "parent"],
+      ["S-1004", "G-3002", "parent"],
+    ],
+  },
+};
+
+function defaultSetupFlags() {
+  return {
+    profileDone: false,
+    themeLinked: false,
+    tilesLinked: false,
+    bankingDeferred: true,
+    rosterMode: null,
+    rosterImported: false,
+    staffInvited: false,
+    parentsInvited: false,
+    schoolName: "Cedar Hill K–8",
+    timezone: "America/Toronto",
+    language: "en",
+  };
+}
+
+function defaultRosterStore() {
+  return {
+    students: SEED_ROSTER.map((s) => ({
+      external_id: s.externalId,
+      first_name: s.name.split(" ")[0],
+      last_name: s.name.split(" ").slice(1).join(" "),
+      grade: s.grade,
+      room: s.room,
+      teacher: s.teacher,
+      id: s.id,
+    })),
+    classes: [
+      { room_id: "R12", label: "Room 12", grade: "Grade 4", teacher_external_id: "T-2001" },
+      { room_id: "RK2", label: "Room K2", grade: "Kindergarten", teacher_external_id: "T-2002" },
+      { room_id: "R8", label: "Room 8", grade: "Grade 2", teacher_external_id: "T-2003" },
+      { room_id: "R21", label: "Room 21", grade: "Grade 6", teacher_external_id: "T-2004" },
+      { room_id: "R28", label: "Room 28", grade: "Grade 8", teacher_external_id: "T-2005" },
+    ],
+    staff: [
+      { external_id: "T-2001", first_name: "Alicia", last_name: "Ellison", email: "a.ellison@cedarhill.example", role: "teacher", room_id: "R12" },
+      { external_id: "T-2002", first_name: "Raj", last_name: "Patel", email: "r.patel@cedarhill.example", role: "teacher", room_id: "RK2" },
+      { external_id: "A-100", first_name: "Chris", last_name: "Okonkwo", email: "c.okonkwo@cedarhill.example", role: "admin" },
+    ],
+    guardians: [
+      { guardian_external_id: "G-3001", first_name: "Jordan", last_name: "Bowser", email: "jordan.bowser@example.com" },
+      { guardian_external_id: "G-3002", first_name: "Sam", last_name: "Park", email: "sam.park@example.com" },
+      { guardian_external_id: "G-3003", first_name: "Priya", last_name: "Nair", email: "priya.nair.parent@example.com" },
+    ],
+    relationships: [
+      { student_external_id: "S-1001", guardian_external_id: "G-3001", relationship: "parent" },
+      { student_external_id: "S-1002", guardian_external_id: "G-3001", relationship: "parent" },
+      { student_external_id: "S-1003", guardian_external_id: "G-3001", relationship: "parent" },
+      { student_external_id: "S-1004", guardian_external_id: "G-3002", relationship: "parent" },
+      { student_external_id: "S-1006", guardian_external_id: "G-3003", relationship: "parent" },
+    ],
+  };
+}
+
+function defaultInvites() {
+  return [
+    {
+      id: "inv-staff-1",
+      kind: "staff",
+      name: "Alicia Ellison",
+      email: "a.ellison@cedarhill.example",
+      role: "teacher",
+      status: "claimed",
+      students: [],
+      sentAt: "Mon 9:12",
+    },
+    {
+      id: "inv-parent-1",
+      kind: "parent",
+      name: "Jordan Bowser",
+      email: "jordan.bowser@example.com",
+      role: "parent",
+      status: "pending",
+      students: ["Maya", "Noah", "Samira"],
+      studentIds: ["maya", "noah", "samira"],
+      sentAt: "—",
+      claimToken: "demo-jordan",
+    },
+    {
+      id: "inv-parent-2",
+      kind: "parent",
+      name: "Sam Park",
+      email: "sam.park@example.com",
+      role: "parent",
+      status: "pending",
+      students: ["Leo"],
+      studentIds: ["leo"],
+      sentAt: "—",
+      claimToken: "demo-sam",
+    },
+    {
+      id: "inv-parent-3",
+      kind: "parent",
+      name: "Priya Nair",
+      email: "priya.nair.parent@example.com",
+      role: "parent",
+      status: "claimed",
+      students: ["Priya"],
+      studentIds: ["priya"],
+      sentAt: "Tue 14:05",
+      claimedAt: "Tue 16:40",
+    },
+  ];
+}
+
+function loadJson(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback();
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : fallback();
+  } catch {
+    return fallback();
+  }
+}
+
+function saveJson(key, value) {
+  localStorage.setItem(key, JSON.stringify(value));
+}
+
+function loadSetupFlags() {
+  return { ...defaultSetupFlags(), ...loadJson(SETUP_KEY, defaultSetupFlags) };
+}
+
+function saveSetupFlags(flags) {
+  saveJson(SETUP_KEY, flags);
+}
+
+function loadRosterStore() {
+  return loadJson(ROSTER_STORE_KEY, defaultRosterStore);
+}
+
+function saveRosterStore(store) {
+  saveJson(ROSTER_STORE_KEY, store);
+}
+
+function loadInvites() {
+  const list = loadJson(INVITES_KEY, defaultInvites);
+  return Array.isArray(list) ? list : defaultInvites();
+}
+
+function saveInvites(list) {
+  saveJson(INVITES_KEY, list);
+}
+
+function hydrateRosterFromStore() {
+  const store = loadRosterStore();
+  const flags = loadSetupFlags();
+  if (!flags.rosterImported || !store.students?.length) {
+    roster.splice(0, roster.length, ...SEED_ROSTER.map((s) => ({ ...s })));
+    return;
+  }
+  const mapped = store.students.map((row, i) => {
+    const external = row.external_id || row.id || `imp-${i}`;
+    const first = row.first_name || "";
+    const last = row.last_name || "";
+    const name = [first, last].filter(Boolean).join(" ") || external;
+    const seed = SEED_ROSTER.find((s) => s.externalId === external || s.id === row.id);
+    const id =
+      seed?.id ||
+      String(name)
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "") ||
+      `stu-${i}`;
+    return {
+      id,
+      name,
+      grade: row.grade || "Grade ?",
+      room: row.room || "Room ?",
+      teacher: row.teacher || row.homeroom_teacher_id || "—",
+      externalId: external,
+    };
+  });
+  roster.splice(0, roster.length, ...mapped);
+}
+
+hydrateRosterFromStore();
 
 const STORE_SIZES = ["YS", "YM", "YL", "AS", "AM", "AL", "AXL"];
 const STORE_SIZE_LABEL = {
@@ -2252,7 +2489,11 @@ function persistSendHomeItems() {
 }
 
 const state = {
-  role: "parent",
+  role: (() => {
+    const fromQuery = new URLSearchParams(location.search).get("role");
+    if (fromQuery === "parent" || fromQuery === "teacher" || fromQuery === "admin") return fromQuery;
+    return "parent";
+  })(),
   childId: localStorage.getItem("harborChild") || "maya",
   dismissLane: "all",
   dismissRoom: "Room 12",
@@ -2525,6 +2766,15 @@ const state = {
   busChange: "Bus 844 running 12 minutes late this morning. Pickup still Oak & 3rd.",
   draft: "",
   notice: "",
+  setupWizard: {
+    step: "templates",
+    entity: "students",
+    fileName: "",
+    rows: [],
+    errors: [],
+    warnings: [],
+  },
+  claimToken: "demo-jordan",
   edition: (() => {
     const fromQuery = new URLSearchParams(location.search).get("edition");
     if (fromQuery === "dream" || fromQuery === "mvp") {
@@ -3064,6 +3314,7 @@ const navByRole = {
     { id: "home", label: "School", href: "#/" },
     { id: "attendance", label: "Attendance", href: "#/admin/attendance" },
     { id: "scan", label: "Send home", href: "#/scan" },
+    { id: "setup", label: "Setup", href: "#/setup" },
     {
       id: "ops",
       label: "Operations",
@@ -3075,6 +3326,7 @@ const navByRole = {
         { id: "store", label: "Store", href: "#/admin/store", hint: "Inventory and pickups" },
         { id: "fundraise", label: "Fundraise", href: "#/fundraise", hint: "Campaigns and ticket sales" },
         { id: "banking", label: "Banking", href: "#/fundraise/banking", hint: "School payment accounts" },
+        { id: "setup-ops", label: "Roster & invites", href: "#/setup", hint: "CSV upload and claim invites" },
       ],
     },
     {
@@ -3116,6 +3368,7 @@ const mvpNavByRole = {
     ["home", "School board", "#/"],
     ["scan", "Send home", "#/scan"],
     ["attendance", "Attendance", "#/admin/attendance"],
+    ["setup", "Setup", "#/setup"],
     ["messages", "Office inbox", "#/inbox"],
     ["calendar", "Schedule", "#/schedule"],
     ["events", "Events", "#/events"],
@@ -4440,6 +4693,8 @@ const ICONS = {
   alerts: "M12 22a2.4 2.4 0 0 0 2.4-2.4H9.6A2.4 2.4 0 0 0 12 22Zm7-5.2V11a7 7 0 1 0-14 0v5.8L3 18.6V20h18v-1.4l-2-1.8Z",
   config:
     "M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.07 7.07 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.59.24-1.13.55-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.71 8.84a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94L2.83 14.52a.5.5 0 0 0-.12.64l1.92 3.32c.12.22.39.3.6.22l2.39-.96c.5.39 1.04.7 1.63.94l.36 2.54c.05.24.26.42.5.42h3.84c.24 0 .45-.18.5-.42l.36-2.54c.59-.24 1.13-.55 1.63-.94l2.39.96c.22.08.48 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58ZM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2Z",
+  setup:
+    "M7 3.5h10A1.5 1.5 0 0 1 18.5 5v14A1.5 1.5 0 0 1 17 20.5H7A1.5 1.5 0 0 1 5.5 19V5A1.5 1.5 0 0 1 7 3.5Zm1.6 3.2v1.7h6.8V6.7H8.6Zm0 3.8v1.7h6.8v-1.7H8.6Zm0 3.8v1.7h4.4v-1.7H8.6Zm9.2-6.2 1.1 1.1-4.4 4.4-2.2-2.2 1.1-1.1 1.1 1.1 3.3-3.3Z",
   life: "M4.5 19.5V8.2L12 3.8l7.5 4.4v11.3h-5.2v-5.4H9.7v5.4H4.5Zm2.1-1.8h1.3v-5.4h8.2v5.4h1.3V9.1L12 5.7 6.6 9.1v8.6Z",
   transit:
     "M4.2 11.2 12 4.5l7.8 6.7v1.9l-1.6-1.4V19h-4.2v-4.6H9.999V19H5.8v-7.3L4.2 13.1v-1.9Zm3.4 1.2v4.8h1.6v-4.8H7.6Zm7.2 0v4.8h1.6v-4.8h-1.6Z",
@@ -7249,6 +7504,7 @@ function adminHome() {
       </div>
     </div>
     <div class="actions" style="margin-bottom:22px">
+      ${setupBtn()}
       ${configureBtn()}
       ${sendHomeBtn()}
       <a class="btn ghost" href="#/alerts">Send a reminder</a>
@@ -8126,6 +8382,786 @@ function configureBtn(extraClass = "ghost") {
   return `<a class="btn ${extraClass}" href="#/configure">${icon("config", 16)}${tx("Configure")}</a>`;
 }
 
+function setupBtn(extraClass = "ghost") {
+  return `<a class="btn ${extraClass}" href="#/setup">${icon("setup", 16)}${tx("Setup")}</a>`;
+}
+
+function parseCsvText(text) {
+  const rows = [];
+  let row = [];
+  let cell = "";
+  let inQuotes = false;
+  const src = String(text || "").replace(/^\uFEFF/, "");
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i];
+    const next = src[i + 1];
+    if (inQuotes) {
+      if (ch === '"' && next === '"') {
+        cell += '"';
+        i++;
+      } else if (ch === '"') {
+        inQuotes = false;
+      } else {
+        cell += ch;
+      }
+      continue;
+    }
+    if (ch === '"') {
+      inQuotes = true;
+      continue;
+    }
+    if (ch === ",") {
+      row.push(cell.trim());
+      cell = "";
+      continue;
+    }
+    if (ch === "\n" || (ch === "\r" && next === "\n")) {
+      if (ch === "\r") i++;
+      row.push(cell.trim());
+      if (row.some((c) => c)) rows.push(row);
+      row = [];
+      cell = "";
+      continue;
+    }
+    if (ch === "\r") {
+      row.push(cell.trim());
+      if (row.some((c) => c)) rows.push(row);
+      row = [];
+      cell = "";
+      continue;
+    }
+    cell += ch;
+  }
+  row.push(cell.trim());
+  if (row.some((c) => c)) rows.push(row);
+  if (!rows.length) return { headers: [], records: [] };
+  const headers = rows[0].map((h) => h.trim().toLowerCase());
+  const records = rows.slice(1).map((cols) => {
+    const obj = {};
+    headers.forEach((h, idx) => {
+      obj[h] = cols[idx] || "";
+    });
+    return obj;
+  });
+  return { headers, records };
+}
+
+function downloadCsvTemplate(entity) {
+  const tpl = CSV_TEMPLATES[entity];
+  if (!tpl) return;
+  const lines = [tpl.headers.join(",")].concat(tpl.sample.map((r) => r.map(csvCell).join(",")));
+  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = tpl.filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  state.notice = txf("Downloaded {name} template (demo).", { name: tpl.label });
+}
+
+function validateCsvEntity(entity, records) {
+  const errors = [];
+  const warnings = [];
+  const seen = new Set();
+  const store = loadRosterStore();
+  const required = {
+    students: ["external_id", "first_name", "last_name", "grade", "room"],
+    classes: ["room_id", "label", "grade", "teacher_external_id"],
+    staff: ["external_id", "first_name", "last_name", "email", "role"],
+    guardians: ["guardian_external_id", "first_name", "last_name", "email"],
+    relationships: ["student_external_id", "guardian_external_id", "relationship"],
+  }[entity];
+
+  if (!records.length) {
+    errors.push({ row: 0, message: "File has no data rows." });
+    return { errors, warnings };
+  }
+
+  records.forEach((rec, i) => {
+    const row = i + 2;
+    required.forEach((key) => {
+      if (!rec[key]) errors.push({ row, message: `Missing ${key}.` });
+    });
+    if (entity === "staff" && rec.role && !["teacher", "admin", "office"].includes(rec.role.toLowerCase())) {
+      errors.push({ row, message: `Unknown role “${rec.role}” (use teacher, admin, or office).` });
+    }
+    if (entity === "staff" || entity === "guardians") {
+      const email = rec.email || "";
+      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        errors.push({ row, message: `Invalid email “${email}”.` });
+      }
+      if (!email) warnings.push({ row, message: "Missing email — claim invites will need one later." });
+    }
+    const idKey =
+      entity === "guardians"
+        ? "guardian_external_id"
+        : entity === "classes"
+          ? "room_id"
+          : entity === "relationships"
+            ? `${rec.student_external_id}|${rec.guardian_external_id}`
+            : "external_id";
+    const idVal = entity === "relationships" ? idKey : rec[idKey];
+    if (idVal) {
+      if (seen.has(idVal)) errors.push({ row, message: `Duplicate id “${idVal}”.` });
+      seen.add(idVal);
+    }
+    if (entity === "relationships") {
+      const knownStudents = new Set([
+        ...store.students.map((s) => s.external_id),
+        ...SEED_ROSTER.map((s) => s.externalId),
+        ...(state.setupWizard.entity === "students" ? [] : []),
+      ]);
+      const knownGuardians = new Set(store.guardians.map((g) => g.guardian_external_id));
+      if (rec.student_external_id && !knownStudents.has(rec.student_external_id) && !state.setupWizard.pendingStudentIds?.has(rec.student_external_id)) {
+        warnings.push({ row, message: `Student ${rec.student_external_id} not in current roster store yet.` });
+      }
+      if (rec.guardian_external_id && !knownGuardians.has(rec.guardian_external_id)) {
+        warnings.push({ row, message: `Guardian ${rec.guardian_external_id} not in current store yet.` });
+      }
+    }
+  });
+  return { errors, warnings };
+}
+
+function applyCsvToStore(entity, records) {
+  const store = loadRosterStore();
+  const flags = loadSetupFlags();
+  if (entity === "students") {
+    store.students = records.map((r, i) => ({
+      ...r,
+      id:
+        SEED_ROSTER.find((s) => s.externalId === r.external_id)?.id ||
+        String(`${r.first_name}-${r.last_name}`)
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-") ||
+        `stu-${i}`,
+      teacher: r.homeroom_teacher_id || r.teacher || "—",
+    }));
+    flags.rosterImported = true;
+    flags.rosterMode = "upload";
+  } else if (entity === "classes") {
+    store.classes = records.slice();
+  } else if (entity === "staff") {
+    store.staff = records.map((r) => ({ ...r, role: (r.role || "teacher").toLowerCase() }));
+  } else if (entity === "guardians") {
+    store.guardians = records.slice();
+  } else if (entity === "relationships") {
+    store.relationships = records.slice();
+  }
+  saveRosterStore(store);
+  saveSetupFlags(flags);
+  if (entity === "students") hydrateRosterFromStore();
+  return store;
+}
+
+function setupChecklistItems(flags) {
+  const done = (ok) => (ok ? "is-done" : "");
+  const mark = (ok) => (ok ? pill("Done") : pill("To do", "amber"));
+  return [
+    {
+      id: "profile",
+      title: "School profile",
+      hint: "Display name, timezone, language defaults",
+      done: flags.profileDone,
+      action: `<button type="button" class="btn ghost" data-setup-edit-profile>Edit</button>`,
+    },
+    {
+      id: "theme",
+      title: "Theme / colours",
+      hint: "Schoolwide presets on Configure",
+      done: flags.themeLinked,
+      action: `<a class="btn ghost" href="#/configure" data-setup-mark="themeLinked">${tx("Open Configure")}</a>`,
+    },
+    {
+      id: "tiles",
+      title: "MVP tile visibility",
+      hint: "What families see on the board",
+      done: flags.tilesLinked,
+      action: `<a class="btn ghost" href="#/configure" data-setup-mark="tilesLinked">${tx("Tune tiles")}</a>`,
+    },
+    {
+      id: "banking",
+      title: "Banking destinations",
+      hint: "Dream · can defer until fundraise week",
+      done: flags.bankingDeferred || false,
+      deferred: true,
+      action: `<a class="btn ghost" href="#/fundraise/banking">${tx("Banking")}</a>
+        <button type="button" class="btn ghost" data-setup-defer-banking>${flags.bankingDeferred ? tx("Deferred") : tx("Defer")}</button>`,
+    },
+    {
+      id: "roster",
+      title: "Connect / upload roster",
+      hint: flags.rosterImported
+        ? `${roster.length} students in local roster store`
+        : "CSV upload, later, or staff SSO (soon)",
+      done: flags.rosterImported || flags.rosterMode === "later",
+      action: `<a class="btn" href="#/setup/connect">${tx("Connect")}</a>`,
+    },
+    {
+      id: "staff",
+      title: "Invite staff",
+      hint: "Magic-link invites (demo — no email sent)",
+      done: flags.staffInvited,
+      action: `<a class="btn ghost" href="#/setup/invites">${tx("Staff invites")}</a>`,
+    },
+    {
+      id: "parents",
+      title: "Invite parents",
+      hint: "Claim existing / pre-linked students — not free-add",
+      done: flags.parentsInvited,
+      action: `<a class="btn ghost" href="#/setup/invites">${tx("Parent invites")}</a>`,
+    },
+  ].map((item) => ({ ...item, doneClass: done(item.done), markHtml: mark(item.done) }));
+}
+
+function requireAdminSetup() {
+  if (state.role !== "admin") {
+    state.notice = tx("Only the office can run school Setup.");
+    location.hash = "#/";
+    if (state.edition === "mvp") return mvpStaffHome();
+    if (state.role === "teacher") return teacherHome();
+    return parentHome();
+  }
+  return true;
+}
+
+function setupView() {
+  if (requireAdminSetup() !== true) return;
+  paintChrome("setup");
+  setCrumbs([boardCrumb(), { label: "Setup", href: "#/setup" }]);
+  const flags = loadSetupFlags();
+  const items = setupChecklistItems(flags);
+  const doneCount = items.filter((i) => i.done || i.deferred).length;
+  view.innerHTML = `
+    ${notice()}
+    <div class="hero">
+      <div>
+        <p class="kicker setup-demo-tag">${tx("Demo only · no real email or SMS")}</p>
+        <h1>${tx("School Setup")}</h1>
+        <p class="lede">${tx("Admin → staff → parents. Import the roster, then send claim invites so families land on children already linked.")}</p>
+      </div>
+      <div class="actions" style="margin-top:0">
+        ${configureBtn()}
+        <a class="btn" href="#/setup/connect">${tx("Connect roster")}</a>
+      </div>
+    </div>
+    <p class="kicker" style="margin:0 0 12px">${doneCount} / ${items.length} ${tx("checklist steps ready")}</p>
+    <section class="card panel setup-checklist">
+      ${items
+        .map(
+          (item) => `
+        <div class="setup-row ${item.doneClass}">
+          <div class="setup-row-main">
+            <span class="setup-check" aria-hidden="true"></span>
+            <div>
+              <strong>${tx(item.title)}</strong>
+              <span class="kicker" style="display:block">${tx(item.hint)}</span>
+            </div>
+          </div>
+          <div class="setup-row-end">
+            ${item.markHtml}
+            <div class="actions">${item.action}</div>
+          </div>
+        </div>`
+        )
+        .join("")}
+    </section>
+    <section class="card panel" style="margin-top:16px" id="setup-profile-panel" ${flags.profileDone ? "" : ""}>
+      <h2>${tx("School profile")}</h2>
+      <p class="lede" style="margin-bottom:12px">${tx("Cached for Harbor targeting — SIS remains source of truth for people.")}</p>
+      <form id="setup-profile-form" class="setup-profile-form">
+        <div class="field">
+          <label for="setup-school-name">${tx("Display name")}</label>
+          <input id="setup-school-name" value="${flags.schoolName || ""}" required />
+        </div>
+        <div class="field">
+          <label for="setup-tz">${tx("Timezone")}</label>
+          <select id="setup-tz">
+            <option value="America/Toronto" ${flags.timezone === "America/Toronto" ? "selected" : ""}>America/Toronto</option>
+            <option value="America/Vancouver" ${flags.timezone === "America/Vancouver" ? "selected" : ""}>America/Vancouver</option>
+            <option value="America/Edmonton" ${flags.timezone === "America/Edmonton" ? "selected" : ""}>America/Edmonton</option>
+            <option value="America/Halifax" ${flags.timezone === "America/Halifax" ? "selected" : ""}>America/Halifax</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="setup-lang">${tx("Default language")}</label>
+          <select id="setup-lang">
+            <option value="en" ${flags.language === "en" ? "selected" : ""}>English</option>
+            <option value="fr" ${flags.language === "fr" ? "selected" : ""}>Français</option>
+          </select>
+        </div>
+        <button class="btn" type="submit">${tx("Save profile")}</button>
+      </form>
+    </section>
+    <aside class="notes" style="margin-top:16px">
+      <h3>${tx("Claim path")}</h3>
+      ${tx("Parents open a magic link and confirm children already on the roster. Preview the parent side:")}
+      <div class="actions" style="margin-top:10px">
+        <a class="btn ghost" href="#/claim/demo-jordan">${tx("Fake parent claim")}</a>
+        <a class="btn ghost" href="#/setup/invites">${tx("Pending / Claimed")}</a>
+      </div>
+    </aside>
+  `;
+  view.querySelectorAll("[data-setup-mark]").forEach((el) => {
+    el.addEventListener("click", () => {
+      const flagsNow = loadSetupFlags();
+      flagsNow[el.dataset.setupMark] = true;
+      saveSetupFlags(flagsNow);
+    });
+  });
+  view.querySelector("[data-setup-defer-banking]")?.addEventListener("click", () => {
+    const flagsNow = loadSetupFlags();
+    flagsNow.bankingDeferred = true;
+    saveSetupFlags(flagsNow);
+    state.notice = tx("Banking deferred — come back from Fundraise when ready.");
+    setupView();
+  });
+  view.querySelector("[data-setup-edit-profile]")?.addEventListener("click", () => {
+    document.getElementById("setup-profile-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+  document.getElementById("setup-profile-form")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const flagsNow = loadSetupFlags();
+    flagsNow.schoolName = document.getElementById("setup-school-name").value.trim() || "Cedar Hill K–8";
+    flagsNow.timezone = document.getElementById("setup-tz").value;
+    flagsNow.language = document.getElementById("setup-lang").value;
+    flagsNow.profileDone = true;
+    saveSetupFlags(flagsNow);
+    state.notice = tx("School profile saved (local demo).");
+    setupView();
+  });
+}
+
+function setupConnectView() {
+  if (requireAdminSetup() !== true) return;
+  paintChrome("setup");
+  setCrumbs([
+    boardCrumb(),
+    { label: "Setup", href: "#/setup" },
+    { label: "Connect", href: "#/setup/connect" },
+  ]);
+  const flags = loadSetupFlags();
+  view.innerHTML = `
+    ${notice()}
+    <div class="hero">
+      <div>
+        <p class="kicker setup-demo-tag">${tx("Demo only")}</p>
+        <h1>${tx("Connect or upload roster")}</h1>
+        <p class="lede">${tx("CSV first for a Canadian K–8. Google/Microsoft later for staff sign-in — not the parent roster.")}</p>
+      </div>
+    </div>
+    <section class="connect-grid">
+      <button type="button" class="connect-card ${flags.rosterMode === "upload" ? "is-on" : ""}" data-connect="upload">
+        <strong>${tx("Upload CSV")}</strong>
+        <span class="kicker">${tx("MVP default · students, staff, guardians, relationships")}</span>
+      </button>
+      <button type="button" class="connect-card ${flags.rosterMode === "later" ? "is-on" : ""}" data-connect="later">
+        <strong>${tx("I’ll do it later")}</strong>
+        <span class="kicker">${tx("Keep the demo roster · add a few manually when needed")}</span>
+      </button>
+      <button type="button" class="connect-card is-soon" data-connect="sso" disabled>
+        <strong>${tx("Staff Google / Microsoft")}</strong>
+        <span class="kicker">${tx("Coming soon · staff identity only")}</span>
+      </button>
+    </section>
+    <div class="actions" style="margin-top:18px">
+      <a class="btn ghost" href="#/setup">${tx("Back to Setup")}</a>
+    </div>
+  `;
+  view.querySelectorAll("[data-connect]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const mode = btn.dataset.connect;
+      if (mode === "sso") return;
+      const flagsNow = loadSetupFlags();
+      flagsNow.rosterMode = mode;
+      if (mode === "later") {
+        saveSetupFlags(flagsNow);
+        state.notice = tx("Roster deferred — demo students stay in place.");
+        location.hash = "#/setup";
+        return setupView();
+      }
+      saveSetupFlags(flagsNow);
+      state.setupWizard = { step: "templates", entity: "students", fileName: "", rows: [], errors: [], warnings: [] };
+      location.hash = "#/setup/roster";
+      setupRosterWizard();
+    });
+  });
+}
+
+function wizardStepsHtml(active) {
+  const steps = [
+    ["templates", "Templates"],
+    ["upload", "Upload"],
+    ["preview", "Preview"],
+    ["confirm", "Confirm"],
+  ];
+  return `<ol class="wizard-steps">${steps
+    .map(([id, label], i) => {
+      const idx = steps.findIndex((s) => s[0] === active);
+      const cls = i < idx ? "is-done" : i === idx ? "is-on" : "";
+      return `<li class="${cls}"><span>${i + 1}</span>${tx(label)}</li>`;
+    })
+    .join("")}</ol>`;
+}
+
+function setupRosterWizard() {
+  if (requireAdminSetup() !== true) return;
+  paintChrome("setup");
+  setCrumbs([
+    boardCrumb(),
+    { label: "Setup", href: "#/setup" },
+    { label: "Connect", href: "#/setup/connect" },
+    { label: "CSV wizard", href: "#/setup/roster" },
+  ]);
+  const wiz = state.setupWizard || { step: "templates", entity: "students", rows: [], errors: [], warnings: [] };
+  const entity = wiz.entity || "students";
+  const tpl = CSV_TEMPLATES[entity];
+  let body = "";
+  if (wiz.step === "templates" || wiz.step === "upload") {
+    body = `
+      <section class="card panel">
+        <h2>${tx("1 · Download templates")}</h2>
+        <p class="lede" style="margin-bottom:12px">${tx("One CSV per entity. Excel-friendly stubs with sample Cedar Hill rows.")}</p>
+        <div class="template-grid">
+          ${Object.entries(CSV_TEMPLATES)
+            .map(
+              ([key, t]) => `
+            <button type="button" class="template-chip ${entity === key ? "is-on" : ""}" data-entity="${key}">
+              <strong>${tx(t.label)}</strong>
+              <span class="kicker">${t.headers.join(", ")}</span>
+              <span class="template-dl" data-download="${key}">${tx("Download")}</span>
+            </button>`
+            )
+            .join("")}
+        </div>
+      </section>
+      <section class="card panel" style="margin-top:16px">
+        <h2>${tx("2 · Upload")} · ${tx(tpl.label)}</h2>
+        <p class="lede" style="margin-bottom:12px">${tx("Parsed in-browser. Nothing leaves this demo.")}</p>
+        <label class="btn file-btn">
+          ${tx("Choose CSV")}
+          <input type="file" id="roster-file" accept=".csv,text/csv" hidden />
+        </label>
+        <span class="kicker" id="roster-file-label">${wiz.fileName ? wiz.fileName : tx("No file yet")}</span>
+      </section>`;
+  } else if (wiz.step === "preview") {
+    const errN = wiz.errors.length;
+    const warnN = wiz.warnings.length;
+    const headers = tpl.headers;
+    body = `
+      <section class="card panel">
+        <h2>${tx("3 · Preview & validation")}</h2>
+        <p class="lede">${wiz.fileName || tx("Uploaded file")} · ${wiz.rows.length} ${tx("rows")} ·
+          ${errN ? pill(`${errN} errors`, "risk") : pill("No blocking errors")}
+          ${warnN ? pill(`${warnN} warnings`, "amber") : ""}
+        </p>
+        ${
+          errN || warnN
+            ? `<div class="setup-issues">${[...wiz.errors.map((e) => ({ ...e, kind: "error" })), ...wiz.warnings.map((w) => ({ ...w, kind: "warn" }))]
+                .slice(0, 8)
+                .map((e) => `<div class="setup-issue is-${e.kind}">${tx("Row")} ${e.row}: ${e.message}</div>`)
+                .join("")}${errN + warnN > 8 ? `<p class="kicker">+${errN + warnN - 8} more</p>` : ""}</div>`
+            : ""
+        }
+        <div class="table-scroll">
+          <table class="setup-table">
+            <thead><tr>${headers.map((h) => `<th>${h}</th>`).join("")}</tr></thead>
+            <tbody>
+              ${wiz.rows
+                .slice(0, 12)
+                .map((r) => `<tr>${headers.map((h) => `<td>${r[h] || ""}</td>`).join("")}</tr>`)
+                .join("")}
+            </tbody>
+          </table>
+        </div>
+        ${wiz.rows.length > 12 ? `<p class="kicker">${txf("Showing first 12 of {n} rows.", { n: String(wiz.rows.length) })}</p>` : ""}
+      </section>
+      <div class="actions" style="margin-top:16px">
+        <button type="button" class="btn ghost" data-wiz="back-upload">${tx("Back")}</button>
+        <button type="button" class="btn" data-wiz="to-confirm" ${errN ? "disabled" : ""}>${tx("Continue")}</button>
+      </div>`;
+  } else {
+    body = `
+      <section class="card panel">
+        <h2>${tx("4 · Confirm into local roster")}</h2>
+        <p class="lede">${txf("Apply {n} {entity} rows to the demo roster store (localStorage).", {
+          n: String(wiz.rows.length),
+          entity: tpl.label.toLowerCase(),
+        })}</p>
+        <ul class="setup-confirm-list">
+          <li>${tx("Students CSV replaces the live attendance / dismissal roster snapshot.")}</li>
+          <li>${tx("Guardians + relationships power the claim / invite mock.")}</li>
+          <li>${tx("No real SIS write-back in this prototype.")}</li>
+        </ul>
+      </section>
+      <div class="actions" style="margin-top:16px">
+        <button type="button" class="btn ghost" data-wiz="back-preview">${tx("Back")}</button>
+        <button type="button" class="btn" data-wiz="apply">${tx("Apply to demo data")}</button>
+      </div>`;
+  }
+  view.innerHTML = `
+    ${notice()}
+    <div class="hero">
+      <div>
+        <p class="kicker setup-demo-tag">${tx("CSV wizard · demo")}</p>
+        <h1>${tx("Roster upload")}</h1>
+        <p class="lede">${tx("Download a stub, upload a CSV, preview errors, then confirm.")}</p>
+      </div>
+    </div>
+    ${wizardStepsHtml(wiz.step === "upload" ? "upload" : wiz.step)}
+    ${body}
+  `;
+
+  view.querySelectorAll("[data-entity]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      if (e.target.closest("[data-download]")) return;
+      state.setupWizard.entity = btn.dataset.entity;
+      state.setupWizard.step = "templates";
+      state.setupWizard.rows = [];
+      state.setupWizard.errors = [];
+      state.setupWizard.warnings = [];
+      state.setupWizard.fileName = "";
+      setupRosterWizard();
+    });
+  });
+  view.querySelectorAll("[data-download]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      downloadCsvTemplate(btn.dataset.download);
+      setupRosterWizard();
+    });
+  });
+  document.getElementById("roster-file")?.addEventListener("change", async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const text = await file.text();
+    const { records } = parseCsvText(text);
+    const { errors, warnings } = validateCsvEntity(state.setupWizard.entity, records);
+    if (state.setupWizard.entity === "students") {
+      state.setupWizard.pendingStudentIds = new Set(records.map((r) => r.external_id).filter(Boolean));
+    }
+    state.setupWizard.fileName = file.name;
+    state.setupWizard.rows = records;
+    state.setupWizard.errors = errors;
+    state.setupWizard.warnings = warnings;
+    state.setupWizard.step = "preview";
+    state.notice = "";
+    setupRosterWizard();
+  });
+  view.querySelector("[data-wiz=back-upload]")?.addEventListener("click", () => {
+    state.setupWizard.step = "upload";
+    setupRosterWizard();
+  });
+  view.querySelector("[data-wiz=to-confirm]")?.addEventListener("click", () => {
+    if (state.setupWizard.errors.length) return;
+    state.setupWizard.step = "confirm";
+    setupRosterWizard();
+  });
+  view.querySelector("[data-wiz=back-preview]")?.addEventListener("click", () => {
+    state.setupWizard.step = "preview";
+    setupRosterWizard();
+  });
+  view.querySelector("[data-wiz=apply]")?.addEventListener("click", () => {
+    applyCsvToStore(state.setupWizard.entity, state.setupWizard.rows);
+    state.notice = txf("Applied {n} {entity} rows to the local roster store.", {
+      n: String(state.setupWizard.rows.length),
+      entity: CSV_TEMPLATES[state.setupWizard.entity].label.toLowerCase(),
+    });
+    state.setupWizard = { step: "templates", entity: "students", fileName: "", rows: [], errors: [], warnings: [] };
+    location.hash = "#/setup";
+    setupView();
+  });
+}
+
+function setupInvitesView() {
+  if (requireAdminSetup() !== true) return;
+  paintChrome("setup");
+  setCrumbs([
+    boardCrumb(),
+    { label: "Setup", href: "#/setup" },
+    { label: "Invites", href: "#/setup/invites" },
+  ]);
+  const invites = loadInvites();
+  const pending = invites.filter((i) => i.status === "pending");
+  const claimed = invites.filter((i) => i.status === "claimed");
+  const renderGroup = (title, list, empty) => `
+    <section class="card panel" style="margin-top:16px">
+      <div class="widget-head"><h2>${tx(title)}</h2><span class="kicker">${list.length}</span></div>
+      ${
+        list.length
+          ? list
+              .map(
+                (inv) => `
+        <div class="list-row invite-row">
+          <div class="title-block">
+            <span class="kicker">${inv.kind === "staff" ? tx("Staff") : tx("Parent")} · ${inv.email}</span>
+            <strong>${inv.name}</strong>
+            <span class="kicker">${
+              inv.students?.length
+                ? txf("Linked: {names}", { names: inv.students.join(", ") })
+                : inv.role
+                  ? tx(inv.role)
+                  : ""
+            }</span>
+          </div>
+          <div class="actions">
+            ${inv.status === "pending" ? pill("Pending", "amber") : pill("Claimed")}
+            ${
+              inv.status === "pending" && inv.kind === "parent" && inv.claimToken
+                ? `<a class="btn ghost" href="#/claim/${inv.claimToken}">${tx("Preview claim")}</a>`
+                : ""
+            }
+            ${
+              inv.status === "pending"
+                ? `<button type="button" class="btn ghost" data-resend="${inv.id}">${tx("Resend")}</button>`
+                : `<span class="kicker">${inv.claimedAt || inv.sentAt || ""}</span>`
+            }
+          </div>
+        </div>`
+              )
+              .join("")
+          : `<p class="empty-copy">${tx(empty)}</p>`
+      }
+    </section>`;
+
+  view.innerHTML = `
+    ${notice()}
+    <div class="hero">
+      <div>
+        <p class="kicker setup-demo-tag">${tx("Demo only · no email/SMS sent")}</p>
+        <h1>${tx("Invites")}</h1>
+        <p class="lede">${tx("Staff first, then parents claim pre-linked students. Request-access edge cases stay with the office.")}</p>
+      </div>
+      <div class="actions" style="margin-top:0">
+        <button type="button" class="btn" data-blast="staff">${tx("Send staff invites")}</button>
+        <button type="button" class="btn" data-blast="parent">${tx("Send parent invites")}</button>
+      </div>
+    </div>
+    ${renderGroup("Pending", pending, "No pending invites.")}
+    ${renderGroup("Claimed", claimed, "No claimed invites yet.")}
+    <div class="actions" style="margin-top:16px">
+      <a class="btn ghost" href="#/setup">${tx("Back to Setup")}</a>
+      <a class="btn ghost" href="#/claim/demo-jordan">${tx("Open claim mock")}</a>
+    </div>
+  `;
+
+  view.querySelectorAll("[data-blast]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const kind = btn.dataset.blast;
+      const list = loadInvites();
+      const flags = loadSetupFlags();
+      const now = "Just now";
+      list.forEach((inv) => {
+        if (inv.kind === kind && inv.status === "pending") inv.sentAt = now;
+      });
+      if (kind === "staff") {
+        flags.staffInvited = true;
+        const hasPendingStaff = list.some((i) => i.kind === "staff" && i.status === "pending");
+        if (!hasPendingStaff) {
+          list.unshift({
+            id: "inv-staff-" + Date.now(),
+            kind: "staff",
+            name: "Raj Patel",
+            email: "r.patel@cedarhill.example",
+            role: "teacher",
+            status: "pending",
+            students: [],
+            sentAt: now,
+          });
+        }
+        state.notice = tx("Staff invite mock sent. (No email left this browser.)");
+      } else {
+        flags.parentsInvited = true;
+        state.notice = tx("Parent claim invites queued for pending guardians. (Demo only.)");
+      }
+      saveInvites(list);
+      saveSetupFlags(flags);
+      setupInvitesView();
+    });
+  });
+  view.querySelectorAll("[data-resend]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const list = loadInvites();
+      const inv = list.find((i) => i.id === btn.dataset.resend);
+      if (inv) inv.sentAt = "Just now";
+      saveInvites(list);
+      state.notice = txf("Resent invite mock to {email}.", { email: inv?.email || "" });
+      setupInvitesView();
+    });
+  });
+}
+
+function claimView(token) {
+  const invites = loadInvites();
+  const inv =
+    invites.find((i) => i.claimToken === token && i.kind === "parent") ||
+    invites.find((i) => i.claimToken === "demo-jordan") ||
+    defaultInvites().find((i) => i.claimToken === "demo-jordan");
+  const names = inv?.students?.length ? inv.students : ["Maya", "Noah", "Samira"];
+  const studentIds = inv?.studentIds?.length ? inv.studentIds : ["maya", "noah", "samira"];
+  // Show claim as the parent surface (magic-link landing).
+  state.role = "parent";
+  if (studentIds[0]) {
+    state.childId = studentIds[0];
+    localStorage.setItem("harborChild", state.childId);
+  }
+  paintChrome("home");
+  setCrumbs([{ label: "Claim invite", href: `#/claim/${token || "demo-jordan"}` }]);
+  view.innerHTML = `
+    ${notice()}
+    <div class="claim-shell">
+      <p class="kicker setup-demo-tag">${tx("Magic-link simulation · demo")}</p>
+      <h1>${tx("You’re invited to Harbor")}</h1>
+      <p class="lede">${txf("Cedar Hill K–8 invited {name} as guardian of children already on the school roster.", {
+        name: inv?.name || "Jordan Bowser",
+      })}</p>
+      <section class="card panel claim-kids">
+        <h2>${tx("Children to claim")}</h2>
+        <p class="kicker" style="margin-bottom:10px">${tx("Pre-linked from the office roster — not a blank “add my kid” form.")}</p>
+        ${names
+          .map((n, i) => {
+            const stu = rosterStudent(studentIds[i]) || { grade: "", room: "" };
+            return `<div class="claim-kid">
+              <strong>${n}</strong>
+              <span class="kicker">${stu.grade || ""}${stu.room ? ` · ${stu.room}` : ""}</span>
+            </div>`;
+          })
+          .join("")}
+      </section>
+      <div class="field" style="margin-top:16px">
+        <label for="claim-email">${tx("Confirm email")}</label>
+        <input id="claim-email" type="email" value="${inv?.email || "jordan.bowser@example.com"}" readonly />
+      </div>
+      <div class="actions" style="margin-top:16px">
+        <button type="button" class="btn" id="claim-continue">${tx("Confirm & continue")}</button>
+        <button type="button" class="btn ghost" id="claim-to-admin">${tx("Back to admin invites")}</button>
+      </div>
+      <p class="kicker" style="margin-top:14px">${tx("In production this link expires and is one-time. Here it just flips Pending → Claimed in localStorage.")}</p>
+    </div>
+  `;
+  document.getElementById("claim-continue")?.addEventListener("click", () => {
+    const list = loadInvites();
+    const target = list.find((i) => i.claimToken === (token || "demo-jordan"));
+    if (target) {
+      target.status = "claimed";
+      target.claimedAt = "Just now";
+    }
+    saveInvites(list);
+    const flags = loadSetupFlags();
+    flags.parentsInvited = true;
+    saveSetupFlags(flags);
+    state.notice = tx("Invite claimed. Welcome to Today.");
+    location.hash = "#/";
+    render();
+  });
+  document.getElementById("claim-to-admin")?.addEventListener("click", () => {
+    state.role = "admin";
+    state.notice = "";
+    location.hash = "#/setup/invites";
+    render();
+  });
+}
+
 function sendHomeBtn(extraClass = "") {
   return `<a class="btn ${extraClass}" href="#/scan">${icon("scan", 16)}${tx("Send home")}</a>`;
 }
@@ -8151,6 +9187,7 @@ function mvpStaffHome() {
         }</p>
       </div>
       <div class="actions" style="margin-top:0">
+        ${isTeacher ? "" : setupBtn()}
         ${isTeacher ? "" : configureBtn()}
         ${sendHomeBtn()}
       </div>
@@ -8722,6 +9759,19 @@ function mvpConfigure() {
     boardCrumb(),
     { label: "Configure", href: "#/configure" },
   ]);
+  if (state.role === "admin") {
+    const flags = loadSetupFlags();
+    let dirty = false;
+    if (!flags.themeLinked) {
+      flags.themeLinked = true;
+      dirty = true;
+    }
+    if (!flags.tilesLinked) {
+      flags.tilesLinked = true;
+      dirty = true;
+    }
+    if (dirty) saveSetupFlags(flags);
+  }
   const rows = [
     ["comms", "From school", "Unified inbox from teachers and the office"],
     ["attendance", "Attendance", "Week, absences, and a note to the office"],
@@ -8739,6 +9789,11 @@ function mvpConfigure() {
             : tx("The school set the default. Hide a tile you don’t need this week.")
         }</p>
       </div>
+      ${
+        state.role === "admin"
+          ? `<div class="actions" style="margin-top:0">${setupBtn()}<a class="btn ghost" href="#/setup/connect">${tx("Upload roster")}</a></div>`
+          : ""
+      }
     </div>
     <section class="card panel" style="padding-bottom:8px">
       ${rows
@@ -10201,6 +11256,13 @@ function render() {
   }
 
   if (parts[0] === "configure") return mvpConfigure();
+  if (parts[0] === "setup") {
+    if (parts[1] === "connect") return setupConnectView();
+    if (parts[1] === "roster" || parts[1] === "upload") return setupRosterWizard();
+    if (parts[1] === "invites") return setupInvitesView();
+    return setupView();
+  }
+  if (parts[0] === "claim") return claimView(parts[1] || "demo-jordan");
 
   if (state.edition === "mvp") {
     if (parts[0] === "inbox") return mvpInbox(parts[1]);
