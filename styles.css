@@ -3,8 +3,7 @@
    Curated school primary/secondary (html[data-primary], html[data-secondary])
    keep locked lightness/saturation — hue only. */
 :root,
-[data-theme="default"],
-[data-theme="light"] {
+[data-theme="default"] {
   --ink: #152033;
   --ink-soft: #4a5568;
   --paper: #f4f5f8;
@@ -188,62 +187,63 @@
   --solid-ink: var(--on-dark);
 }
 
-/* Curated school colours — hue shifts only; lightness/sat locked to Harbor defaults. */
-/* Primary remaps brand accents + solid CTAs + dark-rail chrome.
+/* Curated school colours — hue shifts only; lightness/sat locked to Harbor defaults.
+   Primary remaps brand accents + solid CTAs + dark-rail chrome.
    Light-rail themes keep their own --rail-bg; --solid-bg / --sage still shift. */
 html[data-primary="navy"] {
-  --sage: #1e3a5f;
-  --sage-2: #2b5a8a;
-  --moss: #2b5a8a;
-  --solid-bg: #1e3a5f;
-  --brand-rail: #152033;
-  --focus-ring: #1e3a5f;
+  --sage: #1e3a5f; --sage-2: #2b5a8a; --moss: #2b5a8a;
+  --solid-bg: #1e3a5f; --brand-rail: #152033; --focus-ring: #1e3a5f;
+}
+html[data-primary="black"] {
+  --sage: #1a1d24; --sage-2: #2c313b; --moss: #2c313b;
+  --solid-bg: #1a1d24; --brand-rail: #111318; --focus-ring: #1a1d24;
 }
 html[data-primary="teal"] {
-  --sage: #1e4a47;
-  --sage-2: #2a6b66;
-  --moss: #2a6b66;
-  --solid-bg: #1e4a47;
-  --brand-rail: #142e2c;
-  --focus-ring: #1e4a47;
+  --sage: #1e4a47; --sage-2: #2a6b66; --moss: #2a6b66;
+  --solid-bg: #1e4a47; --brand-rail: #142e2c; --focus-ring: #1e4a47;
 }
 html[data-primary="forest"] {
-  --sage: #1e4535;
-  --sage-2: #2b6a52;
-  --moss: #2b6a52;
-  --solid-bg: #1e4535;
-  --brand-rail: #152a20;
-  --focus-ring: #1e4535;
+  --sage: #1e4535; --sage-2: #2b6a52; --moss: #2b6a52;
+  --solid-bg: #1e4535; --brand-rail: #152a20; --focus-ring: #1e4535;
 }
 html[data-primary="slate"] {
-  --sage: #2a3a55;
-  --sage-2: #3d5478;
-  --moss: #3d5478;
-  --solid-bg: #2a3a55;
-  --brand-rail: #1c2638;
-  --focus-ring: #2a3a55;
+  --sage: #2a3a55; --sage-2: #3d5478; --moss: #3d5478;
+  --solid-bg: #2a3a55; --brand-rail: #1c2638; --focus-ring: #2a3a55;
 }
-html[data-primary="wine"] {
-  --sage: #4a2a38;
-  --sage-2: #6a3d50;
-  --moss: #6a3d50;
-  --solid-bg: #4a2a38;
-  --brand-rail: #2e1a22;
-  --focus-ring: #4a2a38;
+html[data-primary="royal"] {
+  --sage: #1a3f7a; --sage-2: #2a5a9e; --moss: #2a5a9e;
+  --solid-bg: #1a3f7a; --brand-rail: #12284d; --focus-ring: #1a3f7a;
 }
 html[data-primary="cobalt"] {
-  --sage: #1a3d66;
-  --sage-2: #2a5a8f;
-  --moss: #2a5a8f;
-  --solid-bg: #1a3d66;
-  --brand-rail: #122841;
-  --focus-ring: #1a3d66;
+  --sage: #1a3d66; --sage-2: #2a5a8f; --moss: #2a5a8f;
+  --solid-bg: #1a3d66; --brand-rail: #122841; --focus-ring: #1a3d66;
+}
+html[data-primary="crimson"] {
+  --sage: #6b2430; --sage-2: #8a3040; --moss: #8a3040;
+  --solid-bg: #6b2430; --brand-rail: #3f161c; --focus-ring: #6b2430;
+}
+html[data-primary="maroon"] {
+  --sage: #5c2438; --sage-2: #7a3550; --moss: #7a3550;
+  --solid-bg: #5c2438; --brand-rail: #351420; --focus-ring: #5c2438;
+}
+html[data-primary="wine"] {
+  --sage: #4a2a38; --sage-2: #6a3d50; --moss: #6a3d50;
+  --solid-bg: #4a2a38; --brand-rail: #2e1a22; --focus-ring: #4a2a38;
+}
+html[data-primary="purple"] {
+  --sage: #3d2a55; --sage-2: #5a3d78; --moss: #5a3d78;
+  --solid-bg: #3d2a55; --brand-rail: #241832; --focus-ring: #3d2a55;
 }
 
 html[data-secondary="burgundy"] {
   --coral: #8f2d3a;
   --rail-badge-muted: color-mix(in srgb, #8f2d3a 38%, #e8eef6);
   --new-row-bg: color-mix(in srgb, #8f2d3a 7%, transparent);
+}
+html[data-secondary="crimson"] {
+  --coral: #9a3040;
+  --rail-badge-muted: color-mix(in srgb, #9a3040 38%, #e8eef6);
+  --new-row-bg: color-mix(in srgb, #9a3040 7%, transparent);
 }
 html[data-secondary="clay"] {
   --coral: #8f4a2d;
@@ -255,10 +255,25 @@ html[data-secondary="rose"] {
   --rail-badge-muted: color-mix(in srgb, #8f2d55 38%, #e8eef6);
   --new-row-bg: color-mix(in srgb, #8f2d55 7%, transparent);
 }
+html[data-secondary="gold"] {
+  --coral: #8f7324;
+  --rail-badge-muted: color-mix(in srgb, #8f7324 38%, #e8eef6);
+  --new-row-bg: color-mix(in srgb, #8f7324 7%, transparent);
+}
 html[data-secondary="amber"] {
   --coral: #8f6b2d;
   --rail-badge-muted: color-mix(in srgb, #8f6b2d 38%, #e8eef6);
   --new-row-bg: color-mix(in srgb, #8f6b2d 7%, transparent);
+}
+html[data-secondary="mustard"] {
+  --coral: #8a7a2e;
+  --rail-badge-muted: color-mix(in srgb, #8a7a2e 38%, #e8eef6);
+  --new-row-bg: color-mix(in srgb, #8a7a2e 7%, transparent);
+}
+html[data-secondary="sky"] {
+  --coral: #2d5a8f;
+  --rail-badge-muted: color-mix(in srgb, #2d5a8f 38%, #e8eef6);
+  --new-row-bg: color-mix(in srgb, #2d5a8f 7%, transparent);
 }
 html[data-secondary="olive"] {
   --coral: #5a6f2d;
@@ -270,63 +285,63 @@ html[data-secondary="steel"] {
   --rail-badge-muted: color-mix(in srgb, #3d4f5f 38%, #e8eef6);
   --new-row-bg: color-mix(in srgb, #3d4f5f 7%, transparent);
 }
+html[data-secondary="chalk"] {
+  --coral: #8a8580;
+  --rail-badge-muted: color-mix(in srgb, #8a8580 42%, #e8eef6);
+  --new-row-bg: color-mix(in srgb, #8a8580 8%, transparent);
+}
 
-/* Dark theme: same hues, lifted lightness so contrast stays readable. */
+/* Dark theme: lifted lightness for readable accents. */
 html[data-theme="dark"][data-primary="navy"] {
-  --sage: #7aa7d9;
-  --sage-2: #9bc0e6;
-  --moss: #7aa7d9;
-  --solid-bg: #7aa7d9;
-  --solid-ink: #121820;
-  --brand-rail: #0d1219;
-  --focus-ring: #7aa7d9;
+  --sage: #7aa7d9; --sage-2: #9bc0e6; --moss: #7aa7d9;
+  --solid-bg: #7aa7d9; --solid-ink: #121820; --brand-rail: #0d1219; --focus-ring: #7aa7d9;
+}
+html[data-theme="dark"][data-primary="black"] {
+  --sage: #c5cad3; --sage-2: #d5d9e0; --moss: #c5cad3;
+  --solid-bg: #c5cad3; --solid-ink: #121820; --brand-rail: #0d0f12; --focus-ring: #c5cad3;
 }
 html[data-theme="dark"][data-primary="teal"] {
-  --sage: #6db5ad;
-  --sage-2: #8fcac3;
-  --moss: #6db5ad;
-  --solid-bg: #6db5ad;
-  --solid-ink: #121820;
-  --brand-rail: #0f1c1b;
-  --focus-ring: #6db5ad;
+  --sage: #6db5ad; --sage-2: #8fcac3; --moss: #6db5ad;
+  --solid-bg: #6db5ad; --solid-ink: #121820; --brand-rail: #0f1c1b; --focus-ring: #6db5ad;
 }
 html[data-theme="dark"][data-primary="forest"] {
-  --sage: #6faf8d;
-  --sage-2: #8fc6a8;
-  --moss: #6faf8d;
-  --solid-bg: #6faf8d;
-  --solid-ink: #121820;
-  --brand-rail: #0f1a14;
-  --focus-ring: #6faf8d;
+  --sage: #6faf8d; --sage-2: #8fc6a8; --moss: #6faf8d;
+  --solid-bg: #6faf8d; --solid-ink: #121820; --brand-rail: #0f1a14; --focus-ring: #6faf8d;
 }
 html[data-theme="dark"][data-primary="slate"] {
-  --sage: #8a9bc0;
-  --sage-2: #a8b6d4;
-  --moss: #8a9bc0;
-  --solid-bg: #8a9bc0;
-  --solid-ink: #121820;
-  --brand-rail: #12161f;
-  --focus-ring: #8a9bc0;
+  --sage: #8a9bc0; --sage-2: #a8b6d4; --moss: #8a9bc0;
+  --solid-bg: #8a9bc0; --solid-ink: #121820; --brand-rail: #12161f; --focus-ring: #8a9bc0;
 }
-html[data-theme="dark"][data-primary="wine"] {
-  --sage: #c48aa0;
-  --sage-2: #d6a8b8;
-  --moss: #c48aa0;
-  --solid-bg: #c48aa0;
-  --solid-ink: #121820;
-  --brand-rail: #1a1216;
-  --focus-ring: #c48aa0;
+html[data-theme="dark"][data-primary="royal"] {
+  --sage: #6e9fd4; --sage-2: #90b8e4; --moss: #6e9fd4;
+  --solid-bg: #6e9fd4; --solid-ink: #121820; --brand-rail: #0e1520; --focus-ring: #6e9fd4;
 }
 html[data-theme="dark"][data-primary="cobalt"] {
-  --sage: #6e9fd4;
-  --sage-2: #90b8e4;
-  --moss: #6e9fd4;
-  --solid-bg: #6e9fd4;
-  --solid-ink: #121820;
-  --brand-rail: #0e1520;
-  --focus-ring: #6e9fd4;
+  --sage: #6e9fd4; --sage-2: #90b8e4; --moss: #6e9fd4;
+  --solid-bg: #6e9fd4; --solid-ink: #121820; --brand-rail: #0e1520; --focus-ring: #6e9fd4;
+}
+html[data-theme="dark"][data-primary="crimson"] {
+  --sage: #d47884; --sage-2: #e0a0a8; --moss: #d47884;
+  --solid-bg: #d47884; --solid-ink: #121820; --brand-rail: #1a1214; --focus-ring: #d47884;
+}
+html[data-theme="dark"][data-primary="maroon"] {
+  --sage: #c48aa0; --sage-2: #d6a8b8; --moss: #c48aa0;
+  --solid-bg: #c48aa0; --solid-ink: #121820; --brand-rail: #1a1216; --focus-ring: #c48aa0;
+}
+html[data-theme="dark"][data-primary="wine"] {
+  --sage: #c48aa0; --sage-2: #d6a8b8; --moss: #c48aa0;
+  --solid-bg: #c48aa0; --solid-ink: #121820; --brand-rail: #1a1216; --focus-ring: #c48aa0;
+}
+html[data-theme="dark"][data-primary="purple"] {
+  --sage: #b89ad4; --sage-2: #d0b8e4; --moss: #b89ad4;
+  --solid-bg: #b89ad4; --solid-ink: #121820; --brand-rail: #16121c; --focus-ring: #b89ad4;
 }
 html[data-theme="dark"][data-secondary="burgundy"] {
+  --coral: #d47884;
+  --rail-badge-muted: color-mix(in srgb, #d47884 42%, #1c2533);
+  --new-row-bg: color-mix(in srgb, #d47884 12%, transparent);
+}
+html[data-theme="dark"][data-secondary="crimson"] {
   --coral: #d47884;
   --rail-badge-muted: color-mix(in srgb, #d47884 42%, #1c2533);
   --new-row-bg: color-mix(in srgb, #d47884 12%, transparent);
@@ -341,10 +356,25 @@ html[data-theme="dark"][data-secondary="rose"] {
   --rail-badge-muted: color-mix(in srgb, #d478a0 42%, #1c2533);
   --new-row-bg: color-mix(in srgb, #d478a0 12%, transparent);
 }
+html[data-theme="dark"][data-secondary="gold"] {
+  --coral: #d4b878;
+  --rail-badge-muted: color-mix(in srgb, #d4b878 42%, #1c2533);
+  --new-row-bg: color-mix(in srgb, #d4b878 12%, transparent);
+}
 html[data-theme="dark"][data-secondary="amber"] {
   --coral: #d4b078;
   --rail-badge-muted: color-mix(in srgb, #d4b078 42%, #1c2533);
   --new-row-bg: color-mix(in srgb, #d4b078 12%, transparent);
+}
+html[data-theme="dark"][data-secondary="mustard"] {
+  --coral: #d0c078;
+  --rail-badge-muted: color-mix(in srgb, #d0c078 42%, #1c2533);
+  --new-row-bg: color-mix(in srgb, #d0c078 12%, transparent);
+}
+html[data-theme="dark"][data-secondary="sky"] {
+  --coral: #7aa7d9;
+  --rail-badge-muted: color-mix(in srgb, #7aa7d9 42%, #1c2533);
+  --new-row-bg: color-mix(in srgb, #7aa7d9 12%, transparent);
 }
 html[data-theme="dark"][data-secondary="olive"] {
   --coral: #a8b878;
@@ -356,7 +386,11 @@ html[data-theme="dark"][data-secondary="steel"] {
   --rail-badge-muted: color-mix(in srgb, #8a9aac 42%, #1c2533);
   --new-row-bg: color-mix(in srgb, #8a9aac 12%, transparent);
 }
-
+html[data-theme="dark"][data-secondary="chalk"] {
+  --coral: #b8b4ae;
+  --rail-badge-muted: color-mix(in srgb, #b8b4ae 42%, #1c2533);
+  --new-row-bg: color-mix(in srgb, #b8b4ae 12%, transparent);
+}
 
 
 * {
@@ -3313,6 +3347,43 @@ button.year-day {
 .theme-preset .kicker {
   display: block;
   font-weight: 400;
+}
+
+.school-pairs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.school-pair {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px 8px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.school-pair:hover {
+  border-color: color-mix(in srgb, var(--sage) 40%, var(--line));
+}
+
+.school-pair.is-on {
+  border-color: var(--sage);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--sage) 16%, transparent);
+}
+
+.school-pair-swatch {
+  width: 28px;
+  height: 18px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--pair-a) 0 50%, var(--pair-b) 50% 100%);
+  box-shadow: inset 0 0 0 1px rgba(21, 32, 51, 0.12);
 }
 
 .colour-rows {

@@ -2101,14 +2101,6 @@ const THEME_PRESETS = [
     accent: "#1e3a5f",
   },
   {
-    id: "light",
-    label: "Light",
-    hint: "Same as Default",
-    rail: "#152033",
-    paper: "#f4f5f8",
-    accent: "#1e3a5f",
-  },
-  {
     id: "dark",
     label: "Dark",
     hint: "Low-light board",
@@ -2145,26 +2137,51 @@ const THEME_PRESETS = [
 const SCHOOL_PRIMARIES = [
   { id: "auto", label: "Auto (theme)", color: null },
   { id: "navy", label: "Harbor Navy", color: "#1e3a5f" },
+  { id: "black", label: "Black", color: "#1a1d24" },
   { id: "teal", label: "Deep Teal", color: "#1e4a47" },
   { id: "forest", label: "Forest", color: "#1e4535" },
   { id: "slate", label: "Slate Blue", color: "#2a3a55" },
-  { id: "wine", label: "Wine", color: "#4a2a38" },
+  { id: "royal", label: "Royal Blue", color: "#1a3f7a" },
   { id: "cobalt", label: "Cobalt", color: "#1a3d66" },
+  { id: "crimson", label: "Crimson", color: "#6b2430" },
+  { id: "maroon", label: "Maroon", color: "#5c2438" },
+  { id: "wine", label: "Wine", color: "#4a2a38" },
+  { id: "purple", label: "Purple", color: "#3d2a55" },
 ];
 
 const SCHOOL_SECONDARIES = [
   { id: "auto", label: "Auto (theme)", color: null },
   { id: "burgundy", label: "Cedar Burgundy", color: "#8f2d3a" },
+  { id: "crimson", label: "Crimson", color: "#9a3040" },
   { id: "clay", label: "Warm Clay", color: "#8f4a2d" },
   { id: "rose", label: "Soft Rose", color: "#8f2d55" },
+  { id: "gold", label: "Gold", color: "#8f7324" },
   { id: "amber", label: "Amber Deep", color: "#8f6b2d" },
+  { id: "mustard", label: "Mustard", color: "#8a7a2e" },
+  { id: "sky", label: "Sky Blue", color: "#2d5a8f" },
   { id: "olive", label: "Olive", color: "#5a6f2d" },
   { id: "steel", label: "Steel", color: "#3d4f5f" },
+  { id: "chalk", label: "Chalk (white)", color: "#8a8580" },
 ];
+
+const SCHOOL_PAIRS = [
+  { id: "black-gold", label: "Black & yellow", primary: "black", secondary: "gold", a: "#1a1d24", b: "#8f7324" },
+  { id: "crimson-sky", label: "Red & blue", primary: "crimson", secondary: "sky", a: "#6b2430", b: "#2d5a8f" },
+  { id: "royal-gold", label: "Blue & yellow", primary: "royal", secondary: "gold", a: "#1a3f7a", b: "#8f7324" },
+  { id: "maroon-chalk", label: "Maroon & white", primary: "maroon", secondary: "chalk", a: "#5c2438", b: "#8a8580" },
+  { id: "purple-chalk", label: "Purple & white", primary: "purple", secondary: "chalk", a: "#3d2a55", b: "#8a8580" },
+  { id: "navy-gold", label: "Navy & gold", primary: "navy", secondary: "gold", a: "#1e3a5f", b: "#8f7324" },
+  { id: "forest-gold", label: "Forest & gold", primary: "forest", secondary: "gold", a: "#1e4535", b: "#8f7324" },
+];
+
+function normalizeThemeId(theme) {
+  if (theme === "light") return "default";
+  return THEME_PRESETS.some((p) => p.id === theme) ? theme : "default";
+}
 
 function applySchoolTheme() {
   const root = document.documentElement;
-  const theme = THEME_PRESETS.some((p) => p.id === state.theme) ? state.theme : "default";
+  const theme = normalizeThemeId(state.theme);
   const primary = SCHOOL_PRIMARIES.some((c) => c.id === state.schoolPrimary) ? state.schoolPrimary : "auto";
   const secondary = SCHOOL_SECONDARIES.some((c) => c.id === state.schoolSecondary)
     ? state.schoolSecondary
@@ -2467,10 +2484,7 @@ const state = {
   parentLang: ["fr", "en", "zh", "pa", "es"].includes(localStorage.getItem("harborLang"))
     ? localStorage.getItem("harborLang")
     : "fr",
-  theme: (() => {
-    const t = localStorage.getItem("harborTheme") || "default";
-    return THEME_PRESETS.some((p) => p.id === t) ? t : "default";
-  })(),
+  theme: normalizeThemeId(localStorage.getItem("harborTheme") || "default"),
   schoolPrimary: (() => {
     const p = localStorage.getItem("harborPrimary") || "auto";
     return SCHOOL_PRIMARIES.some((c) => c.id === p) ? p : "auto";
@@ -8276,6 +8290,17 @@ function schoolColourSwatches(kind, options, selected) {
     </div>`;
 }
 
+function schoolPairButtons() {
+  return SCHOOL_PAIRS.map((pair) => {
+    const on = state.schoolPrimary === pair.primary && state.schoolSecondary === pair.secondary ? "is-on" : "";
+    return `
+      <button type="button" class="school-pair ${on}" data-school-pair="${pair.id}" aria-pressed="${on ? "true" : "false"}">
+        <span class="school-pair-swatch" style="--pair-a:${pair.a};--pair-b:${pair.b}" aria-hidden="true"></span>
+        <span>${pair.label}</span>
+      </button>`;
+  }).join("");
+}
+
 function adminThemePanel() {
   if (state.role !== "admin") return "";
   return `
@@ -8289,7 +8314,11 @@ function adminThemePanel() {
     <section class="card panel" style="margin-top:16px;padding-bottom:18px">
       <h2>School colours</h2>
       <p class="lede" style="margin-bottom:4px">Pick from a curated list. Tones stay locked to Harbor’s contrast — only the hue changes. Auto keeps the preset’s own accents.</p>
-      <div class="colour-rows">
+      <div class="colour-row-label" style="margin-top:12px">Common school pairs</div>
+      <div class="school-pairs" role="group" aria-label="Common school colour pairs">
+        ${schoolPairButtons()}
+      </div>
+      <div class="colour-rows" style="margin-top:18px">
         ${schoolColourSwatches("primary", SCHOOL_PRIMARIES, state.schoolPrimary)}
         ${schoolColourSwatches("secondary", SCHOOL_SECONDARIES, state.schoolSecondary)}
       </div>
@@ -8372,6 +8401,16 @@ function mvpConfigure() {
   view.querySelectorAll("[data-school-secondary]").forEach((btn) => {
     btn.addEventListener("click", () => {
       state.schoolSecondary = btn.dataset.schoolSecondary;
+      applySchoolTheme();
+      mvpConfigure();
+    });
+  });
+  view.querySelectorAll("[data-school-pair]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const pair = SCHOOL_PAIRS.find((p) => p.id === btn.dataset.schoolPair);
+      if (!pair) return;
+      state.schoolPrimary = pair.primary;
+      state.schoolSecondary = pair.secondary;
       applySchoolTheme();
       mvpConfigure();
     });
