@@ -21,7 +21,8 @@
   --radius: 16px;
   --font-ui: "IBM Plex Sans", system-ui, sans-serif;
   --font-display: "Fraunces", Georgia, serif;
-  --rail-bg: #152033;
+  --brand-rail: #152033;
+  --rail-bg: var(--brand-rail);
   --rail-ink: #e8eef6;
   --rail-muted: #b8c2d1;
   --rail-hover: rgba(255, 255, 255, 0.07);
@@ -59,7 +60,8 @@
   --shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
   --on-dark: #e6edf7;
   --font-display: "Fraunces", Georgia, serif;
-  --rail-bg: #0d1219;
+  --brand-rail: #0d1219;
+  --rail-bg: var(--brand-rail);
   --rail-ink: #e6edf7;
   --rail-muted: #9aa8bc;
   --rail-hover: rgba(255, 255, 255, 0.06);
@@ -165,7 +167,8 @@
   --on-dark: #f3f5f8;
   --radius: 10px;
   --font-display: "IBM Plex Sans", system-ui, sans-serif;
-  --rail-bg: #141820;
+  --brand-rail: #141820;
+  --rail-bg: var(--brand-rail);
   --rail-ink: #f3f5f8;
   --rail-muted: #9aa3b0;
   --rail-hover: rgba(255, 255, 255, 0.06);
@@ -186,81 +189,173 @@
 }
 
 /* Curated school colours — hue shifts only; lightness/sat locked to Harbor defaults. */
+/* Primary remaps brand accents + solid CTAs + dark-rail chrome.
+   Light-rail themes keep their own --rail-bg; --solid-bg / --sage still shift. */
 html[data-primary="navy"] {
   --sage: #1e3a5f;
   --sage-2: #2b5a8a;
   --moss: #2b5a8a;
+  --solid-bg: #1e3a5f;
+  --brand-rail: #152033;
+  --focus-ring: #1e3a5f;
 }
 html[data-primary="teal"] {
   --sage: #1e4a47;
   --sage-2: #2a6b66;
   --moss: #2a6b66;
+  --solid-bg: #1e4a47;
+  --brand-rail: #142e2c;
+  --focus-ring: #1e4a47;
 }
 html[data-primary="forest"] {
   --sage: #1e4535;
   --sage-2: #2b6a52;
   --moss: #2b6a52;
+  --solid-bg: #1e4535;
+  --brand-rail: #152a20;
+  --focus-ring: #1e4535;
 }
 html[data-primary="slate"] {
   --sage: #2a3a55;
   --sage-2: #3d5478;
   --moss: #3d5478;
+  --solid-bg: #2a3a55;
+  --brand-rail: #1c2638;
+  --focus-ring: #2a3a55;
 }
 html[data-primary="wine"] {
   --sage: #4a2a38;
   --sage-2: #6a3d50;
   --moss: #6a3d50;
+  --solid-bg: #4a2a38;
+  --brand-rail: #2e1a22;
+  --focus-ring: #4a2a38;
 }
 html[data-primary="cobalt"] {
   --sage: #1a3d66;
   --sage-2: #2a5a8f;
   --moss: #2a5a8f;
+  --solid-bg: #1a3d66;
+  --brand-rail: #122841;
+  --focus-ring: #1a3d66;
 }
 
-html[data-secondary="burgundy"] { --coral: #8f2d3a; }
-html[data-secondary="clay"] { --coral: #8f4a2d; }
-html[data-secondary="rose"] { --coral: #8f2d55; }
-html[data-secondary="amber"] { --coral: #8f6b2d; }
-html[data-secondary="olive"] { --coral: #5a6f2d; }
-html[data-secondary="steel"] { --coral: #3d4f5f; }
+html[data-secondary="burgundy"] {
+  --coral: #8f2d3a;
+  --rail-badge-muted: color-mix(in srgb, #8f2d3a 38%, #e8eef6);
+  --new-row-bg: color-mix(in srgb, #8f2d3a 7%, transparent);
+}
+html[data-secondary="clay"] {
+  --coral: #8f4a2d;
+  --rail-badge-muted: color-mix(in srgb, #8f4a2d 38%, #e8eef6);
+  --new-row-bg: color-mix(in srgb, #8f4a2d 7%, transparent);
+}
+html[data-secondary="rose"] {
+  --coral: #8f2d55;
+  --rail-badge-muted: color-mix(in srgb, #8f2d55 38%, #e8eef6);
+  --new-row-bg: color-mix(in srgb, #8f2d55 7%, transparent);
+}
+html[data-secondary="amber"] {
+  --coral: #8f6b2d;
+  --rail-badge-muted: color-mix(in srgb, #8f6b2d 38%, #e8eef6);
+  --new-row-bg: color-mix(in srgb, #8f6b2d 7%, transparent);
+}
+html[data-secondary="olive"] {
+  --coral: #5a6f2d;
+  --rail-badge-muted: color-mix(in srgb, #5a6f2d 38%, #e8eef6);
+  --new-row-bg: color-mix(in srgb, #5a6f2d 7%, transparent);
+}
+html[data-secondary="steel"] {
+  --coral: #3d4f5f;
+  --rail-badge-muted: color-mix(in srgb, #3d4f5f 38%, #e8eef6);
+  --new-row-bg: color-mix(in srgb, #3d4f5f 7%, transparent);
+}
 
 /* Dark theme: same hues, lifted lightness so contrast stays readable. */
 html[data-theme="dark"][data-primary="navy"] {
   --sage: #7aa7d9;
   --sage-2: #9bc0e6;
   --moss: #7aa7d9;
+  --solid-bg: #7aa7d9;
+  --solid-ink: #121820;
+  --brand-rail: #0d1219;
+  --focus-ring: #7aa7d9;
 }
 html[data-theme="dark"][data-primary="teal"] {
   --sage: #6db5ad;
   --sage-2: #8fcac3;
   --moss: #6db5ad;
+  --solid-bg: #6db5ad;
+  --solid-ink: #121820;
+  --brand-rail: #0f1c1b;
+  --focus-ring: #6db5ad;
 }
 html[data-theme="dark"][data-primary="forest"] {
   --sage: #6faf8d;
   --sage-2: #8fc6a8;
   --moss: #6faf8d;
+  --solid-bg: #6faf8d;
+  --solid-ink: #121820;
+  --brand-rail: #0f1a14;
+  --focus-ring: #6faf8d;
 }
 html[data-theme="dark"][data-primary="slate"] {
   --sage: #8a9bc0;
   --sage-2: #a8b6d4;
   --moss: #8a9bc0;
+  --solid-bg: #8a9bc0;
+  --solid-ink: #121820;
+  --brand-rail: #12161f;
+  --focus-ring: #8a9bc0;
 }
 html[data-theme="dark"][data-primary="wine"] {
   --sage: #c48aa0;
   --sage-2: #d6a8b8;
   --moss: #c48aa0;
+  --solid-bg: #c48aa0;
+  --solid-ink: #121820;
+  --brand-rail: #1a1216;
+  --focus-ring: #c48aa0;
 }
 html[data-theme="dark"][data-primary="cobalt"] {
   --sage: #6e9fd4;
   --sage-2: #90b8e4;
   --moss: #6e9fd4;
+  --solid-bg: #6e9fd4;
+  --solid-ink: #121820;
+  --brand-rail: #0e1520;
+  --focus-ring: #6e9fd4;
 }
-html[data-theme="dark"][data-secondary="burgundy"] { --coral: #d47884; }
-html[data-theme="dark"][data-secondary="clay"] { --coral: #d49478; }
-html[data-theme="dark"][data-secondary="rose"] { --coral: #d478a0; }
-html[data-theme="dark"][data-secondary="amber"] { --coral: #d4b078; }
-html[data-theme="dark"][data-secondary="olive"] { --coral: #a8b878; }
-html[data-theme="dark"][data-secondary="steel"] { --coral: #8a9aac; }
+html[data-theme="dark"][data-secondary="burgundy"] {
+  --coral: #d47884;
+  --rail-badge-muted: color-mix(in srgb, #d47884 42%, #1c2533);
+  --new-row-bg: color-mix(in srgb, #d47884 12%, transparent);
+}
+html[data-theme="dark"][data-secondary="clay"] {
+  --coral: #d49478;
+  --rail-badge-muted: color-mix(in srgb, #d49478 42%, #1c2533);
+  --new-row-bg: color-mix(in srgb, #d49478 12%, transparent);
+}
+html[data-theme="dark"][data-secondary="rose"] {
+  --coral: #d478a0;
+  --rail-badge-muted: color-mix(in srgb, #d478a0 42%, #1c2533);
+  --new-row-bg: color-mix(in srgb, #d478a0 12%, transparent);
+}
+html[data-theme="dark"][data-secondary="amber"] {
+  --coral: #d4b078;
+  --rail-badge-muted: color-mix(in srgb, #d4b078 42%, #1c2533);
+  --new-row-bg: color-mix(in srgb, #d4b078 12%, transparent);
+}
+html[data-theme="dark"][data-secondary="olive"] {
+  --coral: #a8b878;
+  --rail-badge-muted: color-mix(in srgb, #a8b878 42%, #1c2533);
+  --new-row-bg: color-mix(in srgb, #a8b878 12%, transparent);
+}
+html[data-theme="dark"][data-secondary="steel"] {
+  --coral: #8a9aac;
+  --rail-badge-muted: color-mix(in srgb, #8a9aac 42%, #1c2533);
+  --new-row-bg: color-mix(in srgb, #8a9aac 12%, transparent);
+}
 
 
 
