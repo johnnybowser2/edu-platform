@@ -7,7 +7,7 @@ const students = [
     band: "Elementary",
     teacher: "Ms. Ellison",
     room: "Room 12",
-    bus: "Route 7 · Oak & 3rd, 7:42 AM",
+    bus: "Bus 844 AM · Bus 848 PM · Oak & 3rd",
     initials: "MB",
     mealBalance: 18.75,
     attendance: [
@@ -68,7 +68,7 @@ const students = [
     band: "Primary",
     teacher: "Mr. Patel",
     room: "Room K2",
-    bus: "Route 7 · Oak & 3rd, 7:42 AM",
+    bus: "Bus 844 AM · Bus 848 PM · Oak & 3rd",
     initials: "NB",
     mealBalance: 12.0,
     attendance: [
@@ -625,8 +625,8 @@ const DISMISS_MODES = [
 ];
 
 const USUAL_DISMISS = {
-  maya: { mode: "bus", detail: "Route 7" },
-  noah: { mode: "bus", detail: "Route 7" },
+  maya: { mode: "bus", detail: "Bus 844 / 848" },
+  noah: { mode: "bus", detail: "Bus 844 / 848" },
   samira: { mode: "walk", detail: "Walker door · 3:10" },
   leo: { mode: "carpool", detail: "Loop A" },
   amira: { mode: "bus", detail: "Bus 4" },
@@ -654,13 +654,13 @@ const BUS_PATH_AM = [
 ];
 const BUS_PATH_PM = [...BUS_PATH_AM].reverse();
 
-const BUS_ROUTE_7 = {
+const BUS_MAYA_NOAH = {
   eligibility: "Bussed",
   metAtBus: false,
   school: "Cedar Hill K–8",
   toSchool: {
     label: "To school",
-    route: "7",
+    route: "844",
     operator: "District Transport",
     pickup: { time: "7:42 AM", stop: "Oak & 3rd", kind: "AM pickup" },
     dropoff: { time: "7:58 AM", stop: "Cedar Hill loop", kind: "AM dropoff" },
@@ -668,7 +668,7 @@ const BUS_ROUTE_7 = {
   },
   fromSchool: {
     label: "From school",
-    route: "7",
+    route: "848",
     operator: "District Transport",
     pickup: { time: "3:20 PM", stop: "Cedar Hill loop", kind: "PM pickup" },
     dropoff: { time: "3:38 PM", stop: "Oak & 3rd", kind: "PM dropoff" },
@@ -677,8 +677,8 @@ const BUS_ROUTE_7 = {
 };
 
 const BUS_PLANS = {
-  maya: BUS_ROUTE_7,
-  noah: BUS_ROUTE_7,
+  maya: BUS_MAYA_NOAH,
+  noah: BUS_MAYA_NOAH,
 };
 
 let busLiveTimer = null;
@@ -1252,7 +1252,7 @@ function bindReminderComposer(done) {
 }
 
 function ridesBus() {
-  return /route/i.test(child().bus);
+  return /route|bus\s*\d/i.test(child().bus);
 }
 
 function weekByDay() {
@@ -2362,7 +2362,7 @@ const state = {
       body: "K–8 walkathon after picture day. Pledge sheets go to the office. Families can skip if they already gave.",
     },
   ],
-  busChange: "Route 7 running 12 minutes late this morning. Pickup still Oak & 3rd.",
+  busChange: "Bus 844 running 12 minutes late this morning. Pickup still Oak & 3rd.",
   draft: "",
   notice: "",
   edition: (() => {
@@ -3316,6 +3316,9 @@ const BOOK = {
   ["Map unavailable offline.", "Carte indisponible hors ligne.", "离线无法显示地图。", "ਆਫ਼ਲਾਈਨ ਨਕਸ਼ਾ ਉਪਲਬਧ ਨਹੀਂ।", "Mapa no disponible sin conexión."],
   ["{name} · {school} · {eligibility}", "{name} · {school} · {eligibility}", "{name} · {school} · {eligibility}", "{name} · {school} · {eligibility}", "{name} · {school} · {eligibility}"],
   ["Change pickup plans from Dismissal. Maya and Noah still ride Route 7.", "Changez le plan de sortie dans Sortie. Maya et Noah prennent encore le circuit 7.", "请在放学计划中更改接送。Maya 和 Noah 仍乘坐 7 路。", "ਛੁੱਟੀ ਤੋਂ ਪਲਾਨ ਬਦਲੋ। ਮਾਇਆ ਤੇ ਨੋਆ ਹਾਲੇ ਰੂਟ 7 ਤੇ ਹਨ।", "Cambie el plan en Salida. Maya y Noah siguen en la ruta 7."],
+  ["Change pickup plans from Dismissal. Maya and Noah still ride Bus 844 and 848.", "Changez le plan de sortie dans Sortie. Maya et Noah prennent encore les autobus 844 et 848.", "请在放学计划中更改接送。Maya 和 Noah 仍乘坐 844 与 848。", "ਛੁੱਟੀ ਤੋਂ ਪਲਾਨ ਬਦਲੋ। ਮਾਇਆ ਤੇ ਨੋਆ ਹਾਲੇ ਬੱਸ 844 ਤੇ 848 ਤੇ ਹਨ।", "Cambie el plan en Salida. Maya y Noah siguen en los buses 844 y 848."],
+  ["Bus 844 running 12 minutes late this morning. Pickup still Oak & 3rd.", "L’autobus 844 a 12 minutes de retard ce matin. Arrêt toujours Oak et 3rd.", "844路今早晚点12分钟。上车点仍是Oak与3rd。", "ਬੱਸ 844 ਅੱਜ ਸਵੇਰੇ 12 ਮਿੰਟ ਲੇਟ। ਸਟਾਪ ਹਾਲੇ Oak & 3rd।", "El bus 844 circula 12 minutos tarde esta mañana. La parada sigue en Oak y 3rd."],
+  ["Bus 844 / 848", "Autobus 844 / 848", "校车 844 / 848", "ਬੱਸ 844 / 848", "Bus 844 / 848"],
   ["Oak & 3rd", "Oak et 3e", "Oak与3街", "Oak ਅਤੇ 3rd", "Oak y 3.ª"],
   ["Cedar Hill loop", "Boucle Cedar Hill", "Cedar Hill环线", "Cedar Hill ਲੂਪ", "Circuito Cedar Hill"],
   ["Cedar Hill K–8", "Cedar Hill M–8", "Cedar Hill K–8", "Cedar Hill K–8", "Cedar Hill K–8"],
@@ -6250,8 +6253,8 @@ function busStopBlock(stop) {
           <strong>${tx(stop.stop)}</strong>
         </div>
         <div>
-          <span class="bus-stop-label">${tx("Route")}</span>
-          <strong>${stop.route || ""}</strong>
+          <span class="bus-stop-label">${tx("Bus")}</span>
+          <strong class="bus-number">${stop.route || ""}</strong>
         </div>
       </div>
     </div>`;
@@ -6263,8 +6266,9 @@ function busLegCard(leg, key) {
     <button type="button" class="card panel bus-leg ${on ? "is-active" : ""}" data-bus-leg="${key}" aria-pressed="${on}">
       <div class="widget-head">
         <h2>${tx(leg.label)}</h2>
-        <span class="kicker">${on ? tx("On map") : `${tx("Route")} ${leg.route}`}</span>
+        <span class="bus-leg-bus">${tx("Bus")} ${leg.route}</span>
       </div>
+      ${on ? `<p class="bus-on-map kicker">${tx("On map")}</p>` : ""}
       ${busStopBlock({ ...leg.pickup, route: leg.route })}
       ${busStopBlock({ ...leg.dropoff, route: leg.route })}
       <p class="bus-operator kicker">${tx("Operator")} · ${tx(leg.operator)}</p>
@@ -6321,7 +6325,7 @@ function mountBusMap(plan, token) {
       statusEl.innerHTML = `
         <span class="dot live"></span>
         <strong>${tx("Live tracking")}</strong>
-        <span>${tx("Route")} ${leg.route} · ${eta.remainMin} ${tx("min away")} · ${tx("ETA")} ${eta.base}</span>`;
+        <span>${tx("Bus")} ${leg.route} · ${eta.remainMin} ${tx("min away")} · ${tx("ETA")} ${eta.base}</span>`;
     }
   };
   tick();
@@ -6365,7 +6369,7 @@ function bus() {
       </div>
       <aside class="notes">
         <h3>${tx("Dismissal")}</h3>
-        ${tx("Change pickup plans from Dismissal. Maya and Noah still ride Route 7.")}
+        ${tx("Change pickup plans from Dismissal. Maya and Noah still ride Bus 844 and 848.")}
         ${state.edition === "dream" ? `<div class="actions"><a class="btn ghost" href="#/dismiss">${tx("Dismissal")}</a></div>` : ""}
       </aside>
     `;
@@ -6387,19 +6391,19 @@ function bus() {
     }
     <div class="hero">
       <div>
-        <h1>${tx("Route")} ${active.route}</h1>
-        <p class="lede">${txf("{name} · {school} · {eligibility}", { name: kid.name, school: tx(plan.school), eligibility: tx(plan.eligibility) })}</p>
+        <h1>${tx("Bus")} ${active.route}</h1>
+        <p class="lede">${txf("{name} · {school} · {eligibility}", { name: kid.name, school: tx(plan.school), eligibility: tx(plan.eligibility) })} · ${tx("To school")} ${tx("Bus")} ${plan.toSchool.route} · ${tx("From school")} ${tx("Bus")} ${plan.fromSchool.route}</p>
       </div>
       <div class="stat-row">
         <div>
-          <div class="num">${tx("Route")} ${active.route}</div>
+          <div class="num">${tx("Bus")} ${active.route}</div>
           <div class="kicker">${tx(plan.metAtBus ? "Met at bus" : "Not met at bus")}</div>
         </div>
       </div>
     </div>
     <div class="bus-leg-toggle" role="group" aria-label="${tx("Direction")}">
-      <button type="button" class="chip ${busLiveLeg === "toSchool" ? "is-on" : ""}" data-bus-leg="toSchool">${tx("To school")}</button>
-      <button type="button" class="chip ${busLiveLeg === "fromSchool" ? "is-on" : ""}" data-bus-leg="fromSchool">${tx("From school")}</button>
+      <button type="button" class="chip ${busLiveLeg === "toSchool" ? "is-on" : ""}" data-bus-leg="toSchool">${tx("To school")} · ${tx("Bus")} ${plan.toSchool.route}</button>
+      <button type="button" class="chip ${busLiveLeg === "fromSchool" ? "is-on" : ""}" data-bus-leg="fromSchool">${tx("From school")} · ${tx("Bus")} ${plan.fromSchool.route}</button>
     </div>
     <div class="bus-layout">
       <div class="bus-legs">
