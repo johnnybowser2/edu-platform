@@ -1024,6 +1024,41 @@ label.btn {
   margin-bottom: 16px;
 }
 
+.lunch-sheet.is-admin {
+  padding-bottom: 22px;
+}
+
+.lunch-admin-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(30, 58, 95, 0.05);
+  color: var(--ink-soft);
+  line-height: 0;
+}
+
+.lunch-admin-remove:hover {
+  border-color: #c5d0de;
+  background: #eef2f7;
+  color: var(--ink);
+}
+
+.compose.lunch-admin-add {
+  grid-template-columns: 120px minmax(0, 1fr) 90px auto;
+  padding-top: 16px;
+  margin-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.lunch-weekbar.is-admin {
+  margin-top: 18px;
+}
+
 .lunch-sheet-head {
   display: flex;
   justify-content: space-between;
@@ -3535,6 +3570,15 @@ button.year-day {
   .lunch-main .qty {
     grid-column: auto;
     justify-self: end;
+  }
+
+  .compose.lunch-admin-add {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .compose.lunch-admin-add select,
+  .compose.lunch-admin-add #menu-name {
+    grid-column: 1 / -1;
   }
 
   .pay-methods {

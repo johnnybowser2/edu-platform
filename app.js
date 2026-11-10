@@ -3620,6 +3620,8 @@ const BOOK = {
   ["Upload weekly menu", "Téléverser le menu", "上传周菜单", "ਹਫ਼ਤਾਵਾਰੀ ਮੀਨੂ ਅੱਪਲੋਡ", "Subir menú semanal"],
   ["Post typical week", "Publier une semaine type", "发布典型周", "ਆਮ ਹਫ਼ਤਾ ਪੋਸਟ", "Publicar semana típica"],
   ["Posted for families", "Publié pour les familles", "已向家庭发布", "ਪਰਿਵਾਰਾਂ ਲਈ ਪੋਸਟ", "Publicado para las familias"],
+  ["Posted", "Publié", "已发布", "ਪੋਸਟ", "Publicado"],
+  ["Typical", "Type", "典型", "ਆਮ", "Típico"],
   ["Typical menu until you post", "Menu type tant que vous ne publiez pas", "发布前为典型菜单", "ਪੋਸਟ ਤੱਕ ਆਮ ਮੀਨੂ", "Menú típico hasta que publique"],
   ["No hot lunch this day. Families will pack.", "Pas de dîner chaud ce jour. Les familles préparent un lunch.", "当天无热午餐。家庭会带饭。", "ਇਸ ਦਿਨ ਗਰਮ ਲੰਚ ਨਹੀਂ। ਪਰਿਵਾਰ ਪੈਕ ਕਰਨਗੇ।", "No hay almuerzo caliente este día. Las familias llevan lunch."],
   ["Item", "Article", "菜品", "ਆਈਟਮ", "Artículo"],
@@ -5265,7 +5267,10 @@ function shiftLunchWeek(delta) {
   const incoming = document.createElement("div");
   incoming.className = "lunch-days is-bar";
   incoming.setAttribute("aria-hidden", "true");
-  incoming.innerHTML = lunchDayChipsHtml(next.week, nextIso);
+  incoming.innerHTML =
+    state.role === "admin"
+      ? adminLunchDayChipsHtml(next.week, nextIso)
+      : lunchDayChipsHtml(next.week, nextIso);
 
   const titleEl = view.querySelector("[data-lunch-week-title]");
   track.style.transition = "none";
@@ -5657,6 +5662,92 @@ function postLunchWeek(week, filename) {
     : `Typical hot lunch is posted for the week of ${tx(meta.dow)} ${meta.day}. Families see it in Cafeteria.`;
 }
 
+function adminLunchDayMark(iso) {
+  return Object.prototype.hasOwnProperty.call(state.lunchMenuByIso, iso) ? "posted" : "typical";
+}
+
+function adminLunchDayChipsHtml(weekMonday, selectedIso) {
+  return lunchWeekdayRow(weekMonday)
+    .map((day) => {
+      const mark = day.open ? adminLunchDayMark(day.iso) : "";
+      const label = !day.open ? "—" : mark === "posted" ? tx("Posted") : tx("Typical");
+      const on = day.iso === selectedIso;
+      return `
+            <button type="button" class="day-chip ${on ? "is-on" : ""} ${day.today ? "is-today" : ""} ${day.open && mark === "posted" ? "has-order" : ""} ${day.open ? "" : "is-off"}" data-lunch-day="${day.iso}" ${day.today ? 'aria-current="date"' : ""} ${day.open ? "" : "disabled"}>
+              <span class="kicker">${tx(day.dow)}${day.today ? `<span class="day-chip-today">${lunchTodayChipLabel()}</span>` : ""}</span>
+              <strong>${day.day}</strong>
+              <span class="lunch-mark">${label}</span>
+            </button>`;
+    })
+    .join("");
+}
+
+function adminLunchWeekBar(selectedIso) {
+  const weeks = lunchWeeks();
+  const weekAt = lunchWeekIndex();
+  const week = weeks[weekAt] || weeks[0];
+  if (!week) return "";
+  return `
+    <div class="lunch-weekbar is-admin">
+      <div class="widget-head">
+        <h2 data-lunch-week-title>${week.title}</h2>
+        <span class="kicker">${tx("Through Nov 6")}</span>
+      </div>
+      <div class="lunch-week-strip">
+        <button type="button" class="lunch-week-nav" data-lunch-week="-1" ${weekAt <= 0 ? "disabled" : ""} aria-label="${tx("Previous week")}">‹</button>
+        <div class="lunch-week-viewport">
+          <div class="lunch-week-track">
+            <div class="lunch-days is-bar">
+              ${adminLunchDayChipsHtml(week.week, selectedIso)}
+            </div>
+          </div>
+        </div>
+        <button type="button" class="lunch-week-nav" data-lunch-week="1" ${weekAt >= weeks.length - 1 ? "disabled" : ""} aria-label="${tx("Next week")}">›</button>
+      </div>
+    </div>`;
+}
+
+function adminLunchItemCard(item) {
+  return `
+    <div class="lunch-main">
+      <div class="title-block">
+        <strong>${tx(item.name)}</strong>
+        <span class="lunch-item-price">${money(item.price)}</span>
+      </div>
+      <button type="button" class="lunch-admin-remove" data-remove-item="${item.id}" aria-label="${tx("Remove")} ${tx(item.name)}">
+        <svg class="qty-glyph" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M3.25 7.25h9.5v1.5h-9.5z"/></svg>
+      </button>
+    </div>`;
+}
+
+function adminLunchAddonBlock(cat, title, items) {
+  const open = lunchGroupOpen(cat, "");
+  const panelId = `lunch-admin-acc-${cat}`;
+  return `
+    <section class="lunch-acc-block ${open ? "is-open" : ""}" data-lunch-acc-block="${cat}">
+      <button type="button" class="lunch-acc ${open ? "is-open" : ""}" data-lunch-acc="${cat}" aria-expanded="${open}" aria-controls="${panelId}">
+        <span class="lunch-acc-lead">
+          <span class="lunch-acc-mark" aria-hidden="true"></span>
+          <span class="lunch-acc-copy">
+            <strong>${tx(title)}</strong>
+            <span class="kicker">${items.length} ${tx(items.length === 1 ? "item" : "items")}</span>
+          </span>
+        </span>
+        <span class="lunch-acc-trail">
+          ${items.length ? `<span class="lunch-acc-count">${items.length}</span>` : ""}
+          <span class="lunch-acc-chev" aria-hidden="true"></span>
+        </span>
+      </button>
+      <div class="lunch-acc-panel" id="${panelId}" role="region" aria-label="${tx(title)}" ${open ? "" : "inert"}>
+        <div class="lunch-acc-panel-inner">
+          <div class="lunch-mains">
+            ${items.map((item) => adminLunchItemCard(item)).join("")}
+          </div>
+        </div>
+      </div>
+    </section>`;
+}
+
 function adminLunch() {
   if (!requireStaff()) return;
   const weeks = lunchWeeks();
@@ -5667,6 +5758,8 @@ function adminLunch() {
   const days = lunchDaysInWeek(week);
   const selected = days.find((d) => d.iso === state.lunchDay) || days[0];
   const menu = selected ? lunchMenu(selected.iso) : [];
+  const mains = menu.filter((item) => item.cat === "main");
+  const addOns = menu.filter((item) => item.cat !== "main");
   const posted = selected && Object.prototype.hasOwnProperty.call(state.lunchMenuByIso, selected.iso);
   paintChrome("lunch");
   setCrumbs(crumbsWithHub("lunch", { label: "Hot lunch menu", href: "#/lunch" }));
@@ -5689,28 +5782,9 @@ function adminLunch() {
         <button type="button" class="btn ghost" id="menu-typical">${tx("Post typical week")}</button>
       </div>
     </section>
-    ${weeks
-      .map(
-        (group) => `
-      <section class="lunch-week">
-        <div class="widget-head"><h2>${group.title}</h2></div>
-        <div class="lunch-days">
-          ${group.days
-            .map(
-              (day) => `
-            <button type="button" class="day-chip ${day.iso === selected?.iso ? "is-on" : ""} ${day.today ? "is-today" : ""}" data-lunch-day="${day.iso}">
-              <span class="kicker">${day.today ? tx("Today") : tx(day.dow)}</span>
-              <strong>${day.day}</strong>
-            </button>`
-            )
-            .join("")}
-        </div>
-      </section>`
-      )
-      .join("")}
     ${
       selected
-        ? `<article class="card lunch-sheet">
+        ? `<article class="card lunch-sheet is-admin">
       <header class="lunch-sheet-head">
         <div>
           <div class="kicker">${posted ? tx("Posted for families") : tx("Typical menu until you post")}</div>
@@ -5719,27 +5793,27 @@ function adminLunch() {
       </header>
       ${
         menu.length
-          ? menu
-              .map(
-                (item) => `
-        <div class="lunch-row">
-          <div class="title-block">
-            <span class="kicker">${tx(LUNCH_CATS.find((c) => c.id === item.cat)?.title || item.cat)}</span>
-            <strong>${tx(item.name)}</strong>
-          </div>
-          <span class="lunch-price">${money(item.price)}</span>
-          <button type="button" class="btn ghost" data-remove-item="${item.id}">${tx("Remove")}</button>
-        </div>`
-              )
-              .join("")
+          ? `
+      <p class="lunch-section">${tx("Today’s main")}</p>
+      <div class="lunch-mains">
+        ${mains.map((item) => adminLunchItemCard(item)).join("") || `<p class="doc-empty">${tx("No hot lunch this day. Families will pack.")}</p>`}
+      </div>
+      <div class="lunch-addons">
+        ${LUNCH_ADDON_GROUPS.map(([cat, title]) => {
+          const items = addOns.filter((item) => item.cat === cat);
+          if (!items.length) return "";
+          return adminLunchAddonBlock(cat, title, items);
+        }).join("")}
+      </div>`
           : `<p class="doc-empty">${tx("No hot lunch this day. Families will pack.")}</p>`
       }
-      <form id="menu-item-form" class="compose" style="grid-template-columns: 120px 1fr 90px auto;padding-top:12px">
+      <form id="menu-item-form" class="lunch-admin-add compose">
         <select id="menu-cat">${LUNCH_CATS.map((c) => `<option value="${c.id}">${tx(c.singular || c.title)}</option>`).join("")}</select>
         <input id="menu-name" placeholder="${tx("Item")}" required />
         <input id="menu-price" inputmode="decimal" placeholder="4.50" required />
         <button class="btn" type="submit">${tx("Add")}</button>
       </form>
+      ${adminLunchWeekBar(selected.iso)}
     </article>`
         : ""
     }
@@ -5750,6 +5824,10 @@ function adminLunch() {
       adminLunch();
     });
   });
+  view.querySelectorAll("[data-lunch-week]").forEach((btn) => {
+    btn.addEventListener("click", () => shiftLunchWeek(Number(btn.dataset.lunchWeek)));
+  });
+  if (selected) bindLunchAccordions(selected.iso);
   document.getElementById("menu-typical")?.addEventListener("click", () => {
     postLunchWeek(week);
     adminLunch();
@@ -5783,6 +5861,7 @@ function adminLunch() {
     state.lunchMenuByIso[selected.iso] = current;
     adminLunch();
   });
+  requestAnimationFrame(() => scrollLunchWeekChipIntoView(selected?.iso));
 }
 
 function teacherLunchList() {
