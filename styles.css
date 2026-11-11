@@ -36,7 +36,9 @@
   --rail-sub-active-bg: rgba(255, 255, 255, 0.12);
   --rail-group-open-bg: rgba(255, 255, 255, 0.05);
   --mark-glyph: linear-gradient(135deg, var(--coral) 0%, var(--sage) 100%);
-  --rail-badge-muted: color-mix(in srgb, var(--coral) 38%, #e8eef6);
+  --rail-badge-base: #e8eef6;
+  --rail-badge-strength: 38%;
+  --rail-badge-muted: color-mix(in srgb, var(--coral) var(--rail-badge-strength), var(--rail-badge-base));
   --new-row-bg: color-mix(in srgb, var(--coral) 7%, transparent);
   --grain-opacity: 0;
   --focus-ring: var(--sage);
@@ -74,7 +76,9 @@
   --rail-role: #8b96a8;
   --rail-sub-active-bg: rgba(255, 255, 255, 0.12);
   --rail-group-open-bg: rgba(255, 255, 255, 0.05);
-  --rail-badge-muted: color-mix(in srgb, var(--coral) 42%, #1c2533);
+  --rail-badge-base: #1c2533;
+  --rail-badge-strength: 42%;
+  --rail-badge-muted: color-mix(in srgb, var(--coral) var(--rail-badge-strength), var(--rail-badge-base));
   --grain-opacity: 0.03;
   --solid-bg: var(--panel);
   --solid-ink: var(--ink);
@@ -97,19 +101,22 @@
   --font-display: "IBM Plex Sans", system-ui, sans-serif;
   --rail-bg: #fbfcfd;
   --rail-ink: #2a3441;
-  --rail-muted: #6b7a88;
+  /* Pale rail: muted labels must stay ≥ ~5.5:1 (was #6b7a88 ≈ 4.3). */
+  --rail-muted: #3f4e5c;
   --rail-hover: color-mix(in srgb, var(--sage) 10%, transparent);
   --rail-active-bg: #e3f3f1;
-  --rail-active-ink: #217872;
+  --rail-active-ink: #1a5f5a;
   --rail-line: color-mix(in srgb, var(--line) 85%, var(--sage));
   --rail-soft-bg: color-mix(in srgb, var(--paper-2) 70%, transparent);
   --rail-chip-bg: color-mix(in srgb, var(--paper-2) 80%, transparent);
   --rail-chip-on-bg: #e3f3f1;
   --rail-chip-on-ink: #2a3441;
-  --rail-role: #6b7a88;
+  --rail-role: #3f4e5c;
   --rail-sub-active-bg: #e3f3f1;
   --rail-group-open-bg: var(--rail-hover);
-  --rail-badge-muted: color-mix(in srgb, var(--coral) 28%, var(--panel));
+  --rail-badge-base: var(--panel);
+  --rail-badge-strength: 28%;
+  --rail-badge-muted: color-mix(in srgb, var(--coral) var(--rail-badge-strength), var(--rail-badge-base));
   --grain-opacity: 0.04;
   --solid-bg: var(--sage);
   --solid-ink: var(--on-dark);
@@ -132,19 +139,22 @@
   --font-display: "IBM Plex Sans", system-ui, sans-serif;
   --rail-bg: #f7f6f3;
   --rail-ink: #3a4248;
-  --rail-muted: #727a80;
+  /* Pale rail: muted labels must stay ≥ ~5.5:1 (was #727a80 ≈ 4.0). */
+  --rail-muted: #454d52;
   --rail-hover: color-mix(in srgb, var(--sage) 12%, transparent);
   --rail-active-bg: color-mix(in srgb, var(--sage) 14%, var(--panel));
-  --rail-active-ink: #4d776f;
+  --rail-active-ink: #3a5f58;
   --rail-line: #dddcd6;
   --rail-soft-bg: color-mix(in srgb, var(--paper-2) 65%, transparent);
   --rail-chip-bg: color-mix(in srgb, var(--paper-2) 75%, transparent);
   --rail-chip-on-bg: color-mix(in srgb, var(--sage) 14%, var(--panel));
   --rail-chip-on-ink: #3a4248;
-  --rail-role: #727a80;
+  --rail-role: #454d52;
   --rail-sub-active-bg: color-mix(in srgb, var(--sage) 16%, var(--panel));
   --rail-group-open-bg: var(--rail-hover);
-  --rail-badge-muted: color-mix(in srgb, var(--coral) 26%, var(--panel));
+  --rail-badge-base: var(--panel);
+  --rail-badge-strength: 26%;
+  --rail-badge-muted: color-mix(in srgb, var(--coral) var(--rail-badge-strength), var(--rail-badge-base));
   --grain-opacity: 0.035;
   --solid-bg: var(--sage);
   --solid-ink: var(--on-dark);
@@ -181,7 +191,9 @@
   --rail-role: #8b96a8;
   --rail-sub-active-bg: rgba(217, 119, 6, 0.22);
   --rail-group-open-bg: rgba(255, 255, 255, 0.05);
-  --rail-badge-muted: color-mix(in srgb, var(--amber) 40%, #e8eef6);
+  --rail-badge-base: #e8eef6;
+  --rail-badge-strength: 40%;
+  --rail-badge-muted: color-mix(in srgb, var(--amber) var(--rail-badge-strength), var(--rail-badge-base));
   --grain-opacity: 0;
   --solid-bg: var(--ink);
   --solid-ink: var(--on-dark);
@@ -237,57 +249,58 @@ html[data-primary="purple"] {
 
 html[data-secondary="burgundy"] {
   --coral: #8f2d3a;
-  --rail-badge-muted: color-mix(in srgb, #8f2d3a 38%, #e8eef6);
+  --rail-badge-muted: color-mix(in srgb, #8f2d3a var(--rail-badge-strength), var(--rail-badge-base));
   --new-row-bg: color-mix(in srgb, #8f2d3a 7%, transparent);
 }
 html[data-secondary="crimson"] {
   --coral: #9a3040;
-  --rail-badge-muted: color-mix(in srgb, #9a3040 38%, #e8eef6);
+  --rail-badge-muted: color-mix(in srgb, #9a3040 var(--rail-badge-strength), var(--rail-badge-base));
   --new-row-bg: color-mix(in srgb, #9a3040 7%, transparent);
 }
 html[data-secondary="clay"] {
   --coral: #8f4a2d;
-  --rail-badge-muted: color-mix(in srgb, #8f4a2d 38%, #e8eef6);
+  --rail-badge-muted: color-mix(in srgb, #8f4a2d var(--rail-badge-strength), var(--rail-badge-base));
   --new-row-bg: color-mix(in srgb, #8f4a2d 7%, transparent);
 }
 html[data-secondary="rose"] {
   --coral: #8f2d55;
-  --rail-badge-muted: color-mix(in srgb, #8f2d55 38%, #e8eef6);
+  --rail-badge-muted: color-mix(in srgb, #8f2d55 var(--rail-badge-strength), var(--rail-badge-base));
   --new-row-bg: color-mix(in srgb, #8f2d55 7%, transparent);
 }
 html[data-secondary="gold"] {
   --coral: #8f7324;
-  --rail-badge-muted: color-mix(in srgb, #8f7324 38%, #e8eef6);
+  --rail-badge-muted: color-mix(in srgb, #8f7324 var(--rail-badge-strength), var(--rail-badge-base));
   --new-row-bg: color-mix(in srgb, #8f7324 7%, transparent);
 }
 html[data-secondary="amber"] {
   --coral: #8f6b2d;
-  --rail-badge-muted: color-mix(in srgb, #8f6b2d 38%, #e8eef6);
+  --rail-badge-muted: color-mix(in srgb, #8f6b2d var(--rail-badge-strength), var(--rail-badge-base));
   --new-row-bg: color-mix(in srgb, #8f6b2d 7%, transparent);
 }
 html[data-secondary="mustard"] {
   --coral: #8a7a2e;
-  --rail-badge-muted: color-mix(in srgb, #8a7a2e 38%, #e8eef6);
+  --rail-badge-muted: color-mix(in srgb, #8a7a2e var(--rail-badge-strength), var(--rail-badge-base));
   --new-row-bg: color-mix(in srgb, #8a7a2e 7%, transparent);
 }
 html[data-secondary="sky"] {
   --coral: #2d5a8f;
-  --rail-badge-muted: color-mix(in srgb, #2d5a8f 38%, #e8eef6);
+  --rail-badge-muted: color-mix(in srgb, #2d5a8f var(--rail-badge-strength), var(--rail-badge-base));
   --new-row-bg: color-mix(in srgb, #2d5a8f 7%, transparent);
 }
 html[data-secondary="olive"] {
   --coral: #5a6f2d;
-  --rail-badge-muted: color-mix(in srgb, #5a6f2d 38%, #e8eef6);
+  --rail-badge-muted: color-mix(in srgb, #5a6f2d var(--rail-badge-strength), var(--rail-badge-base));
   --new-row-bg: color-mix(in srgb, #5a6f2d 7%, transparent);
 }
 html[data-secondary="steel"] {
   --coral: #3d4f5f;
-  --rail-badge-muted: color-mix(in srgb, #3d4f5f 38%, #e8eef6);
+  --rail-badge-muted: color-mix(in srgb, #3d4f5f var(--rail-badge-strength), var(--rail-badge-base));
   --new-row-bg: color-mix(in srgb, #3d4f5f 7%, transparent);
 }
 html[data-secondary="chalk"] {
   --coral: #8a8580;
-  --rail-badge-muted: color-mix(in srgb, #8a8580 42%, #e8eef6);
+  --rail-badge-strength: 42%;
+  --rail-badge-muted: color-mix(in srgb, #8a8580 var(--rail-badge-strength), var(--rail-badge-base));
   --new-row-bg: color-mix(in srgb, #8a8580 8%, transparent);
 }
 
@@ -338,57 +351,57 @@ html[data-theme="dark"][data-primary="purple"] {
 }
 html[data-theme="dark"][data-secondary="burgundy"] {
   --coral: #d47884;
-  --rail-badge-muted: color-mix(in srgb, #d47884 42%, #1c2533);
+  --rail-badge-muted: color-mix(in srgb, #d47884 var(--rail-badge-strength), var(--rail-badge-base));
   --new-row-bg: color-mix(in srgb, #d47884 12%, transparent);
 }
 html[data-theme="dark"][data-secondary="crimson"] {
   --coral: #d47884;
-  --rail-badge-muted: color-mix(in srgb, #d47884 42%, #1c2533);
+  --rail-badge-muted: color-mix(in srgb, #d47884 var(--rail-badge-strength), var(--rail-badge-base));
   --new-row-bg: color-mix(in srgb, #d47884 12%, transparent);
 }
 html[data-theme="dark"][data-secondary="clay"] {
   --coral: #d49478;
-  --rail-badge-muted: color-mix(in srgb, #d49478 42%, #1c2533);
+  --rail-badge-muted: color-mix(in srgb, #d49478 var(--rail-badge-strength), var(--rail-badge-base));
   --new-row-bg: color-mix(in srgb, #d49478 12%, transparent);
 }
 html[data-theme="dark"][data-secondary="rose"] {
   --coral: #d478a0;
-  --rail-badge-muted: color-mix(in srgb, #d478a0 42%, #1c2533);
+  --rail-badge-muted: color-mix(in srgb, #d478a0 var(--rail-badge-strength), var(--rail-badge-base));
   --new-row-bg: color-mix(in srgb, #d478a0 12%, transparent);
 }
 html[data-theme="dark"][data-secondary="gold"] {
   --coral: #d4b878;
-  --rail-badge-muted: color-mix(in srgb, #d4b878 42%, #1c2533);
+  --rail-badge-muted: color-mix(in srgb, #d4b878 var(--rail-badge-strength), var(--rail-badge-base));
   --new-row-bg: color-mix(in srgb, #d4b878 12%, transparent);
 }
 html[data-theme="dark"][data-secondary="amber"] {
   --coral: #d4b078;
-  --rail-badge-muted: color-mix(in srgb, #d4b078 42%, #1c2533);
+  --rail-badge-muted: color-mix(in srgb, #d4b078 var(--rail-badge-strength), var(--rail-badge-base));
   --new-row-bg: color-mix(in srgb, #d4b078 12%, transparent);
 }
 html[data-theme="dark"][data-secondary="mustard"] {
   --coral: #d0c078;
-  --rail-badge-muted: color-mix(in srgb, #d0c078 42%, #1c2533);
+  --rail-badge-muted: color-mix(in srgb, #d0c078 var(--rail-badge-strength), var(--rail-badge-base));
   --new-row-bg: color-mix(in srgb, #d0c078 12%, transparent);
 }
 html[data-theme="dark"][data-secondary="sky"] {
   --coral: #7aa7d9;
-  --rail-badge-muted: color-mix(in srgb, #7aa7d9 42%, #1c2533);
+  --rail-badge-muted: color-mix(in srgb, #7aa7d9 var(--rail-badge-strength), var(--rail-badge-base));
   --new-row-bg: color-mix(in srgb, #7aa7d9 12%, transparent);
 }
 html[data-theme="dark"][data-secondary="olive"] {
   --coral: #a8b878;
-  --rail-badge-muted: color-mix(in srgb, #a8b878 42%, #1c2533);
+  --rail-badge-muted: color-mix(in srgb, #a8b878 var(--rail-badge-strength), var(--rail-badge-base));
   --new-row-bg: color-mix(in srgb, #a8b878 12%, transparent);
 }
 html[data-theme="dark"][data-secondary="steel"] {
   --coral: #8a9aac;
-  --rail-badge-muted: color-mix(in srgb, #8a9aac 42%, #1c2533);
+  --rail-badge-muted: color-mix(in srgb, #8a9aac var(--rail-badge-strength), var(--rail-badge-base));
   --new-row-bg: color-mix(in srgb, #8a9aac 12%, transparent);
 }
 html[data-theme="dark"][data-secondary="chalk"] {
   --coral: #b8b4ae;
-  --rail-badge-muted: color-mix(in srgb, #b8b4ae 42%, #1c2533);
+  --rail-badge-muted: color-mix(in srgb, #b8b4ae var(--rail-badge-strength), var(--rail-badge-base));
   --new-row-bg: color-mix(in srgb, #b8b4ae 12%, transparent);
 }
 
@@ -524,8 +537,15 @@ button,
 
 .child-switch .child-grade {
   font-size: 11px;
+  /* Role token (not opacity-on-muted) so pale rails keep readable sublabels. */
+  color: var(--rail-role);
+  opacity: 1;
+}
+
+.child-switch button.is-on .child-grade,
+.child-switch button:hover .child-grade {
   color: inherit;
-  opacity: 0.72;
+  opacity: 0.8;
 }
 
 .rail-nav {
@@ -627,7 +647,8 @@ button,
   padding: 10px 12px;
   border-radius: 10px;
   font-size: 14.5px;
-  color: #9aa6b8;
+  /* Was hardcoded #9aa6b8 (dark-rail gray) — washed out on pale rails. */
+  color: var(--rail-muted);
   opacity: 0;
   transform: translateY(-6px);
   transition:
