@@ -1004,6 +1004,21 @@ function sendParentHome() {
   return state.edition === "mvp" ? mvpParentHome() : parentHome();
 }
 
+/** Role-correct home after an admin-only gate. Prefer replaceState (no hashchange flash). */
+function bounceToRoleHome() {
+  if (isParentRole()) return sendParentHome();
+  if (location.hash && location.hash !== "#" && location.hash !== "#/") {
+    history.replaceState(null, "", `${location.pathname}${location.search}#/`);
+  }
+  if (state.role === "teacher") {
+    return state.edition === "mvp" ? mvpStaffHome() : teacherHome();
+  }
+  if (state.role === "admin") {
+    return state.edition === "mvp" ? mvpStaffHome() : adminHome();
+  }
+  return sendParentHome();
+}
+
 function requireStaff() {
   if (!isParentRole()) return true;
   sendParentHome();
@@ -4226,6 +4241,26 @@ function txf(template, vars = {}, lang = readLang()) {
   return out;
 }
 
+/** Escape for text nodes / HTML body interpolation into innerHTML. */
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/** Escape for double-quoted HTML attribute values. */
+function escapeAttr(value) {
+  return escapeHtml(value);
+}
+
+/** Translate then escape — safe for dynamic strings rendered into innerHTML. */
+function etx(text, lang = readLang()) {
+  return escapeHtml(tx(text, lang));
+}
+
 function remember(en, lang, translated) {
   if (!BOOK[en]) BOOK[en] = {};
   BOOK[en][lang] = translated;
@@ -4611,11 +4646,11 @@ function askBar(current = "") {
         <h2>${tx("Ask my portal")}</h2>
       </div>
       <div class="ask-row">
-        <input id="ask-q" name="q" value="${current.replace(/"/g, "&quot;")}" placeholder="${ph}" autocomplete="off" />
+        <input id="ask-q" name="q" value="${escapeAttr(current)}" placeholder="${escapeAttr(ph)}" autocomplete="off" />
         <button class="btn" type="submit">${tx("Ask")}</button>
       </div>
       <div class="ask-hints">
-        ${hints.map((h) => `<button type="button" class="chip" data-ask="${h.replace(/"/g, "&quot;")}">${h}</button>`).join("")}
+        ${hints.map((h) => `<button type="button" class="chip" data-ask="${escapeAttr(h)}">${escapeHtml(h)}</button>`).join("")}
       </div>
     </form>`;
 }
@@ -4657,11 +4692,11 @@ function askView(rawQuery) {
       result
         ? `<article class="card ask-answer ${result.miss ? "is-miss" : ""}">
             <div class="kicker">Harbor AI</div>
-            <p class="ask-q">${result.question}</p>
-            <p class="ask-a">${result.answer}</p>
+            <p class="ask-q">${escapeHtml(result.question)}</p>
+            <p class="ask-a">${escapeHtml(result.answer)}</p>
             ${
               result.sources.length
-                ? `<div class="ask-sources">${result.sources.map((s) => `<a class="btn ghost" href="${s.href}">${s.label}</a>`).join("")}</div>`
+                ? `<div class="ask-sources">${result.sources.map((s) => `<a class="btn ghost" href="${escapeAttr(s.href)}">${escapeHtml(s.label)}</a>`).join("")}</div>`
                 : ""
             }
           </article>`
@@ -4746,9 +4781,10 @@ function setCrumbs(items) {
   crumbs.innerHTML = items
     .map((item, i) => {
       const last = i === items.length - 1;
+      const label = etx(item.label);
       return last
-        ? `<span class="here">${tx(item.label)}</span>`
-        : `<a href="${item.href}">${tx(item.label)}</a><span aria-hidden="true">/</span>`;
+        ? `<span class="here">${label}</span>`
+        : `<a href="${escapeAttr(item.href || "#/")}">${label}</a><span aria-hidden="true">/</span>`;
     })
     .join("");
 }
@@ -4898,7 +4934,7 @@ function reminderBanner() {
     <div class="banner">
       <div>
         <strong>${tx("Reminder")}</strong>
-        ${tx(nextReminder.title)} — ${tx(nextReminder.body)}
+        ${etx(nextReminder.title)} — ${etx(nextReminder.body)}
       </div>
       <a class="btn ghost" href="#/alerts">${tx("Notifications")}</a>
     </div>`;
@@ -4916,11 +4952,11 @@ function alertGroup(title, list, { href, extra } = {}) {
           ? list
               .map(
                 (alert) => `
-        <a class="list-row ${alert.unread ? "is-new" : ""}" href="${alertHref(alert)}" data-alert="${alert.id}">
+        <a class="list-row ${alert.unread ? "is-new" : ""}" href="${escapeAttr(alertHref(alert))}" data-alert="${escapeAttr(alert.id)}">
           <div class="title-block">
-            <span class="kicker">${tx(alert.when)} · ${tx(alert.kind === "reminder" ? "Reminder" : "Notification")}</span>
-            <strong>${tx(alert.title)}</strong>
-            <span class="kicker">${tx(alert.body)}</span>
+            <span class="kicker">${etx(alert.when)} · ${tx(alert.kind === "reminder" ? "Reminder" : "Notification")}</span>
+            <strong>${etx(alert.title)}</strong>
+            <span class="kicker">${etx(alert.body)}</span>
           </div>
           ${alert.unread ? pill("New", "risk") : pill("Read")}
         </a>`
@@ -5160,7 +5196,7 @@ function alertsView() {
 
 function notice() {
   if (!state.notice) return "";
-  return `<div class="banner"><span>${state.notice}</span></div>`;
+  return `<div class="banner"><span>${escapeHtml(state.notice)}</span></div>`;
 }
 
 function parentHome() {
@@ -7042,11 +7078,11 @@ function messages(id) {
         ${dreamThreads()
           .map(
             (t) => `
-          <a class="list-row" href="#/messages/${t.id}">
+          <a class="list-row" href="#/messages/${escapeAttr(t.id)}">
             <div class="title-block">
-              <span class="kicker">${t.role}</span>
-              <strong>${t.with}</strong>
-              <span class="kicker">${tx(t.preview)}</span>
+              <span class="kicker">${escapeHtml(t.role)}</span>
+              <strong>${escapeHtml(t.with)}</strong>
+              <span class="kicker">${etx(t.preview)}</span>
             </div>
             ${pill("Open")}
           </a>`
@@ -7059,8 +7095,8 @@ function messages(id) {
   view.innerHTML = `
     <div class="hero">
       <div>
-        <h1>${thread.with}</h1>
-        <p class="lede">${tx(thread.role)} · ${child().name}</p>
+        <h1>${escapeHtml(thread.with)}</h1>
+        <p class="lede">${etx(thread.role)} · ${escapeHtml(child().name)}</p>
       </div>
     </div>
     <section class="card panel">
@@ -7072,14 +7108,14 @@ function messages(id) {
             const sourceLang = m.lang || (parentWrote ? "es" : "en");
             return `
               <div class="bubble ${cssMine ? "me" : ""}">
-                ${tx(m.text)}
-                ${sourceLang !== readLang() ? `<div class="kicker">AI · ${LANGS[sourceLang].native} → ${LANGS[readLang()].native}</div>` : ""}
+                ${etx(m.text)}
+                ${sourceLang !== readLang() ? `<div class="kicker">AI · ${escapeHtml(LANGS[sourceLang].native)} → ${escapeHtml(LANGS[readLang()].native)}</div>` : ""}
               </div>`;
           })
           .join("")}
       </div>
       <form class="compose" id="compose">
-        <input id="draft" placeholder="${state.role === "parent" ? tx("Reply") + "…" : "Reply in English…"}" value="${state.draft}" />
+        <input id="draft" placeholder="${escapeAttr(state.role === "parent" ? tx("Reply") + "…" : "Reply in English…")}" value="${escapeAttr(state.draft)}" />
         <button class="btn" type="submit">${tx("Send")}</button>
       </form>
     </section>
@@ -7527,9 +7563,9 @@ function rosterResultsHtml() {
     .map((s) => {
       const on = state.officeFind.pick === s.id ? "is-on" : "";
       return `
-        <button type="button" class="roster-pick ${on}" data-pick="${s.id}">
-          <strong>${s.name}</strong>
-          <span>${s.grade} · ${s.room} · ${s.teacher}</span>
+        <button type="button" class="roster-pick ${on}" data-pick="${escapeAttr(s.id)}">
+          <strong>${escapeHtml(s.name)}</strong>
+          <span>${escapeHtml(s.grade)} · ${escapeHtml(s.room)} · ${escapeHtml(s.teacher)}</span>
         </button>`;
     })
     .join("");
@@ -7556,7 +7592,7 @@ function bindRosterPicks() {
 function selectedStudentHtml() {
   const s = rosterStudent(state.officeFind.pick);
   if (!s) return `<p class="kicker" style="margin:0">Search or filter, then choose a student.</p>`;
-  return `<p class="selected-student"><strong>${s.name}</strong> · ${s.grade} · ${s.room} · ${s.teacher}</p>`;
+  return `<p class="selected-student"><strong>${escapeHtml(s.name)}</strong> · ${escapeHtml(s.grade)} · ${escapeHtml(s.room)} · ${escapeHtml(s.teacher)}</p>`;
 }
 
 function adminAttendance() {
@@ -7783,9 +7819,9 @@ function sendHomeRow(item) {
   return `
     <div class="list-row">
       <div class="title-block">
-        <span class="kicker">${meta}</span>
-        <strong>${item.title}</strong>
-        <span class="kicker send-home-snippet">${item.body}</span>
+        <span class="kicker">${escapeHtml(meta)}</span>
+        <strong>${escapeHtml(item.title)}</strong>
+        <span class="kicker send-home-snippet">${escapeHtml(item.body)}</span>
       </div>
       ${sourcePill(item.source)}
       ${pill(sendHomeAudienceLabel(item), item.staffOnly ? "amber" : "")}
@@ -8097,17 +8133,17 @@ function scanReview() {
       <section class="card panel" style="padding-bottom:18px">
         <h2>${tx("Structured from the page")}</h2>
         <form id="ocr-form">
-          <div class="field"><label for="ocr-title">${tx("Event title")}</label><input id="ocr-title" value="${draft.title}" required /></div>
+          <div class="field"><label for="ocr-title">${tx("Event title")}</label><input id="ocr-title" value="${escapeAttr(draft.title)}" required /></div>
           <div class="field"><label for="ocr-day">${tx("Day")}</label>
             <select id="ocr-day">${["Mon", "Tue", "Wed", "Thu", "Fri"].map((d) => `<option ${d === draft.day ? "selected" : ""}>${d}</option>`).join("")}</select>
           </div>
-          <div class="field"><label for="ocr-time">${tx("Time")}</label><input id="ocr-time" value="${draft.time}" required /></div>
-          <div class="field"><label for="ocr-where">${tx("Where")}</label><input id="ocr-where" value="${draft.where}" /></div>
-          <div class="field"><label for="ocr-cost">${tx("Cost")}</label><input id="ocr-cost" value="${draft.cost}" /></div>
+          <div class="field"><label for="ocr-time">${tx("Time")}</label><input id="ocr-time" value="${escapeAttr(draft.time)}" required /></div>
+          <div class="field"><label for="ocr-where">${tx("Where")}</label><input id="ocr-where" value="${escapeAttr(draft.where)}" /></div>
+          <div class="field"><label for="ocr-cost">${tx("Cost")}</label><input id="ocr-cost" value="${escapeAttr(draft.cost)}" /></div>
           <div class="field">
             <label><input type="checkbox" id="ocr-perm" ${draft.permission ? "checked" : ""} /> ${tx("Permission / consent required")}</label>
           </div>
-          <div class="field"><label for="ocr-body">${tx("What they see")}</label><textarea id="ocr-body" rows="3">${draft.body}</textarea></div>
+          <div class="field"><label for="ocr-body">${tx("What they see")}</label><textarea id="ocr-body" rows="3">${escapeHtml(draft.body)}</textarea></div>
           ${audienceToggleHtml("ocr-audience", "parents")}
           <button class="btn" type="submit">${tx("Publish send-home")}</button>
         </form>
@@ -8220,10 +8256,10 @@ function scanView(step) {
 
 function commRow(item) {
   return `
-    <a class="list-row" href="#/inbox/${item.id}">
+    <a class="list-row" href="#/inbox/${escapeAttr(item.id)}">
       <div class="title-block">
-        <span class="kicker">${item.from} · ${tx(item.time)}</span>
-        <strong>${tx(item.title)}</strong>
+        <span class="kicker">${escapeHtml(item.from)} · ${etx(item.time)}</span>
+        <strong>${etx(item.title)}</strong>
       </div>
       ${sourcePill(item.source)}
       ${item.unread ? pill("New", "risk") : ""}
@@ -8234,8 +8270,8 @@ function schedRow(item) {
   return `
     <div class="list-row">
       <div class="title-block">
-        <span class="kicker">${tx(item.day)} · ${item.time} · ${tx(item.where)}</span>
-        <strong>${tx(item.title)}</strong>
+        <span class="kicker">${etx(item.day)} · ${escapeHtml(item.time)} · ${etx(item.where)}</span>
+        <strong>${etx(item.title)}</strong>
       </div>
       ${sourcePill(item.source)}
     </div>`;
@@ -8243,10 +8279,10 @@ function schedRow(item) {
 
 function docRow(item) {
   return `
-    <a class="list-row" href="#/docs/${item.id}">
+    <a class="list-row" href="#/docs/${escapeAttr(item.id)}">
       <div class="title-block">
-        <span class="kicker">${tx(bucketTitle(docBucket(item)))} · ${tx(item.kind)}</span>
-        <strong>${tx(item.title)}</strong>
+        <span class="kicker">${etx(bucketTitle(docBucket(item)))} · ${etx(item.kind)}</span>
+        <strong>${etx(item.title)}</strong>
       </div>
       ${sourcePill(item.source)}
       ${item.signed ? pill("Signed") : item.unread ? pill("New", "risk") : ""}
@@ -8256,10 +8292,10 @@ function docRow(item) {
 function eventRow(item) {
   const href = item.campaignId ? `#/fundraise/${item.campaignId}` : `#/events/${item.id}`;
   return `
-    <a class="list-row ${item.unread ? "is-new" : ""}" href="${href}">
+    <a class="list-row ${item.unread ? "is-new" : ""}" href="${escapeAttr(href)}">
       <div class="title-block">
-        <span class="kicker">${tx(eventKindMeta(item.kind).title)} · ${tx(item.when)} · ${tx(item.where)}</span>
-        <strong>${tx(item.title)}</strong>
+        <span class="kicker">${etx(eventKindMeta(item.kind).title)} · ${etx(item.when)} · ${etx(item.where)}</span>
+        <strong>${etx(item.title)}</strong>
       </div>
       ${pill(eventKindMeta(item.kind).singular, eventKindTone(item.kind))}
       ${item.going ? pill("Going") : item.unread ? pill("New", "risk") : ""}
@@ -8617,10 +8653,7 @@ function setupChecklistItems(flags) {
 function requireAdminSetup() {
   if (state.role !== "admin") {
     state.notice = tx("Only the office can run school Setup.");
-    location.hash = "#/";
-    if (state.edition === "mvp") return mvpStaffHome();
-    if (state.role === "teacher") return teacherHome();
-    return parentHome();
+    return bounceToRoleHome();
   }
   return true;
 }
@@ -8842,7 +8875,7 @@ function setupRosterWizard() {
           ${tx("Choose CSV")}
           <input type="file" id="roster-file" accept=".csv,text/csv" hidden />
         </label>
-        <span class="kicker" id="roster-file-label">${wiz.fileName ? wiz.fileName : tx("No file yet")}</span>
+        <span class="kicker" id="roster-file-label">${wiz.fileName ? escapeHtml(wiz.fileName) : tx("No file yet")}</span>
       </section>`;
   } else if (wiz.step === "preview") {
     const errN = wiz.errors.length;
@@ -8851,7 +8884,7 @@ function setupRosterWizard() {
     body = `
       <section class="card panel">
         <h2>${tx("3 · Preview & validation")}</h2>
-        <p class="lede">${wiz.fileName || tx("Uploaded file")} · ${wiz.rows.length} ${tx("rows")} ·
+        <p class="lede">${escapeHtml(wiz.fileName || tx("Uploaded file"))} · ${wiz.rows.length} ${tx("rows")} ·
           ${errN ? pill(`${errN} errors`, "risk") : pill("No blocking errors")}
           ${warnN ? pill(`${warnN} warnings`, "amber") : ""}
         </p>
@@ -8859,17 +8892,17 @@ function setupRosterWizard() {
           errN || warnN
             ? `<div class="setup-issues">${[...wiz.errors.map((e) => ({ ...e, kind: "error" })), ...wiz.warnings.map((w) => ({ ...w, kind: "warn" }))]
                 .slice(0, 8)
-                .map((e) => `<div class="setup-issue is-${e.kind}">${tx("Row")} ${e.row}: ${e.message}</div>`)
+                .map((e) => `<div class="setup-issue is-${e.kind}">${tx("Row")} ${escapeHtml(e.row)}: ${escapeHtml(e.message)}</div>`)
                 .join("")}${errN + warnN > 8 ? `<p class="kicker">+${errN + warnN - 8} more</p>` : ""}</div>`
             : ""
         }
         <div class="table-scroll">
           <table class="setup-table">
-            <thead><tr>${headers.map((h) => `<th>${h}</th>`).join("")}</tr></thead>
+            <thead><tr>${headers.map((h) => `<th>${escapeHtml(h)}</th>`).join("")}</tr></thead>
             <tbody>
               ${wiz.rows
                 .slice(0, 12)
-                .map((r) => `<tr>${headers.map((h) => `<td>${r[h] || ""}</td>`).join("")}</tr>`)
+                .map((r) => `<tr>${headers.map((h) => `<td>${escapeHtml(r[h] || "")}</td>`).join("")}</tr>`)
                 .join("")}
             </tbody>
           </table>
@@ -8994,13 +9027,13 @@ function setupInvitesView() {
                 (inv) => `
         <div class="list-row invite-row">
           <div class="title-block">
-            <span class="kicker">${inv.kind === "staff" ? tx("Staff") : tx("Parent")} · ${inv.email}</span>
-            <strong>${inv.name}</strong>
+            <span class="kicker">${inv.kind === "staff" ? tx("Staff") : tx("Parent")} · ${escapeHtml(inv.email)}</span>
+            <strong>${escapeHtml(inv.name)}</strong>
             <span class="kicker">${
               inv.students?.length
-                ? txf("Linked: {names}", { names: inv.students.join(", ") })
+                ? escapeHtml(txf("Linked: {names}", { names: inv.students.join(", ") }))
                 : inv.role
-                  ? tx(inv.role)
+                  ? etx(inv.role)
                   : ""
             }</span>
           </div>
@@ -9008,13 +9041,13 @@ function setupInvitesView() {
             ${inv.status === "pending" ? pill("Pending", "amber") : pill("Claimed")}
             ${
               inv.status === "pending" && inv.kind === "parent" && inv.claimToken
-                ? `<a class="btn ghost" href="#/claim/${inv.claimToken}">${tx("Preview claim")}</a>`
+                ? `<a class="btn ghost" href="#/claim/${escapeAttr(inv.claimToken)}">${tx("Preview claim")}</a>`
                 : ""
             }
             ${
               inv.status === "pending"
-                ? `<button type="button" class="btn ghost" data-resend="${inv.id}">${tx("Resend")}</button>`
-                : `<span class="kicker">${inv.claimedAt || inv.sentAt || ""}</span>`
+                ? `<button type="button" class="btn ghost" data-resend="${escapeAttr(inv.id)}">${tx("Resend")}</button>`
+                : `<span class="kicker">${escapeHtml(inv.claimedAt || inv.sentAt || "")}</span>`
             }
           </div>
         </div>`
@@ -9099,7 +9132,8 @@ function claimView(token) {
     defaultInvites().find((i) => i.claimToken === "demo-jordan");
   const names = inv?.students?.length ? inv.students : ["Maya", "Noah", "Samira"];
   const studentIds = inv?.studentIds?.length ? inv.studentIds : ["maya", "noah", "samira"];
-  // Show claim as the parent surface (magic-link landing).
+  // Claim is a parent magic-link landing. Only restore admin if they arrived as admin (preview).
+  const returnToAdmin = state.role === "admin";
   state.role = "parent";
   if (studentIds[0]) {
     state.childId = studentIds[0];
@@ -9107,14 +9141,15 @@ function claimView(token) {
   }
   paintChrome("home");
   setCrumbs([{ label: "Claim invite", href: `#/claim/${token || "demo-jordan"}` }]);
+  const guardianName = inv?.name || "Jordan Bowser";
   view.innerHTML = `
     ${notice()}
     <div class="claim-shell">
       <p class="kicker setup-demo-tag">${tx("Magic-link simulation · demo")}</p>
       <h1>${tx("You’re invited to Harbor")}</h1>
-      <p class="lede">${txf("Cedar Hill K–8 invited {name} as guardian of children already on the school roster.", {
-        name: inv?.name || "Jordan Bowser",
-      })}</p>
+      <p class="lede">${escapeHtml(txf("Cedar Hill K–8 invited {name} as guardian of children already on the school roster.", {
+        name: guardianName,
+      }))}</p>
       <section class="card panel claim-kids">
         <h2>${tx("Children to claim")}</h2>
         <p class="kicker" style="margin-bottom:10px">${tx("Pre-linked from the office roster — not a blank “add my kid” form.")}</p>
@@ -9122,20 +9157,29 @@ function claimView(token) {
           .map((n, i) => {
             const stu = rosterStudent(studentIds[i]) || { grade: "", room: "" };
             return `<div class="claim-kid">
-              <strong>${n}</strong>
-              <span class="kicker">${stu.grade || ""}${stu.room ? ` · ${stu.room}` : ""}</span>
+              <strong>${escapeHtml(n)}</strong>
+              <span class="kicker">${escapeHtml(stu.grade || "")}${stu.room ? ` · ${escapeHtml(stu.room)}` : ""}</span>
             </div>`;
           })
           .join("")}
       </section>
       <div class="field" style="margin-top:16px">
         <label for="claim-email">${tx("Confirm email")}</label>
-        <input id="claim-email" type="email" value="${inv?.email || "jordan.bowser@example.com"}" readonly />
+        <input id="claim-email" type="email" value="${escapeAttr(inv?.email || "jordan.bowser@example.com")}" readonly />
       </div>
       <div class="actions" style="margin-top:16px">
         <button type="button" class="btn" id="claim-continue">${tx("Confirm & continue")}</button>
-        <button type="button" class="btn ghost" id="claim-to-admin">${tx("Back to admin invites")}</button>
+        ${
+          returnToAdmin
+            ? `<button type="button" class="btn ghost" id="claim-to-admin">${tx("Back to admin invites")}</button>`
+            : ""
+        }
       </div>
+      ${
+        returnToAdmin
+          ? ""
+          : `<p class="kicker" style="margin-top:10px">${tx("Office staff: use the Temp role switcher (Admin), then open Setup → Invites.")}</p>`
+      }
       <p class="kicker" style="margin-top:14px">${tx("In production this link expires and is one-time. Here it just flips Pending → Claimed in localStorage.")}</p>
     </div>
   `;
@@ -9155,6 +9199,7 @@ function claimView(token) {
     render();
   });
   document.getElementById("claim-to-admin")?.addEventListener("click", () => {
+    // Restore prior admin preview — never escalate from a parent claim link.
     state.role = "admin";
     state.notice = "";
     location.hash = "#/setup/invites";
@@ -9269,14 +9314,14 @@ function replyThread(item, replyHash) {
           const mine = (state.role === "parent") === (r.from === "parent");
           return `
             <div class="bubble ${mine ? "me" : ""}">
-              <div class="kicker">${r.name} · ${r.time}</div>
-              ${tx(r.text)}
-              ${r.lang !== readLang() ? `<div class="kicker">AI · ${LANGS[r.lang].native} → ${LANGS[readLang()].native}</div>` : ""}
+              <div class="kicker">${escapeHtml(r.name)} · ${escapeHtml(r.time)}</div>
+              ${etx(r.text)}
+              ${r.lang !== readLang() ? `<div class="kicker">AI · ${escapeHtml(LANGS[r.lang].native)} → ${escapeHtml(LANGS[readLang()].native)}</div>` : ""}
             </div>`;
         })
         .join("")}
       <form class="compose" id="reply-form">
-        <input id="reply-text" required placeholder="${state.role === "parent" ? tx("Reply") + "…" : "Reply in English…"}" />
+        <input id="reply-text" required placeholder="${escapeAttr(state.role === "parent" ? tx("Reply") + "…" : "Reply in English…")}" />
         <button class="btn" type="submit">${tx("Send")}</button>
       </form>
     </section>`;
@@ -9343,18 +9388,18 @@ function mvpInbox(id) {
   item.unread = false;
   markAlertsFor(item.id);
   const sourceLang = item.lang || "en";
-  const titleShown = state.showOriginal[item.id] ? item.title : tx(item.title);
-  const bodyShown = state.showOriginal[item.id] ? item.body : tx(item.body);
+  const titleShown = escapeHtml(state.showOriginal[item.id] ? item.title : tx(item.title));
+  const bodyShown = escapeHtml(state.showOriginal[item.id] ? item.body : tx(item.body));
   setCrumbs([
     boardCrumb(),
     { label: "Inbox", href: "#/inbox" },
-    { label: titleShown, href: `#/inbox/${item.id}` },
+    { label: item.title, href: `#/inbox/${item.id}` },
   ]);
   view.innerHTML = `
     <div class="hero">
       <div>
         <h1>${titleShown}</h1>
-        <p class="lede">${item.from} · ${item.time}</p>
+        <p class="lede">${escapeHtml(item.from)} · ${escapeHtml(item.time)}</p>
       </div>
       ${sourcePill(item.source)}
     </div>
@@ -9499,11 +9544,11 @@ function mvpDocs(id) {
     { label: "Documents", href: "#/docs" },
     { label: doc.title, href: `#/docs/${doc.id}` },
   ]);
-  const titleShown = state.showOriginal[doc.id] ? doc.title : tx(doc.title);
-  const bodyShown = state.showOriginal[doc.id] ? doc.body : tx(doc.body);
+  const titleShown = escapeHtml(state.showOriginal[doc.id] ? doc.title : tx(doc.title));
+  const bodyShown = escapeHtml(state.showOriginal[doc.id] ? doc.body : tx(doc.body));
   view.innerHTML = `
     <article class="card doc-view">
-      <div class="kicker">${tx(bucketTitle(docBucket(doc)))} · ${tx(doc.kind)}</div>
+      <div class="kicker">${etx(bucketTitle(docBucket(doc)))} · ${etx(doc.kind)}</div>
       <h1>${titleShown}</h1>
       ${sourcePill(doc.source)}
       ${aiBar(doc.id, doc.lang || "en", doc.body)}
@@ -9635,17 +9680,17 @@ function eventsView(id) {
     return fundraiseCampaignView(item.campaignId);
   }
   setCrumbs(crumbsWithHub("events", { label: "Events", href: "#/events" }, [{ label: item.title, href: `#/events/${item.id}` }]));
-  const titleShown = state.showOriginal[item.id] ? item.title : tx(item.title);
-  const bodyShown = state.showOriginal[item.id] ? item.body : tx(item.body);
+  const titleShown = escapeHtml(state.showOriginal[item.id] ? item.title : tx(item.title));
+  const bodyShown = escapeHtml(state.showOriginal[item.id] ? item.body : tx(item.body));
   const formDoc = item.docId ? kidDocs().find((d) => d.id === item.docId) : null;
   view.innerHTML = `
     ${notice()}
     <article class="card doc-view">
-      <div class="kicker">${tx(eventKindMeta(item.kind).title)} · ${tx(item.when)}</div>
+      <div class="kicker">${etx(eventKindMeta(item.kind).title)} · ${etx(item.when)}</div>
       <h1>${titleShown}</h1>
       ${sourcePill(item.source)}
       ${aiBar(item.id, item.lang || "en", item.body)}
-      <p class="event-meta">${tx(item.where)} · ${tx(item.who)}</p>
+      <p class="event-meta">${etx(item.where)} · ${etx(item.who)}</p>
       <div class="doc-sheet">${bodyShown}</div>
       ${
         state.role === "parent" && item.kind !== "fundraiser"
@@ -11077,8 +11122,7 @@ function fundraiseReceiptView(id) {
 function fundraiseBankingView() {
   if (state.role !== "admin") {
     state.notice = tx("Only the office can manage school payment accounts.");
-    location.hash = "#/";
-    return state.edition === "mvp" ? mvpStaffHome() : adminHome();
+    return bounceToRoleHome();
   }
   paintChrome("banking");
   setCrumbs([
