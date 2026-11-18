@@ -9389,8 +9389,10 @@ function mvpSchedule() {
         ? `<section class="card panel" style="padding-bottom:18px;margin-bottom:16px">
         <h2>Add to family schedule</h2>
         <form id="sched-form" class="compose" style="grid-template-columns: 90px 90px 1fr auto">
-          <input id="sched-day" placeholder="Fri" required />
-          <input id="sched-time" placeholder="13:30" required />
+          <select id="sched-day" required aria-label="${tx("Day")}">
+            ${["Mon", "Tue", "Wed", "Thu", "Fri"].map((d) => `<option value="${d}">${tx(d)}</option>`).join("")}
+          </select>
+          <input id="sched-time" placeholder="13:30" required aria-label="${tx("Time")}" />
           <input id="sched-title" placeholder="Title" required />
           <button class="btn" type="submit">Add</button>
         </form>
