@@ -1004,6 +1004,21 @@ function sendParentHome() {
   return state.edition === "mvp" ? mvpParentHome() : parentHome();
 }
 
+/** Role-correct home after an admin-only gate. Prefer replaceState (no hashchange flash). */
+function bounceToRoleHome() {
+  if (isParentRole()) return sendParentHome();
+  if (location.hash && location.hash !== "#" && location.hash !== "#/") {
+    history.replaceState(null, "", `${location.pathname}${location.search}#/`);
+  }
+  if (state.role === "teacher") {
+    return state.edition === "mvp" ? mvpStaffHome() : teacherHome();
+  }
+  if (state.role === "admin") {
+    return state.edition === "mvp" ? mvpStaffHome() : adminHome();
+  }
+  return sendParentHome();
+}
+
 function requireStaff() {
   if (!isParentRole()) return true;
   sendParentHome();
@@ -3351,6 +3366,7 @@ const mvpNavByRole = {
     ["events", "Events", "#/events"],
     ["lunch", "Cafeteria", "#/lunch"],
     ["store", "Store", "#/store"],
+    ["fundraise", "Fundraise", "#/fundraise"],
     ["docs", "Documents", "#/docs"],
   ],
   teacher: [
@@ -3362,6 +3378,7 @@ const mvpNavByRole = {
     ["events", "Events", "#/events"],
     ["lunch", "Lunch list", "#/lunch"],
     ["store", "Store", "#/store"],
+    ["fundraise", "Fundraise", "#/fundraise"],
     ["docs", "Documents", "#/docs"],
   ],
   admin: [
@@ -3374,6 +3391,7 @@ const mvpNavByRole = {
     ["events", "Events", "#/events"],
     ["lunch", "Hot lunch menu", "#/lunch"],
     ["store", "Store", "#/admin/store"],
+    ["fundraise", "Fundraise", "#/fundraise"],
     ["docs", "Documents", "#/docs"],
   ],
 };
@@ -8582,7 +8600,7 @@ function setupChecklistItems(flags) {
     {
       id: "banking",
       title: "Banking destinations",
-      hint: "Dream · can defer until fundraise week",
+      hint: "Optional · can defer until fundraise week",
       done: flags.bankingDeferred || false,
       deferred: true,
       action: `<a class="btn ghost" href="#/fundraise/banking">${tx("Banking")}</a>
@@ -8617,10 +8635,7 @@ function setupChecklistItems(flags) {
 function requireAdminSetup() {
   if (state.role !== "admin") {
     state.notice = tx("Only the office can run school Setup.");
-    location.hash = "#/";
-    if (state.edition === "mvp") return mvpStaffHome();
-    if (state.role === "teacher") return teacherHome();
-    return parentHome();
+    return bounceToRoleHome();
   }
   return true;
 }
@@ -9630,7 +9645,7 @@ function eventsView(id) {
     }
     return;
   }
-  if (item.campaignId && state.edition === "dream") {
+  if (item.campaignId) {
     location.hash = `#/fundraise/${item.campaignId}`;
     return fundraiseCampaignView(item.campaignId);
   }
@@ -11077,12 +11092,13 @@ function fundraiseReceiptView(id) {
 function fundraiseBankingView() {
   if (state.role !== "admin") {
     state.notice = tx("Only the office can manage school payment accounts.");
-    location.hash = "#/";
-    return state.edition === "mvp" ? mvpStaffHome() : adminHome();
+    return bounceToRoleHome();
   }
-  paintChrome("banking");
+  // MVP has Fundraise in the flat rail (no Banking leaf); highlight Fundraise there.
+  paintChrome(state.edition === "mvp" ? "fundraise" : "banking");
   setCrumbs([
     boardCrumb(),
+    ...(state.edition === "mvp" ? [{ label: "Fundraise", href: "#/fundraise" }] : []),
     { label: "Banking", href: "#/fundraise/banking" },
   ]);
   const accounts = fundBankAccounts();
@@ -11244,14 +11260,11 @@ function render() {
   if (parts[0] === "scan") return scanView(parts[1]);
   if (parts[0] === "store" || (parts[0] === "admin" && parts[1] === "store")) return storeRoute(parts);
   if (parts[0] === "fundraise") {
-    // Fundraise / Loto 500 is a Dream surface — deep links should land there, not bounce to MVP Events.
-    if (state.edition !== "dream") {
-      state.edition = "dream";
-      localStorage.setItem("harborEdition", "dream");
-      state.notice = tx("Opened Fundraise in Dream (Temp toggle → Dream).");
+    // Fundraise / Loto 500 is available in MVP and Dream — keep the current edition.
+    if (state.edition === "dream") {
+      railUserForcedOpenId = state.role === "admin" ? "ops" : state.role === "parent" ? "buy" : null;
+      railUserCollapsedHubId = null;
     }
-    railUserForcedOpenId = state.role === "admin" ? "ops" : "buy";
-    railUserCollapsedHubId = null;
     return fundraiseRoute(parts);
   }
 
